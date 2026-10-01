@@ -131,7 +131,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     except Exception:
         standaard_datum = datetime.date.today()
 
-    # Toon nette lege velden bij bewerken als de waarden nog op de standaard 'leeg' stand staan
     v_naam = naam_huidig if naam_huidig and naam_huidig != "Nog niet ingevuld" else ""
     v_km = str(km) if km != 0 else ""
     v_inkoop = f"{inkoop:.2f}" if inkoop != 0.0 else ""
@@ -181,7 +180,6 @@ if st.button("🚪 Uitloggen"):
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
-    # De standaardwaardes ('value') zijn nu helemaal leeg of weggelaten, zodat je ze leeg kunt laten!
     naam = st.text_input("Naam / Omschrijving", placeholder="Bijv. Volkswagen Golf Zwart (Optioneel)")
     kenteken = st.text_input("Kenteken (Verplicht)")
     inkoopprijs_str = st.text_input("Inkoopprijs (€)", placeholder="Optioneel")
@@ -194,7 +192,6 @@ with st.form("auto_form", clear_on_submit=True):
 
 if submit:
     if kenteken.strip():
-        # Verwerk de velden veilig, ook als ze helemaal leeg zijn gebleven
         naam_opslaan = naam.strip() if naam.strip() else "Nog niet ingevuld"
         km_stand = naar_getal(km_stand_str, int)
         inkoopprijs = naar_getal(inkoopprijs_str, float)
@@ -224,3 +221,9 @@ cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_da
 alle_autos = cursor.fetchall()
 
 if alle_autos:
+    for auto in alle_autos:
+        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
+        winst = verkoop - (inkoop + kosten)
+        apk_nl = formatteer_datum_nl(apk)
+        weergave_naam = auto_naam if auto_naam else "Nog niet ingevuld"
+
