@@ -152,7 +152,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     except Exception:
         standaard_datum = datetime.date.today()
 
-    # Velden strak onder elkaar in het bewerkscherm
     nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
     nieuw_kenteken = st.text_input("Kenteken", value=ktk)
     nieuw_km = st.number_input("Kilometerstand", min_value=0, step=1000, value=int(km))
@@ -211,7 +210,6 @@ st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
-    # OPLOSSING: Alle velden staan nu prachtig, recht en overzichtelijk onder elkaar!
     naam = st.text_input("Naam / Omschrijving (Bijv. Volkswagen Golf Zwart)")
     kenteken = st.text_input("Kenteken")
     inkoopprijs = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0)
@@ -266,3 +264,6 @@ autos = cursor.fetchall()
 
 if autos:
     for auto in autos:
+        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
+        winst = verkoop - (inkoop + kosten)
+        apk_nl = formatteer_datum_nl(apk)
