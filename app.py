@@ -25,10 +25,13 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
+        /* 1. Dwingt ALLE teksten, omschrijvingen en metrics naar wit met een zwarte rand */
         h1, h2, h3, p, label, span, div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"],
         .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label,
-        .streamlit-expanderHeader, .st-emotion-cache-p5msec, .st-emotion-cache-1wivap2 {{
+        .streamlit-expanderHeader, .st-emotion-cache-p5msec, .st-emotion-cache-1wivap2,
+        div[data-testid="stWidgetLabel"] p {{
             color: white !important;
+            -webkit-text-fill-color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
                  1px -1px 0 #000,
@@ -40,9 +43,23 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        input, select, textarea, div[data-baseweb="input"] div {{
+        /* 2. 🚨 TEXT VAN DE INVULVELDEN WIT: Maakt de letters van de invoervakken wit met outline */
+        input, select, textarea, div[data-baseweb="input"] input, div[class*="stNumberInput"] input {{
+            color: white !important;
+            -webkit-text-fill-color: white !important;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+        }}
+
+        /* 3. Geeft de invoervakken zelf een donkere achtergrond zodat de witte letters leesbaar zijn */
+        div[data-baseweb="input"], div[data-baseweb="select"], div[class*="stNumberInput"] div {{
+            background-color: rgba(0, 0, 0, 0.6) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            border-radius: 4px !important;
+        }}
+        
+        /* 4. Zorgt dat actie-knoppen hun originele leesbare kleuren behouden */
+        .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
             text-shadow: none !important;
-            color: black !important;
         }}
         </style>
         """
@@ -245,24 +262,3 @@ if autos:
 
             with kolom_rechts:
                 c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.metric(label="Kilometerstand", value=f"{km:,} km")
-                    st.metric(label="APK Datum", value=apk_nl)
-                with c2:
-                    st.metric(label="Inkoopprijs", value=f"€{inkoop:,.2f}")
-                    st.metric(label="Extra kosten", value=f"€{kosten:,.2f}")
-                with c3:
-                    st.metric(label="Verkoopprijs", value=f"€{verkoop:,.2f}")
-                    st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
-
-                st.write("")
-                btn_col1, btn_col2 = st.columns(2)
-
-                with btn_col1:
-                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
-                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
-
-                with btn_col2:
-                    if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
-                        cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
-                        conn.commit()
