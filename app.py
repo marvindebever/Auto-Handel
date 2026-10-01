@@ -8,14 +8,26 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- HULPFUNCTIE VOOR PNG LOGO ---
-def toon_logo():
-    logo_path = "logo.png"  # Aangepast naar PNG
+# --- ACHTERGROND INSTELLEN MET TRANSLUCENTE LAAG ---
+def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
-        img = Image.open(logo_path)
-        st.image(img, width=150)
-    else:
-        st.write("*(Plaats 'logo.png' in de app-map om je logo hier te tonen)*")
+        with open(logo_path, "rb") as f:
+            data = f.read()
+        encoded = base64.b64encode(data).decode("utf-8")
+        css = f"""
+        <style>
+        .stApp {{
+            background-image: linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)), url("data:image/png;base64,{encoded}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }}
+        </style>
+        """
+        st.markdown(css, unsafe_allow_html=True)
+
+# Roep de achtergrond direct aan
+zet_achtergrond("logo.png")
 
 # --- WACHTWOORDBEVEILIGING ---
 if "ingelogd" not in st.session_state:
@@ -23,7 +35,6 @@ if "ingelogd" not in st.session_state:
 
 if not st.session_state["ingelogd"]:
     st.title("🔒 Beveiligde Toegang")
-    toon_logo()
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
@@ -123,10 +134,8 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
         st.success("Gegevens succesvol bijgewerkt!")
         st.rerun()
 
-# --- HEADER MET LOGO EN TITEL BOVENAAN ---
-col_logo, col_titel, col_logout = st.columns([0.2, 0.65, 0.15])
-with col_logo:
-    toon_logo()
+# --- HEADER (Zonder los logo-kolom) ---
+col_titel, col_logout = st.columns([0.85, 0.15])
 with col_titel:
     st.title("🚗 Autohandel Inventaris")
 with col_logout:
@@ -181,7 +190,7 @@ if submit:
 
 # --- INVENTARIS MET ZOEKBALK ---
 st.subheader("Huidige inventaris")
-zoekterm = st.text_input("🔍 Zoek op kenteken omschrijving...").upper()
+zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
 if zoekterm:
     cursor.execute(
