@@ -17,7 +17,6 @@ def zet_achtergrond(logo_path="logo.png"):
         
         css = f"""
         <style>
-        /* Achtergrondafbeelding laden */
         .stApp {{
             background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
             background-size: cover;
@@ -26,7 +25,6 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* 1. ALLE hoofdteksten, titels, metrics en expanders wit met strakke rand */
         h1, h2, h3, p, span, 
         div[data-testid="stMetricValue"], 
         div[data-testid="stMetricLabel"], 
@@ -44,13 +42,11 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* 2. Alle labels boven de invulvelden spierwit met rand */
         div[data-testid="stWidgetLabel"] p, label, .stSlider label {{
             color: white !important;
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* 3. FORMULIER VOLLEDIG RECHT EN EGALE ACHTERGROND */
         div[data-testid="stForm"], .stDialog div[role="dialog"] {{
             background-color: rgba(20, 20, 20, 0.95) !important;
             padding: 25px !important;
@@ -59,7 +55,6 @@ def zet_achtergrond(logo_path="logo.png"):
             box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.5) !important;
         }}
         
-        /* 4. INVOERVELDEN INTERN DONKER GRIJS MET WITTE LETTERS */
         input, select, textarea, 
         div[data-baseweb="input"], 
         div[data-baseweb="select"], 
@@ -72,7 +67,6 @@ def zet_achtergrond(logo_path="logo.png"):
             border: 1px solid rgba(255, 255, 255, 0.2) !important;
         }}
 
-        /* 5. Zorgt dat actie-knoppen hun originele leesbare kleuren behouden */
         .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
             text-shadow: none !important;
         }}
@@ -152,7 +146,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     n_kosten_str = st.text_input("Extra kosten (€)", value=str(kosten))
 
     nieuwe_foto = st.file_uploader(
-        "Voeg een nieuwe foto toe (Vervangt the huidige foto)", 
+        "Voeg een nieuwe foto toe (Vervangt de huidige foto)", 
         type=["jpg", "jpeg", "png"],
         key=f"upload_edit_{auto_id}"
     )
@@ -253,9 +247,20 @@ if submit:
     else:
         st.error("Vul een geldig kenteken in.")
 
-# --- INVENTARIS SECTIE ---
+# --- INVENTARIS SECTIE (SUPER SIMPEL GEFORMULEERD) ---
 st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
+# Databaseaanroep in een superkorte, stabiele regel geschreven
+sql_query = "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos"
 if zoekterm:
-    cursor.execute(
+    sql_query += f" WHERE kenteken LIKE '%{zoekterm}%' OR naam LIKE '%{zoekterm}%'"
+
+cursor.execute(sql_query)
+autos = cursor.fetchall()
+
+if autos:
+    for auto in autos:
+        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
+        winst = verkoop - (inkoop + kosten)
+        apk_nl = formatteer_datum_nl(apk)
