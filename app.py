@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ULTIEME STYLING: RECHTE BALKEN, WITTE LETTERS EN GEGEVENS-CORRECTIE ---
+# --- ULTIEME STYLING: RECHTE BALKEN, WITTE LETTERS EN HOOGTE FIX ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -62,23 +62,23 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: none !important;
         }}
 
-        /* Styling voor het nieuwe, onverwoestbare HTML Dropdown-menu */
+        /* Styling voor de onverwoestbare HTML Dropdown container */
         summary {{
             padding: 15px;
-            background-color: rgba(30, 30, 30, 0.9);
+            background-color: rgba(30, 30, 30, 0.95);
             color: white;
             font-size: 1.1rem;
             font-weight: bold;
             border-radius: 8px;
             cursor: pointer;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-            margin-top: 10px;
+            margin-top: 12px;
         }}
         details {{
             background-color: rgba(15, 15, 15, 0.95);
             border-radius: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             padding: 5px;
         }}
         .dropdown-inhoud {{
@@ -168,7 +168,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
 
     if st.button("Wijzigingen Opslaan"):
         if not nieuw_kenteken or not n_inkoop_str or not n_verkoop_str or not nieuw_km_str:
-            st.error("Kenteken, Kilometerstand, Inkoop- en Verkoopprijs zijn verplichte velden.")
+            st.error("Kenteken, Kilometerstand, Inkoop- en Verkoopprijs zijn verplichte velen.")
         else:
             n_km = naar_getal(nieuw_km_str, int)
             n_inkoop = naar_getal(n_inkoop_str, float)
@@ -236,4 +236,5 @@ zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v3")
 alle_autos = cursor.fetchall()
 
+# 🚨 VOLLEDIG RECHTE CONTROLE: Kan NOOIT meer een IndentationError veroorzaken
 if len(alle_autos) == 0:
