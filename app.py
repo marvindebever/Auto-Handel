@@ -145,8 +145,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
 
     nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
     nieuw_kenteken = st.text_input("Kenteken", value=ktk)
-    
-    # Invoer via tekstveld voor gelijke uitlijning
     nieuw_km_str = st.text_input("Kilometerstand", value=str(km))
     nieuwe_apk = st.date_input("APK Datum", value=standaard_datum)
     n_inkoop_str = st.text_input("Inkoopprijs (€)", value=str(inkoop))
@@ -160,12 +158,12 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     )
 
     if st.button("Wijzigingen Opslaan"):
-        # Backend conversie van tekst naar getal
+        # Veilige omzetting van tekst naar cijfers (vervangt ook komma's door punten)
         try:
-            n_km = int(nieuw_km_str) if nieuw_km_str.isdigit() else 0
-            n_inkoop = float(n_inkoop_str) if n_inkoop_str else 0.0
-            n_verkoop = float(n_verkoop_str) if n_verkoop_str else 0.0
-            n_kosten = float(n_kosten_str) if n_kosten_str else 0.0
+            n_km = int(float(nieuw_km_str.replace(',', '.'))) if nieuw_km_str else 0
+            n_inkoop = float(n_inkoop_str.replace(',', '.')) if n_inkoop_str else 0.0
+            n_verkoop = float(n_verkoop_str.replace(',', '.')) if n_verkoop_str else 0.0
+            n_kosten = float(n_kosten_str.replace(',', '.')) if n_kosten_str else 0.0
         except ValueError:
             n_km, n_inkoop, n_verkoop, n_kosten = km, inkoop, verkoop, kosten
 
@@ -212,7 +210,6 @@ st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
-    # OPLOSSING: Alle balken zijn nu strakke text_inputs voor 100% gelijke uitlijning!
     naam = st.text_input("Naam / Omschrijving (Bijv. Volkswagen Golf Zwart)")
     kenteken = st.text_input("Kenteken")
     inkoopprijs_str = st.text_input("Inkoopprijs (€)", value="0.00")
@@ -228,12 +225,12 @@ with st.form("auto_form", clear_on_submit=True):
 
 if submit:
     if kenteken:
-        # Backend conversie van tekst naar getal voor opslag
+        # Veilige omzetting van tekst naar getal (vervangt komma's door punten)
         try:
-            km_stand = int(km_stand_str) if km_stand_str.isdigit() else 0
-            inkoopprijs = float(inkoopprijs_str) if json_prijzen := inkoopprijs_str.replace(',', '.') else 0.0
-            verkoopprijs = float(verkoopprijs_str) if verkoopprijs_str.replace(',', '.') else 0.0
-            extra_kosten = float(extra_kosten_str) if extra_kosten_str.replace(',', '.') else 0.0
+            km_stand = int(float(km_stand_str.replace(',', '.'))) if km_stand_str else 0
+            inkoopprijs = float(inkoopprijs_str.replace(',', '.')) if inkoopprijs_str else 0.0
+            verkoopprijs = float(verkoopprijs_str.replace(',', '.')) if verkoopprijs_str else 0.0
+            extra_kosten = float(extra_kosten_str.replace(',', '.')) if extra_kosten_str else 0.0
         except ValueError:
             km_stand, inkoopprijs, verkoopprijs, extra_kosten = 0, 0.0, 0.0, 0.0
 
@@ -260,3 +257,6 @@ if submit:
 
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
+zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
+
+if zoekterm:
