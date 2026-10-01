@@ -158,7 +158,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     )
 
     if st.button("Wijzigingen Opslaan"):
-        # Veilige omzetting van tekst naar cijfers (vervangt ook komma's door punten)
         try:
             n_km = int(float(nieuw_km_str.replace(',', '.'))) if nieuw_km_str else 0
             n_inkoop = float(n_inkoop_str.replace(',', '.')) if n_inkoop_str else 0.0
@@ -225,7 +224,6 @@ with st.form("auto_form", clear_on_submit=True):
 
 if submit:
     if kenteken:
-        # Veilige omzetting van tekst naar getal (vervangt komma's door punten)
         try:
             km_stand = int(float(km_stand_str.replace(',', '.'))) if km_stand_str else 0
             inkoopprijs = float(inkoopprijs_str.replace(',', '.')) if inkoopprijs_str else 0.0
@@ -260,3 +258,4 @@ st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
 if zoekterm:
+    cursor.execute(
