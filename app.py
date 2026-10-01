@@ -120,7 +120,6 @@ conn.commit()
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde:
         return 0 if type_getal == int else 0.0
-    # Haal spaties, eurotekens en onnodige tekens weg
     schoon = "".join(c for c in str(tekst_waarde) if c.isdigit() or c in ".,-")
     schoon = schoon.replace(",", ".")
     try:
@@ -221,7 +220,6 @@ with st.form("auto_form", clear_on_submit=True):
 
 if submit:
     if kenteken:
-        # Nu met de waterdichte 'naar_getal' omzetting
         km_stand = naar_getal(km_stand_str, int)
         inkoopprijs = naar_getal(inkoopprijs_str, float)
         verkoopprijs = naar_getal(verkoopprijs_str, float)
@@ -252,11 +250,17 @@ if submit:
 st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
-sql_query = "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos"
+# 🚨 WATERDICHTE EN STABIELE ZOEKMETHODE: Voorkomt de OperationalError volledig!
 if zoekterm:
-    sql_query += f" WHERE kenteken LIKE '%{zoekterm}%' OR naam LIKE '%{zoekterm}%'"
+    cursor.execute(
+        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos WHERE kenteken LIKE ? OR naam LIKE ?",
+        (f"%{zoekterm}%", f"%{zoekterm}%"),
+    )
+else:
+    cursor.execute(
+        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos"
+    )
 
-cursor.execute(sql_query)
 autos = cursor.fetchall()
 
 if autos:
@@ -266,7 +270,4 @@ if autos:
         apk_nl = formatteer_datum_nl(apk)
         
         weergave_naam = auto_naam if auto_naam else "Onbekende auto"
-
-        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
-            kolom_links, kolom_rechts = st.columns(2)
 
