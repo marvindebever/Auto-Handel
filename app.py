@@ -227,14 +227,14 @@ if submit:
         st.success(f"Auto '{naam}' succesvol toegevoegd!")
         st.rerun()
     else:
-        st.error("Vul tenminste een kenteken, kilometerstand, inkoop- en verkoopprijs in.")
+        st.error("Vul een geldig kenteken, kilometerstand, inkoop- en verkoopprijs in.")
 
-# --- INVENTARIS SECTIE (VOLLEDIG LINEAIR GEBOUWD) ---
+# --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v3")
 alle_autos = cursor.fetchall()
 
-# 🚨 DE ABSOLUTE FIX: Geen if/else en geen geneste Python lussen meer voor weergave!
-if not alle_autos:
+# 🚨 DE DEFINITIEVE FIX: Geen if-nesteling meer. De code loopt in één strakke lijn door!
+if len(alle_autos) == 0:
