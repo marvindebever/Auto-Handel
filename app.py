@@ -15,7 +15,7 @@ def zet_achtergrond(logo_path="logo.png"):
             data = f.read()
         encoded = base64.b64encode(data).decode("utf-8")
         
-        # De CSS voegt nu een zwarte outline (text-shadow) toe aan de teksten voor perfecte leesbaarheid
+        # De CSS voegt nu ook voor dialogen (.stDialog) de witte kleur met zwarte outline toe
         css = f"""
         <style>
         .stApp {{
@@ -26,8 +26,8 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* Zwarte outline voor titels, gewone tekst en labels */
-        h1, h2, h3, p, label, .stMarkdown, .stText {{
+        /* Zwarte outline voor alle titels, teksten, labels én teksten binnen dialoogvensters */
+        h1, h2, h3, p, label, .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -62,7 +62,7 @@ if not st.session_state["ingelogd"]:
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "GEHEIM123":
+        if wachtwoord_invoer == "DONGEN123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
@@ -266,4 +266,3 @@ if autos:
 
                 with btn_col2:
                     if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
-                        cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
