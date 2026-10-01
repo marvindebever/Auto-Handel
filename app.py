@@ -25,6 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
+        /* Titels en algemene teksten wit met outline */
         h1, h2, h3, p, label, .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label {{
             color: white !important;
             text-shadow: 
@@ -38,9 +39,21 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
+        /* 🚨 OPLOSSING VOOR DE INVENTARIS: Zorgt dat de metrics en expander-titels ook ALTIJD wit zijn met outline */
+        div[data-testid="stMetricValue"], 
+        div[data-testid="stMetricLabel"], 
+        .streamlit-expanderHeader p, 
+        .streamlit-expanderHeader span,
+        div[data-testid="stWidgetLabel"] p {{
+            color: white !important;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+        }}
+        
+        /* Invoervelden behouden hun nette zwarte letters van binnen */
         input, select, textarea {{
             text-shadow: none !important;
             color: black !important;
+            -webkit-text-fill-color: black !important;
         }}
         </style>
         """
@@ -199,7 +212,7 @@ if submit:
             INSERT INTO autos (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            (naam, kenteken.upper(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data),
+            (naam, kenteken.upper(), km_stand, inkoopprijs, verkooprijs, str(apk_datum), extra_kosten, foto_data),
         )
         conn.commit()
         st.success(f"Auto '{naam}' met kenteken {kenteken.upper()} toegevoegd!")
@@ -254,17 +267,4 @@ if autos:
                     st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
 
                 st.write("")
-                btn_col1, btn_col2 = st.columns(2)
-
-                with btn_col1:
-                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
-                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
-
-                with btn_col2:
-                    if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
-                        cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
-                        conn.commit()
-                        st.success("Auto succesvol verwijderd!")
-                        st.rerun()
-else:
-    st.info("Er staan nog geen auto's in de database.")
+                
