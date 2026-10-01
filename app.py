@@ -4,7 +4,7 @@ import io
 import os
 import sqlite3
 from PIL import Image
-import streamlit st
+import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
@@ -58,7 +58,7 @@ if not st.session_state["ingelogd"]:
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "GEHEIM123":
+        if wachtwoord_invoer == "DONGEN123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
