@@ -4,7 +4,7 @@ import io
 import os
 import sqlite3
 from PIL import Image
-import streamlit as st
+import streamlit st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
@@ -15,7 +15,6 @@ def zet_achtergrond(logo_path="logo.png"):
             data = f.read()
         encoded = base64.b64encode(data).decode("utf-8")
         
-        # De CSS voegt nu ook voor dialogen (.stDialog) de witte kleur met zwarte outline toe
         css = f"""
         <style>
         .stApp {{
@@ -26,7 +25,6 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* Zwarte outline voor alle titels, teksten, labels én teksten binnen dialoogvensters */
         h1, h2, h3, p, label, .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label {{
             color: white !important;
             text-shadow: 
@@ -40,7 +38,6 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* Zorgt dat invoervelden zelf wit/leesbaar blijven van binnen */
         input, select, textarea {{
             text-shadow: none !important;
             color: black !important;
@@ -49,7 +46,6 @@ def zet_achtergrond(logo_path="logo.png"):
         """
         st.markdown(css, unsafe_allow_html=True)
 
-# Roep de achtergrond direct aan
 zet_achtergrond("logo.png")
 
 # --- WACHTWOORDBEVEILIGING ---
@@ -62,7 +58,7 @@ if not st.session_state["ingelogd"]:
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "DONGEN123":
+        if wachtwoord_invoer == "GEHEIM123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
@@ -266,3 +262,9 @@ if autos:
 
                 with btn_col2:
                     if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
+                        cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
+                        conn.commit()
+                        st.success("Auto succesvol verwijderd!")
+                        st.rerun()
+else:
+    st.info("Er staan nog geen auto's in de database.")
