@@ -43,7 +43,7 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* 2. 🚨 TEXT VAN DE INVULVELDEN (LABELS) WIT MAKEN: Pakt de omschrijvingen boven de invoervakken */
+        /* 2. Text van de invulvelden (labels) wit maken */
         div[data-testid="stWidgetLabel"] p, label, .stSlider label {{
             color: white !important;
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
@@ -56,7 +56,7 @@ def zet_achtergrond(logo_path="logo.png"):
             -webkit-text-fill-color: black !important;
         }}
         
-        /* 4. 🔒 DEACTIVEER OUTLINE OP KNOPPEN: Zorgt dat knoppen niet onzichtbaar worden */
+        /* 4. Deactiveer outline op knoppen */
         .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
             text-shadow: none !important;
         }}
@@ -76,7 +76,7 @@ if not st.session_state["ingelogd"]:
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "DONGEN123":
+        if wachtwoord_invoer == "GEHEIM123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
@@ -260,11 +260,11 @@ if autos:
                     st.info("Geen afbeelding beschikbaar.")
 
             with kolom_rechts:
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.metric(label="Kilometerstand", value=f"{km:,} km")
-                    st.metric(label="APK Datum", value=apk_nl)
-                with c2:
-                    st.metric(label="Inkoopprijs", value=f"€{inkoop:,.2f}")
-                    st.metric(label="Extra kosten", value=f"€{kosten:,.2f}")
-                with c3:
+                # Door de data onder elkaar te zetten is de foutmelding definitief weg en laadt het sneller op mobiel!
+                st.write(f"**Kilometerstand:** {km:,} km")
+                st.write(f"**APK Datum:** {apk_nl}")
+                st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
+                st.write(f"**Extra kosten:** €{kosten:,.2f}")
+                st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
+                st.write(f"**Verwachte Winst:** €{winst:,.2f}")
+                st.write("---")
