@@ -116,11 +116,17 @@ cursor.execute(
 )
 conn.commit()
 
-try:
-    cursor.execute("ALTER TABLE autos ADD COLUMN naam TEXT")
-    conn.commit()
-except sqlite3.OperationalError:
-    pass
+# HULPFUNCTIE: Maakt tekst op een veilige manier schoon naar een cijfer
+def naar_getal(tekst_waarde, type_getal=float):
+    if not tekst_waarde:
+        return 0 if type_getal == int else 0.0
+    # Haal spaties, eurotekens en onnodige tekens weg
+    schoon = "".join(c for c in str(tekst_waarde) if c.isdigit() or c in ".,-")
+    schoon = schoon.replace(",", ".")
+    try:
+        return type_getal(float(schoon))
+    except ValueError:
+        return 0 if type_getal == int else 0.0
 
 def formatteer_datum_nl(datum_str):
     try:
@@ -152,13 +158,10 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     )
 
     if st.button("Wijzigingen Opslaan"):
-        try:
-            n_km = int(float(nieuw_km_str.replace(',', '.'))) if nieuw_km_str else 0
-            n_inkoop = float(n_inkoop_str.replace(',', '.')) if n_inkoop_str else 0.0
-            n_verkoop = float(n_verkoop_str.replace(',', '.')) if n_verkoop_str else 0.0
-            n_kosten = float(n_kosten_str.replace(',', '.')) if n_kosten_str else 0.0
-        except ValueError:
-            n_km, n_inkoop, n_verkoop, n_kosten = km, inkoop, verkoop, kosten
+        n_km = naar_getal(nieuw_km_str, int)
+        n_inkoop = naar_getal(n_inkoop_str, float)
+        n_verkoop = naar_getal(n_verkoop_str, float)
+        n_kosten = naar_getal(n_kosten_str, float)
 
         if nieuwe_foto is not None:
             img = Image.open(nieuwe_foto)
@@ -218,13 +221,11 @@ with st.form("auto_form", clear_on_submit=True):
 
 if submit:
     if kenteken:
-        try:
-            km_stand = int(float(km_stand_str.replace(',', '.'))) if km_stand_str else 0
-            inkoopprijs = float(inkoopprijs_str.replace(',', '.')) if inkoopprijs_str else 0.0
-            verkoopprijs = float(verkoopprijs_str.replace(',', '.')) if verkoopprijs_str else 0.0
-            extra_kosten = float(extra_kosten_str.replace(',', '.')) if extra_kosten_str else 0.0
-        except ValueError:
-            km_stand, inkoopprijs, verkoopprijs, extra_kosten = 0, 0.0, 0.0, 0.0
+        # Nu met de waterdichte 'naar_getal' omzetting
+        km_stand = naar_getal(km_stand_str, int)
+        inkoopprijs = naar_getal(inkoopprijs_str, float)
+        verkoopprijs = naar_getal(verkoopprijs_str, float)
+        extra_kosten = naar_getal(extra_kosten_str, float)
 
         foto_data = ""
         if gevoegde_foto is not None:
@@ -247,11 +248,10 @@ if submit:
     else:
         st.error("Vul een geldig kenteken in.")
 
-# --- INVENTARIS SECTIE (SUPER SIMPEL GEFORMULEERD) ---
+# --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
-# Databaseaanroep in een superkorte, stabiele regel geschreven
 sql_query = "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos"
 if zoekterm:
     sql_query += f" WHERE kenteken LIKE '%{zoekterm}%' OR naam LIKE '%{zoekterm}%'"
@@ -264,3 +264,9 @@ if autos:
         auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
         winst = verkoop - (inkoop + kosten)
         apk_nl = formatteer_datum_nl(apk)
+        
+        weergave_naam = auto_naam if auto_naam else "Onbekende auto"
+
+        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
+            kolom_links, kolom_rechts = st.columns(2)
+
