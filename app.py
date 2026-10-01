@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ACHTERGROND EN DOELGERICHTE TEKST OUTLINE INSTELLEN ---
+# --- UTTERMATE STYLING: RECHTE KANTOREN, EGALE ZWARTE ACHTERGROND EN WITTE LETTERS ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -17,6 +17,7 @@ def zet_achtergrond(logo_path="logo.png"):
         
         css = f"""
         <style>
+        /* Achtergrondafbeelding laden */
         .stApp {{
             background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
             background-size: cover;
@@ -25,7 +26,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* 1. Titels, statistieken (metrics) en expanders wit met strakke rand */
+        /* 1. ALLE hoofdteksten, titels, metrics en expanders wit met strakke rand */
         h1, h2, h3, p, span, 
         div[data-testid="stMetricValue"], 
         div[data-testid="stMetricLabel"], 
@@ -43,28 +44,43 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* 2. Text van de invulvelden (labels) en omschrijvingen spierwit maken met outline */
+        /* 2. Alle labels boven de invulvelden spierwit met rand */
         div[data-testid="stWidgetLabel"] p, label, .stSlider label {{
             color: white !important;
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* 3. We maken de formulieren als één geheel licht doorschijnend donker. Hierdoor vallen zwarte balken weg! */
+        /* 3. 🚨 FORMULIER VOLLEDIG RECHT EN EGALE ACHTERGROND: Lost de scheve balken op! */
         div[data-testid="stForm"], .stDialog div[role="dialog"] {{
-            background-color: rgba(0, 0, 0, 0.6) !important;
-            padding: 20px !important;
-            border-radius: 8px !important;
+            background-color: rgba(20, 20, 20, 0.95) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            border: 2px solid rgba(255, 255, 255, 0.2) !important;
+            box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.5) !important;
+        }}
+        
+        /* 4. 🚨 INVOERVELDEN INTERN DONKER GRIJS MET WITTE LETTERS: Net als de APK datum! */
+        input, select, textarea, 
+        div[data-baseweb="input"], 
+        div[data-baseweb="select"], 
+        div[class*="stNumberInput"] div,
+        div[data-baseweb="input"] input, 
+        div[class*="stNumberInput"] input,
+        div[data-testid="stTextInput"] input {{
+            background-color: #262730 !important;
+            color: white !important;
+            -webkit-text-fill-color: white !important;
+            text-shadow: none !important;
             border: 1px solid rgba(255, 255, 255, 0.2) !important;
         }}
         
-        /* 4. De tekst IN de witte invoervakken zelf blijft strak zwart, origineel en perfect leesbaar */
-        input, select, textarea, div[data-baseweb="input"] input, div[class*="stNumberInput"] input {{
-            text-shadow: none !important;
-            color: black !important;
-            -webkit-text-fill-color: black !important;
-            background-color: white !important;
+        /* Fix voor de plus- en min-knoppen bij de getallenvelden */
+        div[class*="stNumberInput"] button {{
+            background-color: #33343d !important;
+            color: white !important;
+            border: none !important;
         }}
-        
+
         /* 5. Zorgt dat actie-knoppen hun originele leesbare kleuren behouden */
         .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
             text-shadow: none !important;
@@ -87,7 +103,7 @@ if not st.session_state["ingelogd"]:
     if st.button("Inloggen", type="primary"):
         if wachtwoord_invoer == "DONGEN123":
             st.session_state["ingelogd"] = True
-            st.success("Succesvol inlogd!")
+            st.success("Succesvol ingelogd!")
             st.rerun()
         else:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
@@ -252,16 +268,3 @@ autos = cursor.fetchall()
 
 if autos:
     for auto in autos:
-        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
-        winst = verkoop - (inkoop + kosten)
-        apk_nl = formatteer_datum_nl(apk)
-        
-        weergave_naam = auto_naam if auto_naam else "Onbekende auto"
-
-        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
-            kolom_links, kolom_rechts = st.columns(2)
-
-            with kolom_links:
-                if foto_string:
-                    foto_bytes = base64.b64decode(foto_string)
-                    st.image(foto_bytes, use_container_width=True)
