@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ULTIEME STYLING: VOLLEDIG GELIJKE BALKEN EN WITTE LETTERS ---
+# --- ULTIEME STYLING: RECHTE BALKEN, WITTE LETTERS EN GEGEVENS-CORRECTIE ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,7 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        h1, h2, h3, p, span {{
+        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -43,7 +43,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        div[data-testid="stForm"], .stDialog div[role="dialog"], div[data-testid="stVerticalBlockBorderContainer"] {{
+        div[data-testid="stForm"], .stDialog div[role="dialog"] {{
             background-color: rgba(20, 20, 20, 0.95) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -60,6 +60,11 @@ def zet_achtergrond(logo_path="logo.png"):
 
         .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
             text-shadow: none !important;
+        }}
+
+        /* 🚨 HOOGTE-CORRECTIE: Dwingt de klapkaart om volledig open te klappen en de knoppen te tonen */
+        .stApp [data-testid="stExpander"] div {{
+            overflow: visible !important;
         }}
         </style>
         """
@@ -223,15 +228,6 @@ if alle_autos:
             continue
 
         st.write("")
-        with st.container():
-            st.markdown(f"### 🚗 {weergave_naam} ({ktk})")
-            
+        # 🚨 DE VERTROUWDE DROPDOWN: Nu met de overflow fix, zodat alle regels en knoppen getoond worden
+        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
             if foto_string:
-                st.image(base64.b64decode(foto_string), width=300)
-            else:
-                st.info("Geen afbeelding beschikbaar.")
-            
-            st.write(f"**Kilometerstand:** {km:,} km")
-            st.write(f"**APK Datum:** {apk_nl}")
-            st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
-            
