@@ -1,18 +1,18 @@
 import base64
 from datetime import datetime
+import io
 import sqlite3
+from PIL import Image
 import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
 # --- WACHTWOORDBEVEILIGING ---
-# Dit zorgt ervoor dat het inlogscherm getoond wordt als de gebruiker nog niet is ingelogd
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
 
 
 def controleer_wachtwoord():
-    # PAS HIER JE WACHTWOORD AAN:
     if st.session_state["wachtwoord_invoer"] == "DONGEN123":
         st.session_state["ingelogd"] = True
         st.success("Succesvol ingelogd!")
@@ -20,24 +20,20 @@ def controleer_wachtwoord():
         st.error("Onjuist wachtwoord, probeer het opnieuw.")
 
 
-# Als je NIET bent ingelogd, tonen we alleen het inlogscherm
 if not st.session_state["ingelogd"]:
     st.title("🔒 Beveiligde Toegang")
-    st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
-
     st.text_input(
         "Wachtwoord",
         type="password",
         key="wachtwoord_invoer",
         on_change=controleer_wachtwoord,
     )
-    st.stop()  # Dit stopt de rest van de code, zodat de inventaris onzichtbaar blijft
+    st.stop()
 
-# --- VANAF HIER BEGINT DE ECHTE APP (ALLEEN ZICHTBAAR NA INLOGGEN) ---
+# --- DATABASE VERBINDING ---
 conn = sqlite3.connect("autohandel.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Tabel aanmaken
 cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS autos (
@@ -55,20 +51,17 @@ cursor.execute(
 conn.commit()
 
 
-# Functie om datum om te zetten van YYYY-MM-DD naar DD-MM-YYYY voor het oog
 def formatteer_datum_nl(datum_str):
     try:
         dt = datetime.strptime(datum_str, "%Y-%m-%d")
-        return dt.strftime("%d-%m-%Y")  # dd-mm-yyyy
+        return dt.strftime("%d-%m-%Y")
     except Exception:
         return datum_str
 
 
-# Dialoogvenster om een auto te bewerken
 @st.dialog("Auto Gegevens Bewerken")
 def bewerk_auto_dialog(auto_data):
     auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto = auto_data
-
     try:
         standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except Exception:
@@ -77,7 +70,6 @@ def bewerk_auto_dialog(auto_data):
     nieuw_kenteken = st.text_input("Kenteken", value=ktk)
     nieuw_km = st.number_input("Kilometerstand", min_value=0, step=1000, value=km)
     nieuwe_apk = st.date_input("APK Datum", value=standaard_datum)
-
     n_inkoop = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0, value=inkoop)
     n_verkoop = st.number_input(
         "Verkoopprijs (€)", min_value=0.0, step=50.0, value=verkoop
@@ -108,7 +100,7 @@ def bewerk_auto_dialog(auto_data):
         st.rerun()
 
 
-# Knop om uit te loggen bovenaan de pagina
+# --- KOPPELING BOVENAAN ---
 col_titel, col_logout = st.columns([0.85, 0.15])
 with col_titel:
     st.title("🚗 Autohandel Inventaris")
@@ -117,24 +109,18 @@ with col_logout:
         st.session_state["ingelogd"] = False
         st.rerun()
 
-st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
-
-# --- Formulierensectie ---
+# --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
     col1, col2 = st.columns(2)
-
     with col1:
         kenteken = st.text_input("Kenteken")
         km_stand = st.number_input("Kilometerstand", min_value=0, step=1000)
         apk_datum = st.date_input("APK Datum")
-
     with col2:
         inkoopprijs = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0)
         verkoopprijs = st.number_input("Verkoopprijs (€)", min_value=0.0, step=50.0)
-        extra_kosten = st.number_input(
-            "Extra kosten (Poetsen/Opknappen) (€)", min_value=0.0, step=10.0
-        )
+        extra_kosten = st.number_input("Extra kosten (€)", min_value=0.0, step=10.0)
 
     gevoegde_foto = st.file_uploader(
         "Kies een foto van de auto", type=["jpg", "jpeg", "png"]
@@ -145,8 +131,12 @@ if submit:
     if kenteken:
         foto_data = ""
         if gevoegde_foto is not None:
-            foto_bytes = gevoegde_foto.read()
-            foto_data = base64.b64encode(foto_bytes).decode("utf-8")
+            # AFBEELDING COMPRIMEREN: Maakt de foto lichter zodat het wél werkt op mobiel
+            img = Image.open(gevoegde_foto)
+            img.thumbnail((800, 800))  # Verklein naar maximaal 800 pixels breed/hoog
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=70)  # Sla op met 70% kwaliteit
+            foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         cursor.execute(
             """
@@ -169,11 +159,22 @@ if submit:
     else:
         st.error("Vul een geldig kenteken in.")
 
-# --- Inventarissectie ---
+# --- INVENTARIS MET ZOEKBALK ---
 st.subheader("Huidige inventaris")
-cursor.execute(
-    "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding FROM autos"
-)
+
+# De Zoekbalk
+zoekterm = st.text_input("🔍 Zoek op kenteken...").upper()
+
+if zoekterm:
+    cursor.execute(
+        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding FROM autos WHERE kenteken LIKE ?",
+        (f"%{zoekterm}%",),
+    )
+else:
+    cursor.execute(
+        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding FROM autos"
+    )
+
 autos = cursor.fetchall()
 
 if autos:
@@ -205,7 +206,22 @@ if autos:
                     st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
 
                 st.write("")
-                if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
-                    bewerk_auto_dialog(auto)
+                btn_col1, btn_col2 = st.columns(2)
+
+                with btn_col1:
+                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
+                        bewerk_auto_dialog(auto)
+
+                # De Verwijderknop
+                with btn_col2:
+                    if st.button(
+                        "🗑️ Auto Verwijderen",
+                        key=f"delete_{auto_id}",
+                        type="primary",
+                    ):
+                        cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
+                        conn.commit()
+                        st.success("Auto succesvol verwijderd!")
+                        st.rerun()
 else:
-    st.info("Er staan nog geen auto's in de database.")
+    st.info("Geen auto's gevonden.")
