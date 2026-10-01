@@ -5,6 +5,35 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
+# --- WACHTWOORDBEVEILIGING ---
+# Dit zorgt ervoor dat het inlogscherm getoond wordt als de gebruiker nog niet is ingelogd
+if "ingelogd" not in st.session_state:
+    st.session_state["ingelogd"] = False
+
+
+def controleer_wachtwoord():
+    # PAS HIER JE WACHTWOORD AAN:
+    if st.session_state["wachtwoord_invoer"] == "DONGEN123":
+        st.session_state["ingelogd"] = True
+        st.success("Succesvol ingelogd!")
+    else:
+        st.error("Onjuist wachtwoord, probeer het opnieuw.")
+
+
+# Als je NIET bent ingelogd, tonen we alleen het inlogscherm
+if not st.session_state["ingelogd"]:
+    st.title("🔒 Beveiligde Toegang")
+    st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
+
+    st.text_input(
+        "Wachtwoord",
+        type="password",
+        key="wachtwoord_invoer",
+        on_change=controleer_wachtwoord,
+    )
+    st.stop()  # Dit stopt de rest van de code, zodat de inventaris onzichtbaar blijft
+
+# --- VANAF HIER BEGINT DE ECHTE APP (ALLEEN ZICHTBAAR NA INLOGGEN) ---
 conn = sqlite3.connect("autohandel.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -30,7 +59,7 @@ conn.commit()
 def formatteer_datum_nl(datum_str):
     try:
         dt = datetime.strptime(datum_str, "%Y-%m-%d")
-        return dt.strftime("%d-%m-%f")[0:10]  # Geeft dd-mm-yyyy
+        return dt.strftime("%d-%m-%Y")  # dd-mm-yyyy
     except Exception:
         return datum_str
 
@@ -40,7 +69,6 @@ def formatteer_datum_nl(datum_str):
 def bewerk_auto_dialog(auto_data):
     auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto = auto_data
 
-    # Zet de opgeslagen datum string om naar een echt datum-object voor de invoer
     try:
         standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except Exception:
@@ -80,7 +108,15 @@ def bewerk_auto_dialog(auto_data):
         st.rerun()
 
 
-st.title("🚗 Autohandel Inventaris")
+# Knop om uit te loggen bovenaan de pagina
+col_titel, col_logout = st.columns([0.85, 0.15])
+with col_titel:
+    st.title("🚗 Autohandel Inventaris")
+with col_logout:
+    if st.button("🚪 Uitloggen"):
+        st.session_state["ingelogd"] = False
+        st.rerun()
+
 st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
 
 # --- Formulierensectie ---
@@ -168,7 +204,6 @@ if autos:
                     st.metric(label="Verkoopprijs", value=f"€{verkoop:,.2f}")
                     st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
 
-                # Bewerkknop toevoegen onder de statistieken
                 st.write("")
                 if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
                     bewerk_auto_dialog(auto)
