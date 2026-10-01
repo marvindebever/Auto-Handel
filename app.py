@@ -15,7 +15,7 @@ if "ingelogd" not in st.session_state:
 def controleer_wachtwoord():
     if st.session_state["wachtwoord_invoer"] == "DONGEN123":
         st.session_state["ingelogd"] = True
-        st.success("Succesvol ingelogd!")
+        st.success("Succesvol inlogd!")
     else:
         st.error("Onjuist wachtwoord, probeer het opnieuw.")
 
@@ -51,12 +51,12 @@ cursor.execute(
 )
 conn.commit()
 
-# Automatische database update: voeg de kolom 'naam' toe als deze nog niet bestaat
+# Automatische database update
 try:
     cursor.execute("ALTER TABLE autos ADD COLUMN naam TEXT")
     conn.commit()
 except sqlite3.OperationalError:
-    pass  # Kolom bestaat al, geen actie nodig!
+    pass
 
 
 def formatteer_datum_nl(datum_str):
@@ -67,9 +67,10 @@ def formatteer_datum_nl(datum_str):
         return datum_str
 
 
+# Dialoogvenster om een auto te bewerken (Nu inclusief fotofunctie!)
 @st.dialog("Auto Gegevens Bewerken")
 def bewerk_auto_dialog(auto_data):
-    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto, naam_huidig = auto_data
+    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, naam_huidig = auto_data
     try:
         standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except Exception:
@@ -87,24 +88,60 @@ def bewerk_auto_dialog(auto_data):
         "Extra kosten (€)", min_value=0.0, step=10.0, value=kosten
     )
 
+    # Nieuwe fotouploader in het bewerkscherm
+    nieuwe_foto = st.file_uploader(
+        "Vervang of voeg een foto toe (leeg laten om huidige te behouden)", 
+        type=["jpg", "jpeg", "png"],
+        key=f"edit_foto_{auto_id}"
+    )
+
     if st.button("Wijzigingen Opslaan"):
-        cursor.execute(
-            """
-            UPDATE autos 
-            SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?
-            WHERE id=?
-        """,
-            (
-                nieuw_naam,
-                nieuw_kenteken.upper(),
-                nieuw_km,
-                n_inkoop,
-                n_verkoop,
-                str(nieuwe_apk),
-                n_kosten,
-                auto_id,
-            ),
-        )
+        # Als er een nieuwe foto is geüpload, verwerken we deze
+        if nieuwe_foto is not None:
+            img = Image.open(nieuwe_foto)
+            img.thumbnail((800, 800))
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=70)
+            foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+            
+            cursor.execute(
+                """
+                UPDATE autos 
+                SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?
+                WHERE id=?
+            """,
+                (
+                    nieuw_naam,
+                    nieuw_kenteken.upper(),
+                    nieuw_km,
+                    n_inkoop,
+                    n_verkoop,
+                    str(nieuwe_apk),
+                    n_kosten,
+                    foto_data,
+                    auto_id,
+                ),
+            )
+        else:
+            # Als er geen nieuwe foto is geüpload, updaten we alleen de tekstvelden
+            cursor.execute(
+                """
+                UPDATE autos 
+                SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?
+                WHERE id=?
+            """,
+                (
+                    nieuw_naam,
+                    nieuw_kenteken.upper(),
+                    nieuw_km,
+                    n_inkoop,
+                    n_verkoop,
+                    str(nieuwe_apk),
+                    n_kosten,
+                    auto_id,
+                ),
+            )
+            
         conn.commit()
         st.success("Gegevens succesvol bijgewerkt!")
         st.rerun()
@@ -122,7 +159,6 @@ with col_logout:
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
-    # Nieuw invoerveld voor de naam van de auto helemaal bovenaan het formulier
     naam = st.text_input("Naam / Omschrijving (Bijv. Volkswagen Golf Zwart)")
     
     col1, col2 = st.columns(2)
@@ -175,8 +211,7 @@ if submit:
 # --- INVENTARIS MET ZOEKBALK ---
 st.subheader("Huidige inventaris")
 
-# De Zoekbalk (zoekt nu zowel op Kenteken als op Naam)
-zoekterm = st.text_input("🔍 Zoek op kenteken of naam...").upper()
+zoekterm = st.text_input("🔍 Zoek op kenteken omschrijving...").upper()
 
 if zoekterm:
     cursor.execute(
@@ -196,10 +231,8 @@ if autos:
         winst = verkoop - (inkoop + kosten)
         apk_nl = formatteer_datum_nl(apk)
         
-        # Geef de auto een standaardnaam als er geen naam is ingevuld (voor oude data)
         weergave_naam = auto_naam if auto_naam else "Onbekende auto"
 
-        # De titel van de expander toont nu direct de Naam en het Kenteken
         with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
             kolom_links, kolom_rechts = st.columns(2)
 
