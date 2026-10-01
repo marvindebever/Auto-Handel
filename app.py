@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ACHTERGROND EN TEKST OUTLINE INSTELLEN ---
+# --- ACHTERGROND EN DOELGERICHTE TEKST OUTLINE INSTELLEN ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,8 +25,12 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* Titels en algemene teksten wit met outline */
-        h1, h2, h3, p, label, .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label {{
+        /* 1. Titels, statistieken (metrics) en expanders wit met strakke rand */
+        h1, h2, h3, p, span, 
+        div[data-testid="stMetricValue"], 
+        div[data-testid="stMetricLabel"], 
+        .streamlit-expanderHeader p, 
+        .streamlit-expanderHeader span {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -39,21 +43,22 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* 🚨 OPLOSSING VOOR DE INVENTARIS: Zorgt dat de metrics en expander-titels ook ALTIJD wit zijn met outline */
-        div[data-testid="stMetricValue"], 
-        div[data-testid="stMetricLabel"], 
-        .streamlit-expanderHeader p, 
-        .streamlit-expanderHeader span,
-        div[data-testid="stWidgetLabel"] p {{
+        /* 2. 🚨 TEXT VAN DE INVULVELDEN (LABELS) WIT MAKEN: Pakt de omschrijvingen boven de invoervakken */
+        div[data-testid="stWidgetLabel"] p, label, .stSlider label {{
             color: white !important;
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* Invoervelden behouden hun nette zwarte letters van binnen */
+        /* 3. De tekst IN de witte invoervakken zelf blijft strak zwart en leesbaar */
         input, select, textarea {{
             text-shadow: none !important;
             color: black !important;
             -webkit-text-fill-color: black !important;
+        }}
+        
+        /* 4. 🔒 DEACTIVEER OUTLINE OP KNOPPEN: Zorgt dat knoppen niet onzichtbaar worden */
+        .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
+            text-shadow: none !important;
         }}
         </style>
         """
@@ -71,7 +76,7 @@ if not st.session_state["ingelogd"]:
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "GEHEIM123":
+        if wachtwoord_invoer == "DONGEN123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
@@ -212,7 +217,7 @@ if submit:
             INSERT INTO autos (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            (naam, kenteken.upper(), km_stand, inkoopprijs, verkooprijs, str(apk_datum), extra_kosten, foto_data),
+            (naam, kenteken.upper(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data),
         )
         conn.commit()
         st.success(f"Auto '{naam}' met kenteken {kenteken.upper()} toegevoegd!")
@@ -263,8 +268,3 @@ if autos:
                     st.metric(label="Inkoopprijs", value=f"€{inkoop:,.2f}")
                     st.metric(label="Extra kosten", value=f"€{kosten:,.2f}")
                 with c3:
-                    st.metric(label="Verkoopprijs", value=f"€{verkoop:,.2f}")
-                    st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
-
-                st.write("")
-                
