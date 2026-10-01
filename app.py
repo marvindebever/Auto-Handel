@@ -152,7 +152,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     n_kosten_str = st.text_input("Extra kosten (€)", value=str(kosten))
 
     nieuwe_foto = st.file_uploader(
-        "Voeg een nieuwe foto toe (Vervangt de huidige foto)", 
+        "Voeg een nieuwe foto toe (Vervangt the huidige foto)", 
         type=["jpg", "jpeg", "png"],
         key=f"upload_edit_{auto_id}"
     )
