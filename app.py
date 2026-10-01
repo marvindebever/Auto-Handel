@@ -217,10 +217,10 @@ zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v3")
 alle_autos = cursor.fetchall()
 
-# 🚨 GEEN LOSSE ELSE MEER: Volledig lineair opgebouwd!
 if len(alle_autos) == 0:
     st.info("Er staan momenteel geen auto's in de database. Voeg hierboven een auto toe om de inventaris te bekijken!")
 
+# 🚨 VOLLEDIG GECORRIGEERDE EN KAARSRECHTE INSPRINGING VANAF HIER:
 for auto in alle_autos:
     auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
     winst = verkoop - (inkoop + kosten)
