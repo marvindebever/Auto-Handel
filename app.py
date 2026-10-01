@@ -11,24 +11,25 @@ st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
 
-
-def controleer_wachtwoord():
-    if st.session_state["wachtwoord_invoer"] == "DONGEN123":
-        st.session_state["ingelogd"] = True
-        st.success("Succesvol ingelogd!")
-    else:
-        st.error("Onjuist wachtwoord, probeer het opnieuw.")
-
-
+# Als je NIET bent ingelogd, tonen we het inlogscherm met een losse knop
 if not st.session_state["ingelogd"]:
     st.title("🔒 Beveiligde Toegang")
-    st.text_input(
-        "Wachtwoord",
-        type="password",
-        key="wachtwoord_invoer",
-        on_change=controleer_wachtwoord,
-    )
-    st.stop()
+    st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
+
+    # Wachtwoord invoerveld (zonder automatische enter-functie)
+    wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
+    
+    # Losse inlogknop direct onder de balk
+    if st.button("Inloggen", type="primary"):
+        # PAS HIER JE WACHTWOORD AAN:
+        if wachtwoord_invoer == "DONGEN123":
+            st.session_state["ingelogd"] = True
+            st.success("Succesvol ingelogd!")
+            st.rerun()
+        else:
+            st.error("Onjuist wachtwoord, probeer het opnieuw.")
+            
+    st.stop()  # Stopt de rest van de code zolang je niet ingelogd bent
 
 # --- DATABASE VERBINDING ---
 conn = sqlite3.connect("autohandel.db", check_same_thread=False)
@@ -67,7 +68,7 @@ def formatteer_datum_nl(datum_str):
         return datum_str
 
 
-# Dialoogvenster om een auto te bewerken - NU VOLLEDIG CORRECT MET FOTOUPLOADER
+# Dialoogvenster om een auto te bewerken
 @st.dialog("Auto Gegevens Bewerken")
 def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, naam_huidig):
     try:
@@ -83,7 +84,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     n_verkoop = st.number_input("Verkoopprijs (€)", min_value=0.0, step=50.0, value=float(verkoop))
     n_kosten = st.number_input("Extra kosten (€)", min_value=0.0, step=10.0, value=float(kosten))
 
-    # De fotouploader staat hier nu stevig verankerd onderaan het dialoogvenster
     nieuwe_foto = st.file_uploader(
         "Voeg een nieuwe foto toe (Vervangt de huidige foto)", 
         type=["jpg", "jpeg", "png"],
@@ -92,7 +92,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
 
     if st.button("Wijzigingen Opslaan"):
         if nieuwe_foto is not None:
-            # Als er een nieuwe foto is geüpload, comprimeren we deze
             img = Image.open(nieuwe_foto)
             img.thumbnail((800, 800))
             buffer = io.BytesIO()
@@ -118,7 +117,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
                 ),
             )
         else:
-            # Als er GEEN nieuwe foto is, behouden we gewoon de foto_huidig
             cursor.execute(
                 """
                 UPDATE autos 
@@ -254,7 +252,6 @@ if autos:
                 btn_col1, btn_col2 = st.columns(2)
 
                 with btn_col1:
-                    # Nu sturen we alle variabelen los en correct mee naar het dialoogvenster
                     if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
                         bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
 
