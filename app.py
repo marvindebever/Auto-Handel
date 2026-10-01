@@ -4,7 +4,7 @@ import io
 import os
 import sqlite3
 from PIL import Image
-import streamlit st
+import streamlit as st
 import pandas as pd
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
@@ -176,7 +176,7 @@ def verwijder_auto_dialog():
         check_auto = cursor.fetchone()
         
         if check_auto:
-            st.warning(f"Weet je zeker dat je de auto met kenteken {check_auto[1]} wilt verwijderen?")
+            st.warning(f"Weet je zeker dat je de auto met kenteken {check_auto} wilt verwijderen?")
             if st.button("Ja, Definitief Wissen", type="primary"):
                 cursor.execute("DELETE FROM autos_v3 WHERE id=?", (target_id,))
                 conn.commit()
@@ -205,7 +205,6 @@ with st.form("auto_form", clear_on_submit=True):
     gevoegde_foto = st.file_uploader("Kies een foto van de auto (Optioneel)", type=["jpg", "jpeg", "png"])
     submit = st.form_submit_button("Voeg toe aan inventaris")
 
-# 🚨 DE GECORRIGEERDE OPSLAG-LOGICA: Alleen kenteken is verplicht!
 if submit:
     if kenteken.strip():
         km_stand = naar_getal(km_stand_str, int)
