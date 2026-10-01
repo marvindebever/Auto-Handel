@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- UTTERMATE STYLING: RECHTE KANTOREN, EGALE ZWARTE ACHTERGROND EN WITTE LETTERS ---
+# --- ULTIEME STYLING: RECHTE KANTOREN, EGALE ZWARTE ACHTERGROND EN WITTE LETTERS ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -152,6 +152,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     except Exception:
         standaard_datum = datetime.date.today()
 
+    # Velden strak onder elkaar in het bewerkscherm
     nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
     nieuw_kenteken = st.text_input("Kenteken", value=ktk)
     nieuw_km = st.number_input("Kilometerstand", min_value=0, step=1000, value=int(km))
@@ -210,17 +211,14 @@ st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
+    # OPLOSSING: Alle velden staan nu prachtig, recht en overzichtelijk onder elkaar!
     naam = st.text_input("Naam / Omschrijving (Bijv. Volkswagen Golf Zwart)")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        kenteken = st.text_input("Kenteken")
-        km_stand = st.number_input("Kilometerstand", min_value=0, step=1000)
-        apk_datum = st.date_input("APK Datum")
-    with col2:
-        inkoopprijs = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0)
-        verkoopprijs = st.number_input("Verkoopprijs (€)", min_value=0.0, step=50.0)
-        extra_kosten = st.number_input("Extra kosten (€)", min_value=0.0, step=10.0)
+    kenteken = st.text_input("Kenteken")
+    inkoopprijs = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0)
+    km_stand = st.number_input("Kilometerstand", min_value=0, step=1000)
+    verkoopprijs = st.number_input("Verkoopprijs (€)", min_value=0.0, step=50.0)
+    apk_datum = st.date_input("APK Datum")
+    extra_kosten = st.number_input("Extra kosten (€)", min_value=0.0, step=10.0)
 
     gevoegde_foto = st.file_uploader(
         "Kies een foto van de auto", type=["jpg", "jpeg", "png"]
@@ -268,4 +266,3 @@ autos = cursor.fetchall()
 
 if autos:
     for auto in autos:
-        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
