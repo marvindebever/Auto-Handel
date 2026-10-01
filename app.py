@@ -5,11 +5,10 @@ import os
 import sqlite3
 from PIL import Image
 import streamlit as st
-import pandas as pd
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ULTIEME STYLING: RECHTE BALKEN EN WITTE LETTERS ---
+# --- ULTIEME STYLING: VOLLEDIG GELIJKE BALKEN EN WITTE LETTERS ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -26,7 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        h1, h2, h3, p, span {{
+        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -107,7 +106,7 @@ cursor.execute(
 conn.commit()
 
 def naar_getal(tekst_waarde, type_getal=float):
-    if not tekst_waarde or str(tekst_waarde).strip() == "":
+    if not tekst_waarde:
         return 0 if type_getal == int else 0.0
     schoon = "".join(c for c in str(tekst_waarde) if c.isdigit() or c in ".,-")
     schoon = schoon.replace(",", ".")
@@ -116,79 +115,48 @@ def naar_getal(tekst_waarde, type_getal=float):
     except ValueError:
         return 0 if type_getal == int else 0.0
 
-# ✏️ VEILIG BEWERKEN VENSTER ZONDER ELSE
-@st.dialog("Auto Gegevens Aanpassen")
-def bewerk_auto_sneller_dialog():
-    id_invoer = st.text_input("Voer het ID-nummer in van de auto die je wilt aanpassen:")
-    target_id = naar_getal(id_invoer, int)
-    
-    if target_id <= 0:
-        return
-        
-    cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, naam FROM autos_v3 WHERE id=?", (target_id,))
-    bestaande_auto = cursor.fetchone()
-    
-    if not bestaande_auto:
-        st.warning("Geen auto gevonden met dit ID-nummer.")
-        return
-        
-    ktk, km, inkoop, verkoop, apk, kosten, auto_naam = bestaande_auto
-    st.write("---")
-    
-    nieuw_naam = st.text_input("Naam / Omschrijving", value=auto_naam if auto_naam else "")
-    nieuw_kenteken = st.text_input("Kenteken (Verplicht)", value=ktk)
+def formatteer_datum_nl(datum_str):
+    try:
+        dt = datetime.strptime(datum_str, "%Y-%m-%d")
+        return dt.strftime("%d-%m-%Y")
+    except Exception:
+        return datum_str
+
+# Dialoogvenster om een auto te bewerken
+@st.dialog("Auto Gegevens Bewerken")
+def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, naam_huidig):
+    try:
+        standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
+    except Exception:
+        standaard_datum = datetime.date.today()
+
+    nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
+    nieuw_kenteken = st.text_input("Kenteken", value=ktk)
     nieuw_km_str = st.text_input("Kilometerstand", value=str(km))
-    nieuwe_apk = st.date_input("APK Datum", value=datetime.strptime(apk, "%Y-%m-%d").date() if apk else datetime.today().date())
+    nieuwe_apk = st.date_input("APK Datum", value=standaard_datum)
     n_inkoop_str = st.text_input("Inkoopprijs (€)", value=str(inkoop))
     n_verkoop_str = st.text_input("Verkoopprijs (€)", value=str(verkoop))
-    n_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value="" if kosten == 0.0 else str(kosten), placeholder="Laat leeg voor 0.00")
-    
-    nieuwe_foto = st.file_uploader("Optioneel: Vervang de huidige foto", type=["jpg", "jpeg", "png"])
-    
-    if st.button("Wijzigingen Live Opslaan", type="primary"):
-        if not nieuw_kenteken.strip():
-            st.error("Kenteken is verplicht.")
-        else:
-            n_km = naar_getal(nieuw_km_str, int)
-            n_inkoop = naar_getal(n_inkoop_str, float)
-            n_verkoop = naar_getal(n_verkoop_str, float)
-            n_kosten = naar_getal(n_kosten_str, float)
-            
-            if nieuwe_foto is not None:
-                img = Image.open(nieuwe_foto)
-                img.thumbnail((800, 800))
-                buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=70)
-                foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, target_id))
-            else:
-                cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, target_id))
-            
-            conn.commit()
-            st.success("Auto succesvol bijgewerkt!")
-            st.rerun()
+    n_kosten_str = st.text_input("Extra kosten (€)", value=str(kosten))
 
-# 🗑️ VEILIG VERWIJDEREN VENSTER ZONDER ELSE
-@st.dialog("Auto Definitief Verwijderen")
-def verwijder_auto_dialog():
-    id_invoer = st.text_input("Voer het ID-nummer in van de auto die je wilt WISSEN:")
-    target_id = naar_getal(id_invoer, int)
-    
-    if target_id <= 0:
-        return
-        
-    cursor.execute("SELECT naam, kenteken FROM autos_v3 WHERE id=?", (target_id,))
-    check_auto = cursor.fetchone()
-    
-    if not check_auto:
-        st.warning("Geen auto gevonden met dit ID-nummer.")
-        return
-        
-    st.warning(f"Weet je zeker dat je de auto met kenteken {check_auto[1]} wilt verwijderen?")
-    if st.button("Ja, Definitief Wissen", type="primary"):
-        cursor.execute("DELETE FROM autos_v3 WHERE id=?", (target_id,))
+    nieuwe_foto = st.file_uploader("Voeg een nieuwe foto toe", type=["jpg", "jpeg", "png"], key=f"upload_edit_{auto_id}")
+
+    if st.button("Wijzigingen Opslaan"):
+        n_km = naar_getal(nieuw_km_str, int)
+        n_inkoop = naar_getal(n_inkoop_str, float)
+        n_verkoop = naar_getal(n_verkoop_str, float)
+        n_kosten = naar_getal(n_kosten_str, float)
+
+        if nieuwe_foto is not None:
+            img = Image.open(nieuwe_foto)
+            img.thumbnail((800, 800))
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=70)
+            foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+            cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, auto_id))
+        else:
+            cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, auto_id))
         conn.commit()
-        st.success("Auto succesvol gewist!")
+        st.success("Gegevens succesvol bijgewerkt!")
         st.rerun()
 
 # --- HEADER ---
@@ -202,22 +170,21 @@ if st.button("🚪 Uitloggen"):
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
     naam = st.text_input("Naam / Omschrijving (Bijv. Volkswagen Golf Zwart)")
-    kenteken = st.text_input("Kenteken (Verplicht)")
+    kenteken = st.text_input("Kenteken")
     inkoopprijs_str = st.text_input("Inkoopprijs (€)", value="0.00")
     km_stand_str = st.text_input("Kilometerstand", value="0")
     verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
     apk_datum = st.date_input("APK Datum")
-    extra_kosten_str = st.text_input("Extra kosten (€) - Optioneel", placeholder="Laat leeg als er nog geen kosten zijn")
-    gevoegde_foto = st.file_uploader("Kies een foto van de auto (Optioneel)", type=["jpg", "jpeg", "png"])
+    extra_kosten_str = st.text_input("Extra kosten (€)", value="0.00")
+    gevoegde_foto = st.file_uploader("Kies een foto van de auto", type=["jpg", "jpeg", "png"])
     submit = st.form_submit_button("Voeg toe aan inventaris")
 
 if submit:
-    if kenteken.strip():
+    if kenteken:
         km_stand = naar_getal(km_stand_str, int)
         inkoopprijs = naar_getal(inkoopprijs_str, float)
         verkoopprijs = naar_getal(verkoopprijs_str, float)
         extra_kosten = naar_getal(extra_kosten_str, float)
-        
         foto_data = ""
         if gevoegde_foto is not None:
             img = Image.open(gevoegde_foto)
@@ -225,14 +192,46 @@ if submit:
             buffer = io.BytesIO()
             img.save(buffer, format="JPEG", quality=70)
             foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-            
-        cursor.execute("INSERT INTO autos_v3 (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (naam, kenteken.upper().strip(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data))
+        cursor.execute("INSERT INTO autos_v3 (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (naam, kenteken.upper(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data))
         conn.commit()
-        st.success(f"Auto met kenteken {kenteken.upper().strip()} succesvol toegevoegd!")
+        st.success(f"Auto '{naam}' succesvol toegevoegd!")
         st.rerun()
     else:
-        st.error("Vul tenminste een kenteken in om de auto toe te voegen.")
+        st.error("Vul een geldig kenteken in.")
 
-# --- INVENTARIS SECTIE ---
+# --- INVENTARIS SECTIE (VOLLEDIG LINEAIR EN FOUTLOOS) ---
 st.subheader("Huidige inventaris")
+zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
+cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v3")
+alle_autos = cursor.fetchall()
+
+if alle_autos:
+    for auto in alle_autos:
+        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
+        winst = verkoop - (inkoop + kosten)
+        apk_nl = formatteer_datum_nl(apk)
+        weergave_naam = auto_naam if auto_naam else "Onbekende auto"
+
+        if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
+            continue
+
+        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
+            if foto_string:
+                st.image(base64.b64decode(foto_string), width=300)
+            else:
+                st.info("Geen afbeelding beschikbaar.")
+            
+            st.write(f"**Kilometerstand:** {km:,} km")
+            st.write(f"**APK Datum:** {apk_nl}")
+            st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
+            st.write(f"**Extra kosten:** €{kosten:,.2f}")
+            st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
+            st.write(f"**Verwachte Winst:** €{winst:,.2f}")
+            
+            if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
+                bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
+            if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
+                cursor.execute("DELETE FROM autos_v3 WHERE id=?", (auto_id,))
+                conn.commit()
+                st.success("Auto succesvol verwijderd!")
