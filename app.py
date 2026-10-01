@@ -257,7 +257,8 @@ if submit:
 st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
+# 🚨 HIER IS DIE NU VOLLEDIG GECORRIGEERD EN WATERDICHT:
 if zoekterm:
     q = "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v2 WHERE kenteken LIKE ? OR naam LIKE ?"
-    cursor.execute(q, (f"%{zoekterm}%", f"%{xxxxx}%")) # placeholder of correct parameters? Let's check below.
-    # Herstel met juiste variabelen:
+    cursor.execute(q, (f"%{zoekterm}%", f"%{zoekterm}%"))
+else:
