@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- STYLING MET RECHTE VAKKEN EN WITTE LETTERS ---
+# --- ACHTERGROND EN KRACHTIGE ALLESOMVATTENDE TEKST OUTLINE ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,11 +25,10 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* Outline voor de hoofdteksten, titels en metrics */
-        h1, h2, h3, p, span, 
-        div[data-testid="stMetricValue"], 
-        div[data-testid="stMetricLabel"],
-        .streamlit-expanderHeader {{
+        /* 🚨 DE ULTIEME OPLOSSING: Pakt ELK element op de pagina (behalve invoervelden) en dwingt het naar wit met zwarte outline */
+        .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp label, .stApp span, .stApp div,
+        div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"],
+        .streamlit-expanderHeader, div[data-testid="stWidgetLabel"] p {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -42,13 +41,7 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* De labels BOVEN de invoervelden krijgen een nette zwarte rand */
-        div[data-testid="stWidgetLabel"] p, label {{
-            color: white !important;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
-        }}
-        
-        /* We maken het toevoegformulier als één geheel licht doorschijnend donker, zodat de originele witte invoervakken perfect blijven staan */
+        /* Zorgt dat het formulier er netjes en leesbaar uitziet */
         div[data-testid="stForm"] {{
             background-color: rgba(0, 0, 0, 0.5) !important;
             padding: 20px !important;
@@ -56,11 +49,21 @@ def zet_achtergrond(logo_path="logo.png"):
             border: 1px solid rgba(255, 255, 255, 0.2) !important;
         }}
         
-        /* Zorgt dat de tekst in de originele invoervakken gewoon strak zwart en origineel blijft */
-        input, select, textarea {{
+        /* 🔒 VEILIGHEIDSVENTIEL: Zorgt dat de tekst IN de invoervakken en knoppen WEL zwart/leesbaar blijft */
+        input, select, textarea, button, 
+        div[data-baseweb="input"] input, 
+        div[data-baseweb="select"] div,
+        div[class*="stNumberInput"] input,
+        .stButton button span {{
             color: black !important;
-            text-shadow: none !important;
             -webkit-text-fill-color: black !important;
+            text-shadow: none !important;
+        }}
+        
+        /* Streamlit primaire knoppen (zoals Inloggen/Toevoegen) tekst juist weer wit zonder outline */
+        button[data-testid="stBaseButton-primary"] span {{
+            color: white !important;
+            -webkit-text-fill-color: white !important;
         }}
         </style>
         """
@@ -264,7 +267,3 @@ if autos:
             with kolom_rechts:
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.metric(label="Kilometerstand", value=f"{km:,} km")
-                    st.metric(label="APK Datum", value=apk_nl)
-                with c2:
-                    st.metric(label="Inkoopprijs", value=f"€{inkoop:,.2f}")
