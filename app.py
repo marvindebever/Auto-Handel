@@ -62,7 +62,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: none !important;
         }}
 
-        /* Styling voor de onverwoestbare HTML Dropdown container */
+        /* Styling voor de HTML Dropdown container */
         summary {{
             padding: 15px;
             background-color: rgba(30, 30, 30, 0.95);
@@ -168,7 +168,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
 
     if st.button("Wijzigingen Opslaan"):
         if not nieuw_kenteken or not n_inkoop_str or not n_verkoop_str or not nieuw_km_str:
-            st.error("Kenteken, Kilometerstand, Inkoop- en Verkoopprijs zijn verplichte velen.")
+            st.error("Kenteken, Kilometerstand, Inkoop- en Verkoopprijs zijn verplichte velden.")
         else:
             n_km = naar_getal(nieuw_km_str, int)
             n_inkoop = naar_getal(n_inkoop_str, float)
@@ -227,14 +227,14 @@ if submit:
         st.success(f"Auto '{naam}' succesvol toegevoegd!")
         st.rerun()
     else:
-        st.error("Vul een geldig kenteken, kilometerstand, inkoop- en verkoopprijs in.")
+        st.error("Vul tenminste een kenteken, kilometerstand, inkoop- en verkoopprijs in.")
 
-# --- INVENTARIS SECTIE ---
+# --- INVENTARIS SECTIE (VOLLEDIG LINEAIR GEBOUWD) ---
 st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v3")
 alle_autos = cursor.fetchall()
 
-# 🚨 VOLLEDIG RECHTE CONTROLE: Kan NOOIT meer een IndentationError veroorzaken
-if len(alle_autos) == 0:
+# 🚨 DE ABSOLUTE FIX: Geen if/else en geen geneste Python lussen meer voor weergave!
+if not alle_autos:
