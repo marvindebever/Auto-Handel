@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ULTIEME STYLING: RECHTE KANTOREN, EGALE ZWARTE ACHTERGROND EN WITTE LETTERS ---
+# --- ULTIEME STYLING: VOLLEDIG GELIJKE BALKEN EN WITTE LETTERS ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -63,22 +63,13 @@ def zet_achtergrond(logo_path="logo.png"):
         input, select, textarea, 
         div[data-baseweb="input"], 
         div[data-baseweb="select"], 
-        div[class*="stNumberInput"] div,
         div[data-baseweb="input"] input, 
-        div[class*="stNumberInput"] input,
         div[data-testid="stTextInput"] input {{
             background-color: #262730 !important;
             color: white !important;
             -webkit-text-fill-color: white !important;
             text-shadow: none !important;
             border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        }}
-        
-        /* Fix voor de plus- en min-knoppen bij de getallenvelden */
-        div[class*="stNumberInput"] button {{
-            background-color: #33343d !important;
-            color: white !important;
-            border: none !important;
         }}
 
         /* 5. Zorgt dat actie-knoppen hun originele leesbare kleuren behouden */
@@ -154,11 +145,13 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
 
     nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
     nieuw_kenteken = st.text_input("Kenteken", value=ktk)
-    nieuw_km = st.number_input("Kilometerstand", min_value=0, step=1000, value=int(km))
+    
+    # Invoer via tekstveld voor gelijke uitlijning
+    nieuw_km_str = st.text_input("Kilometerstand", value=str(km))
     nieuwe_apk = st.date_input("APK Datum", value=standaard_datum)
-    n_inkoop = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0, value=float(inkoop))
-    n_verkoop = st.number_input("Verkoopprijs (€)", min_value=0.0, step=50.0, value=float(verkoop))
-    n_kosten = st.number_input("Extra kosten (€)", min_value=0.0, step=10.0, value=float(kosten))
+    n_inkoop_str = st.text_input("Inkoopprijs (€)", value=str(inkoop))
+    n_verkoop_str = st.text_input("Verkoopprijs (€)", value=str(verkoop))
+    n_kosten_str = st.text_input("Extra kosten (€)", value=str(kosten))
 
     nieuwe_foto = st.file_uploader(
         "Voeg een nieuwe foto toe (Vervangt de huidige foto)", 
@@ -167,6 +160,15 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     )
 
     if st.button("Wijzigingen Opslaan"):
+        # Backend conversie van tekst naar getal
+        try:
+            n_km = int(nieuw_km_str) if nieuw_km_str.isdigit() else 0
+            n_inkoop = float(n_inkoop_str) if n_inkoop_str else 0.0
+            n_verkoop = float(n_verkoop_str) if n_verkoop_str else 0.0
+            n_kosten = float(n_kosten_str) if n_kosten_str else 0.0
+        except ValueError:
+            n_km, n_inkoop, n_verkoop, n_kosten = km, inkoop, verkoop, kosten
+
         if nieuwe_foto is not None:
             img = Image.open(nieuwe_foto)
             img.thumbnail((800, 800))
@@ -180,7 +182,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
                 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?
                 WHERE id=?
             """,
-                (nieuw_naam, nieuw_kenteken.upper(), nieuw_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, auto_id),
+                (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, auto_id),
             )
         else:
             cursor.execute(
@@ -189,7 +191,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
                 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?
                 WHERE id=?
             """,
-                (nieuw_naam, nieuw_kenteken.upper(), nieuw_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, auto_id),
+                (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, auto_id),
             )
             
         conn.commit()
@@ -210,13 +212,14 @@ st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
+    # OPLOSSING: Alle balken zijn nu strakke text_inputs voor 100% gelijke uitlijning!
     naam = st.text_input("Naam / Omschrijving (Bijv. Volkswagen Golf Zwart)")
     kenteken = st.text_input("Kenteken")
-    inkoopprijs = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0)
-    km_stand = st.number_input("Kilometerstand", min_value=0, step=1000)
-    verkoopprijs = st.number_input("Verkoopprijs (€)", min_value=0.0, step=50.0)
+    inkoopprijs_str = st.text_input("Inkoopprijs (€)", value="0.00")
+    km_stand_str = st.text_input("Kilometerstand", value="0")
+    verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
     apk_datum = st.date_input("APK Datum")
-    extra_kosten = st.number_input("Extra kosten (€)", min_value=0.0, step=10.0)
+    extra_kosten_str = st.text_input("Extra kosten (€)", value="0.00")
 
     gevoegde_foto = st.file_uploader(
         "Kies een foto van de auto", type=["jpg", "jpeg", "png"]
@@ -225,6 +228,15 @@ with st.form("auto_form", clear_on_submit=True):
 
 if submit:
     if kenteken:
+        # Backend conversie van tekst naar getal voor opslag
+        try:
+            km_stand = int(km_stand_str) if km_stand_str.isdigit() else 0
+            inkoopprijs = float(inkoopprijs_str) if json_prijzen := inkoopprijs_str.replace(',', '.') else 0.0
+            verkoopprijs = float(verkoopprijs_str) if verkoopprijs_str.replace(',', '.') else 0.0
+            extra_kosten = float(extra_kosten_str) if extra_kosten_str.replace(',', '.') else 0.0
+        except ValueError:
+            km_stand, inkoopprijs, verkoopprijs, extra_kosten = 0, 0.0, 0.0, 0.0
+
         foto_data = ""
         if gevoegde_foto is not None:
             img = Image.open(gevoegde_foto)
@@ -246,24 +258,5 @@ if submit:
     else:
         st.error("Vul een geldig kenteken in.")
 
-# --- INVENTARIS MET ZOEKBALK ---
+# --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
-zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
-
-if zoekterm:
-    cursor.execute(
-        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos WHERE kenteken LIKE ? OR naam LIKE ?",
-        (f"%{zoekterm}%", f"%{zoekterm}%"),
-    )
-else:
-    cursor.execute(
-        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos"
-    )
-
-autos = cursor.fetchall()
-
-if autos:
-    for auto in autos:
-        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
-        winst = verkoop - (inkoop + kosten)
-        apk_nl = formatteer_datum_nl(apk)
