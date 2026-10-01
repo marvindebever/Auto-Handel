@@ -8,23 +8,14 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- HULPFUNCTIE VOOR TRANSPARANT LOGO ---
+# --- HULPFUNCTIE VOOR PNG LOGO ---
 def toon_logo():
-    logo_path = "logo.jpg"
+    logo_path = "logo.png"  # Aangepast naar PNG
     if os.path.exists(logo_path):
-        img = Image.open(logo_path).convert("RGBA")
-        datas = img.getdata()
-        new_data = []
-        # Maak alle witte pixels (nabij 255,255,255) transparant
-        for item in datas:
-            if item[0] > 240 and item[1] > 240 and item[2] > 240:
-                new_data.append((255, 255, 255, 0))
-            else:
-                new_data.append(item)
-        img.putdata(new_data)
+        img = Image.open(logo_path)
         st.image(img, width=150)
     else:
-        st.write("*(Plaats 'logo.jpg' in de app-map om je logo hier te tonen)*")
+        st.write("*(Plaats 'logo.png' in de app-map om je logo hier te tonen)*")
 
 # --- WACHTWOORDBEVEILIGING ---
 if "ingelogd" not in st.session_state:
@@ -190,7 +181,7 @@ if submit:
 
 # --- INVENTARIS MET ZOEKBALK ---
 st.subheader("Huidige inventaris")
-zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
+zoekterm = st.text_input("🔍 Zoek op kenteken omschrijving...").upper()
 
 if zoekterm:
     cursor.execute(
