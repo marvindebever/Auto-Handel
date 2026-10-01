@@ -50,7 +50,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* 3. 🚨 FORMULIER VOLLEDIG RECHT EN EGALE ACHTERGROND: Lost de scheve balken op! */
+        /* 3. FORMULIER VOLLEDIG RECHT EN EGALE ACHTERGROND: Lost de scheve balken op! */
         div[data-testid="stForm"], .stDialog div[role="dialog"] {{
             background-color: rgba(20, 20, 20, 0.95) !important;
             padding: 25px !important;
@@ -59,7 +59,7 @@ def zet_achtergrond(logo_path="logo.png"):
             box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.5) !important;
         }}
         
-        /* 4. 🚨 INVOERVELDEN INTERN DONKER GRIJS MET WITTE LETTERS: Net als de APK datum! */
+        /* 4. INVOERVELDEN INTERN DONKER GRIJS MET WITTE LETTERS: Net als de APK datum! */
         input, select, textarea, 
         div[data-baseweb="input"], 
         div[data-baseweb="select"], 
