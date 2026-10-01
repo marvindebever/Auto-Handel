@@ -25,7 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
+        h1, h2, h3, p, span {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -43,7 +43,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        div[data-testid="stForm"], .stDialog div[role="dialog"] {{
+        div[data-testid="stForm"], .stDialog div[role="dialog"], div[data-testid="stVerticalBlockBorderContainer"] {{
             background-color: rgba(20, 20, 20, 0.95) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -222,8 +222,10 @@ if alle_autos:
         if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
             continue
 
-        # 🚨 VOLLEDIG LINEAIRE OPBOUW BINNEN DE EXPANDER: Lost de lege klapkaarten voor 100% op!
-        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
+        st.write("")
+        with st.container():
+            st.markdown(f"### 🚗 {weergave_naam} ({ktk})")
+            
             if foto_string:
                 st.image(base64.b64decode(foto_string), width=300)
             else:
@@ -231,3 +233,5 @@ if alle_autos:
             
             st.write(f"**Kilometerstand:** {km:,} km")
             st.write(f"**APK Datum:** {apk_nl}")
+            st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
+            
