@@ -62,7 +62,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: none !important;
         }}
 
-        /* 🚨 HOOGTE-CORRECTIE: Dwingt de klapkaart om volledig open te klappen en de knoppen te tonen */
+        /* HOOGTE-CORRECTIE: Dwingt de klapkaart om volledig mee te rekken naar beneden */
         .stApp [data-testid="stExpander"] div {{
             overflow: visible !important;
         }}
@@ -217,17 +217,18 @@ zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v3")
 alle_autos = cursor.fetchall()
 
-if alle_autos:
-    for auto in alle_autos:
-        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
-        winst = verkoop - (inkoop + kosten)
-        apk_nl = formatteer_datum_nl(apk)
-        weergave_naam = auto_naam if auto_naam else "Onbekende auto"
+# 🚨 GEEN LOSSE ELSE MEER: Volledig lineair opgebouwd!
+if len(alle_autos) == 0:
+    st.info("Er staan momenteel geen auto's in de database. Voeg hierboven een auto toe om de inventaris te bekijken!")
 
-        if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
-            continue
+for auto in alle_autos:
+    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
+    winst = verkoop - (inkoop + kosten)
+    apk_nl = formatteer_datum_nl(apk)
+    weergave_naam = auto_naam if auto_naam else "Onbekende auto"
 
-        st.write("")
-        # 🚨 DE VERTROUWDE DROPDOWN: Nu met de overflow fix, zodat alle regels en knoppen getoond worden
-        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
-            if foto_string:
+    if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
+        continue
+
+    st.write("")
+    with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
