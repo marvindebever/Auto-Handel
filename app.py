@@ -8,11 +8,21 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- HULPFUNCTIE VOOR LOGO ONDERSTEUNING ---
+# --- HULPFUNCTIE VOOR TRANSPARANT LOGO ---
 def toon_logo():
-    # Controleert of logo.jpg in dezelfde map staat
-    if os.path.exists("logo.jpg"):
-        st.image("logo.jpg", width=150)
+    logo_path = "logo.jpg"
+    if os.path.exists(logo_path):
+        img = Image.open(logo_path).convert("RGBA")
+        datas = img.getdata()
+        new_data = []
+        # Maak alle witte pixels (nabij 255,255,255) transparant
+        for item in datas:
+            if item[0] > 240 and item[1] > 240 and item[2] > 240:
+                new_data.append((255, 255, 255, 0))
+            else:
+                new_data.append(item)
+        img.putdata(new_data)
+        st.image(img, width=150)
     else:
         st.write("*(Plaats 'logo.jpg' in de app-map om je logo hier te tonen)*")
 
@@ -22,15 +32,12 @@ if "ingelogd" not in st.session_state:
 
 if not st.session_state["ingelogd"]:
     st.title("🔒 Beveiligde Toegang")
-    
-    # Toon logo op het inlogscherm
     toon_logo()
-    
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "DONGEN123":
+        if wachtwoord_invoer == "GEHEIM123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
@@ -241,4 +248,4 @@ if autos:
                         st.success("Auto succesvol verwijderd!")
                         st.rerun()
 else:
-    st.info("Geen auto's gevonden.")
+    st.info("Er staan nog geen auto's in de database.")
