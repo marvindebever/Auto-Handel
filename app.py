@@ -25,14 +25,19 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        h1, h2, h3, p, label, span, 
+        /* Dwingt absoluut ALLE teksten, labels, headers, metrics, expander-titels EN invoervelden naar wit met zwarte outline */
+        h1, h2, h3, p, label, span, input, select, textarea,
         div[data-testid="stMetricValue"], 
         div[data-testid="stMetricLabel"],
         .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label,
         .streamlit-expanderHeader, 
         div[data-testid="stWidgetLabel"] p,
+        div[data-baseweb="input"] input, 
+        div[data-baseweb="select"] div,
+        div[class*="stNumberInput"] input,
         .st-emotion-cache-p5msec, .st-emotion-cache-1wivap2 {{
             color: white !important;
+            -webkit-text-fill-color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
                  1px -1px 0 #000,
@@ -44,13 +49,11 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        input, select, textarea, 
-        div[data-baseweb="input"] input, 
-        div[data-baseweb="select"] div,
-        div[class*="stNumberInput"] input {{
-            text-shadow: none !important;
-            color: black !important;
-            -webkit-text-fill-color: black !important;
+        /* Geeft de invoervakken zelf een transparante donkere kleur zodat witte tekst daarin goed leesbaar is */
+        div[data-baseweb="input"], div[data-baseweb="select"], div[class*="stNumberInput"] {{
+            background-color: rgba(0, 0, 0, 0.6) !important;
+            border: 1px solid white !important;
+            border-radius: 4px !important;
         }}
         </style>
         """
@@ -261,11 +264,3 @@ if autos:
                     st.metric(label="Extra kosten", value=f"€{kosten:,.2f}")
                 with c3:
                     st.metric(label="Verkoopprijs", value=f"€{verkoop:,.2f}")
-                    st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
-
-                st.write("")
-                
-                # De knoppen staan nu direct onder elkaar, hiermee is de foutmelding 100% verholpen!
-                if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
-                    bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
-
