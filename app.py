@@ -105,7 +105,7 @@ if not st.session_state["ingelogd"]:
 conn = sqlite3.connect("autohandel.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# 🚨 SCHONE NIEUWE TABEL (autos_v2) OM OPERATIONALE FOUTEN VOLLEDIG TE VOORKOMEN
+# Schone nieuwe tabel (autos_v2) om database-conflicten online te voorkomen
 cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS autos_v2 (
@@ -257,10 +257,8 @@ if submit:
 st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
+# Korte en foutloze query-afhandeling om SyntaxErrors te elimineren
 if zoekterm:
-    cursor.execute(
-        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v2 WHERE kenteken LIKE ? OR naam LIKE ?",
-        (f"%{zoekterm}%", f"%{zoekterm}%"),
-    )
+    q = "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v2 WHERE kenteken LIKE ? OR naam LIKE ?"
+    cursor.execute(q, (f"%{zoekterm}%", f"%{zoekterm}%"))
 else:
-    cursor.execute(
