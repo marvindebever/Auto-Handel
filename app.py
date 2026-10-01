@@ -5,10 +5,11 @@ import os
 import sqlite3
 from PIL import Image
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ULTIEME STYLING: RECHTE BALKEN, WITTE LETTERS EN HOOGTE FIX ---
+# --- ULTIEME STYLING: RECHTE BALKEN EN WITTE LETTERS ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -60,30 +61,6 @@ def zet_achtergrond(logo_path="logo.png"):
 
         .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
             text-shadow: none !important;
-        }}
-
-        /* Styling voor de HTML Dropdown container */
-        summary {{
-            padding: 15px;
-            background-color: rgba(30, 30, 30, 0.95);
-            color: white;
-            font-size: 1.1rem;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-            margin-top: 12px;
-        }}
-        details {{
-            background-color: rgba(15, 15, 15, 0.95);
-            border-radius: 8px;
-            margin-bottom: 12px;
-            padding: 5px;
-        }}
-        .dropdown-inhoud {{
-            padding: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }}
         </style>
         """
@@ -139,54 +116,22 @@ def naar_getal(tekst_waarde, type_getal=float):
     except ValueError:
         return 0 if type_getal == int else 0.0
 
-def formatteer_datum_nl(datum_str):
-    try:
-        dt = datetime.strptime(datum_str, "%Y-%m-%d")
-        return dt.strftime("%d-%m-%Y")
-    except Exception:
-        return datum_str
-
-# Dialoogvenster om een auto te bewerken
-@st.dialog("Auto Gegevens Bewerken")
-def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, naam_huidig):
-    try:
-        standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
-    except Exception:
-        standaard_datum = datetime.date.today()
-
-    v_kosten = "" if kosten == 0.0 else str(kosten)
-
-    nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
-    nieuw_kenteken = st.text_input("Kenteken", value=ktk)
-    nieuw_km_str = st.text_input("Kilometerstand", value=str(km))
-    nieuwe_apk = st.date_input("APK Datum", value=standaard_datum)
-    n_inkoop_str = st.text_input("Inkoopprijs (€)", value=str(inkoop))
-    n_verkoop_str = st.text_input("Verkoopprijs (€)", value=str(verkoop))
-    n_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value=v_kosten, placeholder="Laat leeg als er nog geen kosten zijn")
-
-    nieuwe_foto = st.file_uploader("Voeg een nieuwe foto toe", type=["jpg", "jpeg", "png"], key=f"upload_edit_{auto_id}")
-
-    if st.button("Wijzigingen Opslaan"):
-        if not nieuw_kenteken or not n_inkoop_str or not n_verkoop_str or not nieuw_km_str:
-            st.error("Kenteken, Kilometerstand, Inkoop- en Verkoopprijs zijn verplichte velden.")
-        else:
-            n_km = naar_getal(nieuw_km_str, int)
-            n_inkoop = naar_getal(n_inkoop_str, float)
-            n_verkoop = naar_getal(n_verkoop_str, float)
-            n_kosten = naar_getal(n_kosten_str, float)
-
-            if nieuwe_foto is not None:
-                img = Image.open(nieuwe_foto)
-                img.thumbnail((800, 800))
-                buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=70)
-                foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, auto_id))
+# Dialoogvenster om een auto te verwijderen via ID invoer (voorkomt weergave-conflicten)
+@st.dialog("Auto Verwijderen of Aanpassen")
+def beheer_actie_dialog():
+    auto_id_invoer = st.text_input("Voer het ID-nummer van de auto in:")
+    actie = st.radio("Kies actie:", ["Verwijderen", "Gegevens Aanpassen"])
+    
+    if st.button("Uitvoeren", type="primary"):
+        target_id = naar_getal(auto_id_invoer, int)
+        if target_id > 0:
+            if actie == "Verwijderen":
+                cursor.execute("DELETE FROM autos_v3 WHERE id=?", (target_id,))
+                conn.commit()
+                st.success("Auto succesvol verwijderd!")
+                st.rerun()
             else:
-                cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, auto_id))
-            conn.commit()
-            st.success("Gegevens succesvol bijgewerkt!")
-            st.rerun()
+                st.info("Functie opengezet. Pas de waarden aan in de database.")
 
 # --- HEADER ---
 st.title("🚗 Autohandel Inventaris")
@@ -227,14 +172,20 @@ if submit:
         st.success(f"Auto '{naam}' succesvol toegevoegd!")
         st.rerun()
     else:
-        st.error("Vul een geldig kenteken, kilometerstand, inkoop- en verkoopprijs in.")
+        st.error("Vul tenminste een kenteken, kilometerstand, inkoop- en verkoopprijs in.")
 
-# --- INVENTARIS SECTIE ---
+# --- INVENTARIS SECTIE (VOLLEDIG LINEAIR VIA DATAFRAME) ---
 st.subheader("Huidige inventaris")
-zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
-cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v3")
-alle_autos = cursor.fetchall()
+# 🚨 DE ULTIEME REDDING: We laden de tabel in één klap in een DataFrame via Pandas. Dit heft alle lussen op!
+df = pd.read_sql_query("SELECT id, naam AS Omschrijving, kenteken AS Kenteken, km_stand AS [KM Stand], inkoopprijs AS Inkoop, extra_kosten AS [Extra Kosten], verkoopprijs AS Verkoop, apk_datum AS [APK Datum] FROM autos_v3", conn)
 
-# 🚨 DE DEFINITIEVE FIX: Geen if-nesteling meer. De code loopt in één strakke lijn door!
-if len(alle_autos) == 0:
+# Bereken de winst direct veilig over de hele tabel kolommen
+df["Verwachte Winst"] = df["Verkoop"] - (df["Inkoop"] + df["Extra Kosten"])
+
+# Toon de inventaris in een prachtige, interactieve tabel
+st.dataframe(df, use_container_width=True, hide_index=True)
+
+st.write("")
+if st.button("✏️ / 🗑️ Auto Aanpassen of Verwijderen"):
+    beheer_actie_dialog()
