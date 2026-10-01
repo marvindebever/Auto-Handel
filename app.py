@@ -25,7 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* 🚨 DE ULTIEME OPLOSSING: Pakt ELK element op de pagina (behalve invoervelden) en dwingt het naar wit met zwarte outline */
+        /* Pakt ELK element op de pagina (behalve invoervelden) en dwingt het naar wit met zwarte outline */
         .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp label, .stApp span, .stApp div,
         div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"],
         .streamlit-expanderHeader, div[data-testid="stWidgetLabel"] p {{
@@ -49,7 +49,7 @@ def zet_achtergrond(logo_path="logo.png"):
             border: 1px solid rgba(255, 255, 255, 0.2) !important;
         }}
         
-        /* 🔒 VEILIGHEIDSVENTIEL: Zorgt dat de tekst IN de invoervakken en knoppen WEL zwart/leesbaar blijft */
+        /* Zorgt dat de tekst IN de invoervakken en knoppen WEL zwart/leesbaar blijft */
         input, select, textarea, button, 
         div[data-baseweb="input"] input, 
         div[data-baseweb="select"] div,
@@ -267,3 +267,4 @@ if autos:
             with kolom_rechts:
                 c1, c2, c3 = st.columns(3)
                 with c1:
+                    st.metric(label="Kilometerstand", value=f"{km:,} km")
