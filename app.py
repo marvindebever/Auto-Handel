@@ -44,11 +44,19 @@ cursor.execute(
         verkoopprijs REAL,
         apk_datum TEXT,
         extra_kosten REAL,
-        afbeelding TEXT
+        afbeelding TEXT,
+        naam TEXT
     )
 """
 )
 conn.commit()
+
+# Automatische database update: voeg de kolom 'naam' toe als deze nog niet bestaat
+try:
+    cursor.execute("ALTER TABLE autos ADD COLUMN naam TEXT")
+    conn.commit()
+except sqlite3.OperationalError:
+    pass  # Kolom bestaat al, geen actie nodig!
 
 
 def formatteer_datum_nl(datum_str):
@@ -61,12 +69,13 @@ def formatteer_datum_nl(datum_str):
 
 @st.dialog("Auto Gegevens Bewerken")
 def bewerk_auto_dialog(auto_data):
-    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto = auto_data
+    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto, naam_huidig = auto_data
     try:
         standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except Exception:
         standaard_datum = datetime.date.today()
 
+    nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
     nieuw_kenteken = st.text_input("Kenteken", value=ktk)
     nieuw_km = st.number_input("Kilometerstand", min_value=0, step=1000, value=km)
     nieuwe_apk = st.date_input("APK Datum", value=standaard_datum)
@@ -82,10 +91,11 @@ def bewerk_auto_dialog(auto_data):
         cursor.execute(
             """
             UPDATE autos 
-            SET kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?
+            SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?
             WHERE id=?
         """,
             (
+                nieuw_naam,
                 nieuw_kenteken.upper(),
                 nieuw_km,
                 n_inkoop,
@@ -112,6 +122,9 @@ with col_logout:
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
+    # Nieuw invoerveld voor de naam van de auto helemaal bovenaan het formulier
+    naam = st.text_input("Naam / Omschrijving (Bijv. Volkswagen Golf Zwart)")
+    
     col1, col2 = st.columns(2)
     with col1:
         kenteken = st.text_input("Kenteken")
@@ -131,19 +144,19 @@ if submit:
     if kenteken:
         foto_data = ""
         if gevoegde_foto is not None:
-            # AFBEELDING COMPRIMEREN: Maakt de foto lichter zodat het wél werkt op mobiel
             img = Image.open(gevoegde_foto)
-            img.thumbnail((800, 800))  # Verklein naar maximaal 800 pixels breed/hoog
+            img.thumbnail((800, 800))
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=70)  # Sla op met 70% kwaliteit
+            img.save(buffer, format="JPEG", quality=70)
             foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         cursor.execute(
             """
-            INSERT INTO autos (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO autos (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
+                naam,
                 kenteken.upper(),
                 km_stand,
                 inkoopprijs,
@@ -154,7 +167,7 @@ if submit:
             ),
         )
         conn.commit()
-        st.success(f"Auto met kenteken {kenteken.upper()} toegevoegd!")
+        st.success(f"Auto '{naam}' met kenteken {kenteken.upper()} toegevoegd!")
         st.rerun()
     else:
         st.error("Vul een geldig kenteken in.")
@@ -162,28 +175,32 @@ if submit:
 # --- INVENTARIS MET ZOEKBALK ---
 st.subheader("Huidige inventaris")
 
-# De Zoekbalk
-zoekterm = st.text_input("🔍 Zoek op kenteken...").upper()
+# De Zoekbalk (zoekt nu zowel op Kenteken als op Naam)
+zoekterm = st.text_input("🔍 Zoek op kenteken of naam...").upper()
 
 if zoekterm:
     cursor.execute(
-        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding FROM autos WHERE kenteken LIKE ?",
-        (f"%{zoekterm}%",),
+        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos WHERE kenteken LIKE ? OR naam LIKE ?",
+        (f"%{zoekterm}%", f"%{zoekterm}%"),
     )
 else:
     cursor.execute(
-        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding FROM autos"
+        "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos"
     )
 
 autos = cursor.fetchall()
 
 if autos:
     for auto in autos:
-        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string = auto
+        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
         winst = verkoop - (inkoop + kosten)
         apk_nl = formatteer_datum_nl(apk)
+        
+        # Geef de auto een standaardnaam als er geen naam is ingevuld (voor oude data)
+        weergave_naam = auto_naam if auto_naam else "Onbekende auto"
 
-        with st.expander(f"🚗 Kenteken: {ktk}  |  Verkoopprijs: €{verkoop:,.2f}"):
+        # De titel van de expander toont nu direct de Naam en het Kenteken
+        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
             kolom_links, kolom_rechts = st.columns(2)
 
             with kolom_links:
@@ -212,7 +229,6 @@ if autos:
                     if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
                         bewerk_auto_dialog(auto)
 
-                # De Verwijderknop
                 with btn_col2:
                     if st.button(
                         "🗑️ Auto Verwijderen",
