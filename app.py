@@ -8,21 +8,42 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ACHTERGROND INSTELLEN MET EEN LICHTERE WAAS ---
+# --- ACHTERGROND EN TEKST OUTLINE INSTELLEN ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
             data = f.read()
         encoded = base64.b64encode(data).decode("utf-8")
-        # De waarde 0.4 zorgt nu voor een veel minder heftige witte waas
+        
+        # De CSS voegt nu een zwarte outline (text-shadow) toe aan de teksten voor perfecte leesbaarheid
         css = f"""
         <style>
         .stApp {{
-            background-image: linear-gradient(rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
+            background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             background-attachment: fixed;
+        }}
+        
+        /* Zwarte outline voor titels, gewone tekst en labels */
+        h1, h2, h3, p, label, .stMarkdown, .stText {{
+            color: white !important;
+            text-shadow: 
+                -1px -1px 0 #000,  
+                 1px -1px 0 #000,
+                -1px  1px 0 #000,
+                 1px  1px 0 #000,
+                -2px -2px 2px #000,
+                 2px -2px 2px #000,
+                -2px  2px 2px #000,
+                 2px  2px 2px #000 !important;
+        }}
+        
+        /* Zorgt dat invoervelden zelf wit/leesbaar blijven van binnen */
+        input, select, textarea {{
+            text-shadow: none !important;
+            color: black !important;
         }}
         </style>
         """
@@ -41,7 +62,7 @@ if not st.session_state["ingelogd"]:
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "DONGEN123":
+        if wachtwoord_invoer == "GEHEIM123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
@@ -246,8 +267,3 @@ if autos:
                 with btn_col2:
                     if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
                         cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
-                        conn.commit()
-                        st.success("Auto succesvol verwijderd!")
-                        st.rerun()
-else:
-    st.info("Er staan nog geen auto's in de database.")
