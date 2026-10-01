@@ -130,7 +130,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     except Exception:
         standaard_datum = datetime.date.today()
 
-    # Toon een leeg invoerveld bij bewerken als de extra kosten nog 0 zijn
     v_kosten = "" if kosten == 0.0 else str(kosten)
 
     nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
@@ -139,8 +138,6 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     nieuwe_apk = st.date_input("APK Datum", value=standaard_datum)
     n_inkoop_str = st.text_input("Inkoopprijs (€)", value=str(inkoop))
     n_verkoop_str = st.text_input("Verkoopprijs (€)", value=str(verkoop))
-    
-    # Extra kosten veld heeft nu een duidelijke hint dat het optioneel is
     n_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value=v_kosten, placeholder="Laat leeg als er nog geen kosten zijn")
 
     nieuwe_foto = st.file_uploader("Voeg een nieuwe foto toe", type=["jpg", "jpeg", "png"], key=f"upload_edit_{auto_id}")
@@ -152,7 +149,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
             n_km = naar_getal(nieuw_km_str, int)
             n_inkoop = naar_getal(n_inkoop_str, float)
             n_verkoop = naar_getal(n_verkoop_str, float)
-            n_kosten = naar_getal(n_kosten_str, float) # Wordt automatisch 0.0 als het leeg is
+            n_kosten = naar_getal(n_kosten_str, float)
 
             if nieuwe_foto is not None:
                 img = Image.open(nieuwe_foto)
@@ -183,10 +180,7 @@ with st.form("auto_form", clear_on_submit=True):
     km_stand_str = st.text_input("Kilometerstand", value="0")
     verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
     apk_datum = st.date_input("APK Datum")
-    
-    # 🚨 EXTRA KOSTEN IS NU VOLLEDIG OPTIONEEL: Begint standaard leeg
     extra_kosten_str = st.text_input("Extra kosten (€) - Optioneel", placeholder="Laat leeg als er nog geen kosten zijn")
-    
     gevoegde_foto = st.file_uploader("Kies een foto van de auto", type=["jpg", "jpeg", "png"])
     submit = st.form_submit_button("Voeg toe aan inventaris")
 
@@ -195,7 +189,7 @@ if submit:
         km_stand = naar_getal(km_stand_str, int)
         inkoopprijs = naar_getal(inkoopprijs_str, float)
         verkoopprijs = naar_getal(verkoopprijs_str, float)
-        extra_kosten = naar_getal(extra_kosten_str, float) # Verwerkt lege invoer feilloos naar 0.0
+        extra_kosten = naar_getal(extra_kosten_str, float)
         
         foto_data = ""
         if gevoegde_foto is not None:
@@ -228,6 +222,12 @@ if alle_autos:
         if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
             continue
 
+        # 🚨 VOLLEDIG LINEAIRE OPBOUW BINNEN DE EXPANDER: Lost de lege klapkaarten voor 100% op!
         with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
-            kolom_links, kolom_rechts = st.columns(2)
-
+            if foto_string:
+                st.image(base64.b64decode(foto_string), width=300)
+            else:
+                st.info("Geen afbeelding beschikbaar.")
+            
+            st.write(f"**Kilometerstand:** {km:,} km")
+            st.write(f"**APK Datum:** {apk_nl}")
