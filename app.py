@@ -6,88 +6,38 @@ import sqlite3
 from PIL import Image
 import streamlit as st
 
+# We stellen de pagina in en forceren een strakke, professionele lay-out
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ACHTERGROND EN KRACHTIGE ALLESOMVATTENDE TEKST OUTLINE ---
-def zet_achtergrond(logo_path="logo.png"):
+# Functie om het logo strak bovenaan te tonen
+def toon_logo(logo_path="logo.png"):
     if os.path.exists(logo_path):
-        with open(logo_path, "rb") as f:
-            data = f.read()
-        encoded = base64.b64encode(data).decode("utf-8")
-        
-        css = f"""
-        <style>
-        .stApp {{
-            background-image: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3)), url("data:image/png;base64,{encoded}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-        }}
-        
-        /* Pakt ELK element op de pagina (behalve invoervelden) en dwingt het naar wit met zwarte outline */
-        .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp label, .stApp span, .stApp div,
-        div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"],
-        .streamlit-expanderHeader, div[data-testid="stWidgetLabel"] p {{
-            color: white !important;
-            text-shadow: 
-                -1px -1px 0 #000,  
-                 1px -1px 0 #000,
-                -1px  1px 0 #000,
-                 1px  1px 0 #000,
-                -2px -2px 2px #000,
-                 2px -2px 2px #000,
-                -2px  2px 2px #000,
-                 2px  2px 2px #000 !important;
-        }}
-        
-        /* Zorgt dat het formulier er netjes en leesbaar uitziet */
-        div[data-testid="stForm"] {{
-            background-color: rgba(0, 0, 0, 0.5) !important;
-            padding: 20px !important;
-            border-radius: 8px !important;
-            border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        }}
-        
-        /* Zorgt dat de tekst IN de invoervakken en knoppen WEL zwart/leesbaar blijft */
-        input, select, textarea, button, 
-        div[data-baseweb="input"] input, 
-        div[data-baseweb="select"] div,
-        div[class*="stNumberInput"] input,
-        .stButton button span {{
-            color: black !important;
-            -webkit-text-fill-color: black !important;
-            text-shadow: none !important;
-        }}
-        
-        /* Streamlit primaire knoppen (zoals Inloggen/Toevoegen) tekst juist weer wit zonder outline */
-        button[data-testid="stBaseButton-primary"] span {{
-            color: white !important;
-            -webkit-text-fill-color: white !important;
-        }}
-        </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
-
-zet_achtergrond("logo.png")
+        img = Image.open(logo_path)
+        # We tonen het logo netjes gecentreerd in een compact formaat
+        col_l, col_m, col_r = st.columns([0.4, 0.2, 0.4])
+        with col_m:
+            st.image(img, use_container_width=True)
 
 # --- WACHTWOORDBEVEILIGING ---
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
 
 if not st.session_state["ingelogd"]:
-    st.title("🔒 Beveiligde Toegang")
-    st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
-    wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
+    st.markdown("<h1 style='text-align: center;'>🔒 Beveiligde Toegang</h1>", unsafe_allow_html=True)
+    st.write("")
+    toon_logo("logo.png")
+    st.write("")
     
-    if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "DONGEN123":
-            st.session_state["ingelogd"] = True
-            st.success("Succesvol ingelogd!")
-            st.rerun()
-        else:
-            st.error("Onjuist wachtwoord, probeer het opnieuw.")
-            
+    # Inlogcontainer voor een strak uiterlijk
+    with st.container(border=True):
+        wachtwoord_invoer = st.text_input("Voer het wachtwoord in:", type="password")
+        if st.button("Inloggen", type="primary", use_container_width=True):
+            if wachtwoord_invoer == "DONGEN123":
+                st.session_state["ingelogd"] = True
+                st.success("Succesvol ingelogd!")
+                st.rerun()
+            else:
+                st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
 
 # --- DATABASE VERBINDING ---
@@ -111,6 +61,7 @@ cursor.execute(
 )
 conn.commit()
 
+# Controleer extra of de naam-kolom bestaat (voor de zekerheid)
 try:
     cursor.execute("ALTER TABLE autos ADD COLUMN naam TEXT")
     conn.commit()
@@ -146,7 +97,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
         key=f"upload_edit_{auto_id}"
     )
 
-    if st.button("Wijzigingen Opslaan"):
+    if st.button("Wijzigingen Opslaan", type="primary", use_container_width=True):
         if nieuwe_foto is not None:
             img = Image.open(nieuwe_foto)
             img.thumbnail((800, 800))
@@ -176,19 +127,22 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
         st.success("Gegevens succesvol bijgewerkt!")
         st.rerun()
 
-# --- HEADER ---
-col_titel, col_logout = st.columns([0.85, 0.15])
+# --- HOOFDSCHERM HEADER ---
+toon_logo("logo.png")
+
+col_titel, col_logout = st.columns([0.8, 0.2])
 with col_titel:
     st.title("🚗 Autohandel Inventaris")
 with col_logout:
-    if st.button("🚪 Uitloggen"):
+    if st.button("🚪 Uitloggen", use_container_width=True):
         st.session_state["ingelogd"] = False
         st.rerun()
 
-st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
+st.write("Beheer je voorraad, bekijk je marges en voeg voertuigen toe.")
+st.divider()
 
 # --- TOEVOEGEN FORMULIER ---
-st.subheader("Nieuwe auto toevoegen")
+st.subheader("🆕 Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
     naam = st.text_input("Naam / Omschrijving (Bijv. Volkswagen Golf Zwart)")
     
@@ -205,7 +159,7 @@ with st.form("auto_form", clear_on_submit=True):
     gevoegde_foto = st.file_uploader(
         "Kies een foto van de auto", type=["jpg", "jpeg", "png"]
     )
-    submit = st.form_submit_button("Voeg toe aan inventaris")
+    submit = st.form_submit_button("Voeg toe aan inventaris", type="primary")
 
 if submit:
     if kenteken:
@@ -225,14 +179,16 @@ if submit:
             (naam, kenteken.upper(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data),
         )
         conn.commit()
-        st.success(f"Auto '{naam}' met kenteken {kenteken.upper()} toegevoegd!")
+        st.success(f"Auto '{naam}' succesvol toegevoegd!")
         st.rerun()
     else:
-        st.error("Vul een geldig kenteken in.")
+        st.error("Vul tenminste een kenteken in.")
 
-# --- INVENTARIS MET ZOEKBALK ---
-st.subheader("Huidige inventaris")
-zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
+st.divider()
+
+# --- INVENTARIS SECTIE ---
+st.subheader("📋 Huidige inventaris")
+zoekterm = st.text_input("🔍 Snel zoeken op kenteken of naam...").upper()
 
 if zoekterm:
     cursor.execute(
@@ -251,20 +207,40 @@ if autos:
         auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
         winst = verkoop - (inkoop + kosten)
         apk_nl = formatteer_datum_nl(apk)
-        
         weergave_naam = auto_naam if auto_naam else "Onbekende auto"
 
-        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
-            kolom_links, kolom_rechts = st.columns(2)
-
-            with kolom_links:
+        # Elke auto krijgt een overzichtelijke uitklapbare kaart
+        with st.expander(f"🚗 {weergave_naam} ({ktk}) — Verkoopprijs: €{verkoop:,.2f}"):
+            col_foto, col_info = st.columns([0.4, 0.6])
+            
+            with col_foto:
                 if foto_string:
                     foto_bytes = base64.b64decode(foto_string)
                     st.image(foto_bytes, use_container_width=True)
                 else:
                     st.info("Geen afbeelding beschikbaar.")
-
-            with kolom_rechts:
+            
+            with col_info:
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     st.metric(label="Kilometerstand", value=f"{km:,} km")
+                    st.metric(label="APK Datum", value=apk_nl)
+                with c2:
+                    st.metric(label="Inkoopprijs", value=f"€{inkoop:,.2f}")
+                    st.metric(label="Extra kosten", value=f"€{kosten:,.2f}")
+                with c3:
+                    st.metric(label="Verkoopprijs", value=f"€{verkoop:,.2f}")
+                    st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
+                
+                st.write("")
+                # Twee duidelijke actieknoppen onder de gegevens
+                if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}", use_container_width=True):
+                    bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
+                
+                if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary", use_container_width=True):
+                    cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
+                    conn.commit()
+                    st.success("Auto succesvol verwijderd!")
+                    st.rerun()
+else:
+    st.info("Er staan momenteel geen auto's in de inventaris.")
