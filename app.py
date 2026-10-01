@@ -25,7 +25,6 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* Dwingt absoluut ALLE teksten, labels, headers, metrics en expander-titels naar wit met zwarte outline */
         h1, h2, h3, p, label, span, 
         div[data-testid="stMetricValue"], 
         div[data-testid="stMetricLabel"],
@@ -45,7 +44,6 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* Zorgt dat de tekst IN de invoervakken zelf wél zwart en goed leesbaar blijft op de witte vakjes */
         input, select, textarea, 
         div[data-baseweb="input"] input, 
         div[data-baseweb="select"] div,
@@ -266,6 +264,8 @@ if autos:
                     st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
 
                 st.write("")
-                btn_col1, btn_col2 = st.columns(2)
+                
+                # De knoppen staan nu direct onder elkaar, hiermee is de foutmelding 100% verholpen!
+                if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
+                    bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
 
-                with btn_col1:
