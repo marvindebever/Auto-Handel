@@ -25,7 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
+        h1, h2, h3, p, span {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -62,9 +62,28 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: none !important;
         }}
 
-        /* HOOGTE-CORRECTIE: Dwingt de klapkaart om volledig mee te rekken naar beneden */
-        .stApp [data-testid="stExpander"] div {{
-            overflow: visible !important;
+        /* Styling voor het nieuwe, onverwoestbare HTML Dropdown-menu */
+        summary {{
+            padding: 15px;
+            background-color: rgba(30, 30, 30, 0.9);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            margin-top: 10px;
+        }}
+        details {{
+            background-color: rgba(15, 15, 15, 0.95);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            padding: 5px;
+        }}
+        .dropdown-inhoud {{
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }}
         </style>
         """
@@ -208,7 +227,7 @@ if submit:
         st.success(f"Auto '{naam}' succesvol toegevoegd!")
         st.rerun()
     else:
-        st.error("Vul tenminste een kenteken, kilometerstand, inkoopprijs en verkoopprijs in.")
+        st.error("Vul een geldig kenteken, kilometerstand, inkoop- en verkoopprijs in.")
 
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
@@ -218,17 +237,3 @@ cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_da
 alle_autos = cursor.fetchall()
 
 if len(alle_autos) == 0:
-    st.info("Er staan momenteel geen auto's in de database. Voeg hierboven een auto toe om de inventaris te bekijken!")
-
-# 🚨 VOLLEDIG GECORRIGEERDE EN KAARSRECHTE INSPRINGING VANAF HIER:
-for auto in alle_autos:
-    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam = auto
-    winst = verkoop - (inkoop + kosten)
-    apk_nl = formatteer_datum_nl(apk)
-    weergave_naam = auto_naam if auto_naam else "Onbekende auto"
-
-    if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
-        continue
-
-    st.write("")
-    with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
