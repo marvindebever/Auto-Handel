@@ -15,7 +15,7 @@ if "ingelogd" not in st.session_state:
 def controleer_wachtwoord():
     if st.session_state["wachtwoord_invoer"] == "DONGEN123":
         st.session_state["ingelogd"] = True
-        st.success("Succesvol inlogd!")
+        st.success("Succesvol ingelogd!")
     else:
         st.error("Onjuist wachtwoord, probeer het opnieuw.")
 
@@ -51,7 +51,7 @@ cursor.execute(
 )
 conn.commit()
 
-# Automatische database update
+# Automatische database update voor het geval dat
 try:
     cursor.execute("ALTER TABLE autos ADD COLUMN naam TEXT")
     conn.commit()
@@ -67,10 +67,9 @@ def formatteer_datum_nl(datum_str):
         return datum_str
 
 
-# Dialoogvenster om een auto te bewerken (Nu inclusief fotofunctie!)
+# Dialoogvenster om een auto te bewerken - NU VOLLEDIG CORRECT MET FOTOUPLOADER
 @st.dialog("Auto Gegevens Bewerken")
-def bewerk_auto_dialog(auto_data):
-    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, naam_huidig = auto_data
+def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, naam_huidig):
     try:
         standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except Exception:
@@ -78,26 +77,22 @@ def bewerk_auto_dialog(auto_data):
 
     nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
     nieuw_kenteken = st.text_input("Kenteken", value=ktk)
-    nieuw_km = st.number_input("Kilometerstand", min_value=0, step=1000, value=km)
+    nieuw_km = st.number_input("Kilometerstand", min_value=0, step=1000, value=int(km))
     nieuwe_apk = st.date_input("APK Datum", value=standaard_datum)
-    n_inkoop = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0, value=inkoop)
-    n_verkoop = st.number_input(
-        "Verkoopprijs (€)", min_value=0.0, step=50.0, value=verkoop
-    )
-    n_kosten = st.number_input(
-        "Extra kosten (€)", min_value=0.0, step=10.0, value=kosten
-    )
+    n_inkoop = st.number_input("Inkoopprijs (€)", min_value=0.0, step=50.0, value=float(inkoop))
+    n_verkoop = st.number_input("Verkoopprijs (€)", min_value=0.0, step=50.0, value=float(verkoop))
+    n_kosten = st.number_input("Extra kosten (€)", min_value=0.0, step=10.0, value=float(kosten))
 
-    # Nieuwe fotouploader in het bewerkscherm
+    # De fotouploader staat hier nu stevig verankerd onderaan het dialoogvenster
     nieuwe_foto = st.file_uploader(
-        "Vervang of voeg een foto toe (leeg laten om huidige te behouden)", 
+        "Voeg een nieuwe foto toe (Vervangt de huidige foto)", 
         type=["jpg", "jpeg", "png"],
-        key=f"edit_foto_{auto_id}"
+        key=f"upload_edit_{auto_id}"
     )
 
     if st.button("Wijzigingen Opslaan"):
-        # Als er een nieuwe foto is geüpload, verwerken we deze
         if nieuwe_foto is not None:
+            # Als er een nieuwe foto is geüpload, comprimeren we deze
             img = Image.open(nieuwe_foto)
             img.thumbnail((800, 800))
             buffer = io.BytesIO()
@@ -123,7 +118,7 @@ def bewerk_auto_dialog(auto_data):
                 ),
             )
         else:
-            # Als er geen nieuwe foto is geüpload, updaten we alleen de tekstvelden
+            # Als er GEEN nieuwe foto is, behouden we gewoon de foto_huidig
             cursor.execute(
                 """
                 UPDATE autos 
@@ -211,7 +206,7 @@ if submit:
 # --- INVENTARIS MET ZOEKBALK ---
 st.subheader("Huidige inventaris")
 
-zoekterm = st.text_input("🔍 Zoek op kenteken omschrijving...").upper()
+zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
 if zoekterm:
     cursor.execute(
@@ -259,8 +254,9 @@ if autos:
                 btn_col1, btn_col2 = st.columns(2)
 
                 with btn_col1:
+                    # Nu sturen we alle variabelen los en correct mee naar het dialoogvenster
                     if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
-                        bewerk_auto_dialog(auto)
+                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
 
                 with btn_col2:
                     if st.button(
