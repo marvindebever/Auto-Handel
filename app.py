@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ACHTERGROND EN DOELGERICHTE TEKST OUTLINE INSTELLEN ---
+# --- STYLING MET RECHTE VAKKEN EN WITTE LETTERS ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -18,26 +18,19 @@ def zet_achtergrond(logo_path="logo.png"):
         css = f"""
         <style>
         .stApp {{
-            background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
+            background-image: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3)), url("data:image/png;base64,{encoded}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             background-attachment: fixed;
         }}
         
-        /* Dwingt absoluut ALLE teksten, labels, headers, metrics, expander-titels EN invoervelden naar wit met zwarte outline */
-        h1, h2, h3, p, label, span, input, select, textarea,
+        /* Outline voor de hoofdteksten, titels en metrics */
+        h1, h2, h3, p, span, 
         div[data-testid="stMetricValue"], 
         div[data-testid="stMetricLabel"],
-        .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label,
-        .streamlit-expanderHeader, 
-        div[data-testid="stWidgetLabel"] p,
-        div[data-baseweb="input"] input, 
-        div[data-baseweb="select"] div,
-        div[class*="stNumberInput"] input,
-        .st-emotion-cache-p5msec, .st-emotion-cache-1wivap2 {{
+        .streamlit-expanderHeader {{
             color: white !important;
-            -webkit-text-fill-color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
                  1px -1px 0 #000,
@@ -49,11 +42,25 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* Geeft de invoervakken zelf een transparante donkere kleur zodat witte tekst daarin goed leesbaar is */
-        div[data-baseweb="input"], div[data-baseweb="select"], div[class*="stNumberInput"] {{
-            background-color: rgba(0, 0, 0, 0.6) !important;
-            border: 1px solid white !important;
-            border-radius: 4px !important;
+        /* De labels BOVEN de invoervelden krijgen een nette zwarte rand */
+        div[data-testid="stWidgetLabel"] p, label {{
+            color: white !important;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+        }}
+        
+        /* We maken het toevoegformulier als één geheel licht doorschijnend donker, zodat de originele witte invoervakken perfect blijven staan */
+        div[data-testid="stForm"] {{
+            background-color: rgba(0, 0, 0, 0.5) !important;
+            padding: 20px !important;
+            border-radius: 8px !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }}
+        
+        /* Zorgt dat de tekst in de originele invoervakken gewoon strak zwart en origineel blijft */
+        input, select, textarea {{
+            color: black !important;
+            text-shadow: none !important;
+            -webkit-text-fill-color: black !important;
         }}
         </style>
         """
@@ -261,6 +268,3 @@ if autos:
                     st.metric(label="APK Datum", value=apk_nl)
                 with c2:
                     st.metric(label="Inkoopprijs", value=f"€{inkoop:,.2f}")
-                    st.metric(label="Extra kosten", value=f"€{kosten:,.2f}")
-                with c3:
-                    st.metric(label="Verkoopprijs", value=f"€{verkoop:,.2f}")
