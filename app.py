@@ -8,19 +8,21 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ACHTERGROND INSTELLEN MET TRANSLUCENTE LAAG ---
+# --- ACHTERGROND INSTELLEN MET EEN LICHTERE WAAS ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
             data = f.read()
         encoded = base64.b64encode(data).decode("utf-8")
+        # De waarde 0.4 zorgt nu voor een veel minder heftige witte waas
         css = f"""
         <style>
         .stApp {{
-            background-image: linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)), url("data:image/png;base64,{encoded}");
+            background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
+            background-attachment: fixed;
         }}
         </style>
         """
@@ -134,7 +136,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
         st.success("Gegevens succesvol bijgewerkt!")
         st.rerun()
 
-# --- HEADER (Zonder los logo-kolom) ---
+# --- HEADER ---
 col_titel, col_logout = st.columns([0.85, 0.15])
 with col_titel:
     st.title("🚗 Autohandel Inventaris")
