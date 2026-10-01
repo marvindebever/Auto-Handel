@@ -1,27 +1,35 @@
 import base64
 from datetime import datetime
 import io
+import os
 import sqlite3
 from PIL import Image
 import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
+# --- HULPFUNCTIE VOOR LOGO ONDERSTEUNING ---
+def toon_logo():
+    # Controleert of logo.jpg in dezelfde map staat
+    if os.path.exists("logo.jpg"):
+        st.image("logo.jpg", width=150)
+    else:
+        st.write("*(Plaats 'logo.jpg' in de app-map om je logo hier te tonen)*")
+
 # --- WACHTWOORDBEVEILIGING ---
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
 
-# Als je NIET bent ingelogd, tonen we het inlogscherm met een losse knop
 if not st.session_state["ingelogd"]:
     st.title("🔒 Beveiligde Toegang")
+    
+    # Toon logo op het inlogscherm
+    toon_logo()
+    
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
-
-    # Wachtwoord invoerveld (zonder automatische enter-functie)
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
-    # Losse inlogknop direct onder de balk
     if st.button("Inloggen", type="primary"):
-        # PAS HIER JE WACHTWOORD AAN:
         if wachtwoord_invoer == "DONGEN123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
@@ -29,7 +37,7 @@ if not st.session_state["ingelogd"]:
         else:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
             
-    st.stop()  # Stopt de rest van de code zolang je niet ingelogd bent
+    st.stop()
 
 # --- DATABASE VERBINDING ---
 conn = sqlite3.connect("autohandel.db", check_same_thread=False)
@@ -52,13 +60,11 @@ cursor.execute(
 )
 conn.commit()
 
-# Automatische database update voor het geval dat
 try:
     cursor.execute("ALTER TABLE autos ADD COLUMN naam TEXT")
     conn.commit()
 except sqlite3.OperationalError:
     pass
-
 
 def formatteer_datum_nl(datum_str):
     try:
@@ -66,7 +72,6 @@ def formatteer_datum_nl(datum_str):
         return dt.strftime("%d-%m-%Y")
     except Exception:
         return datum_str
-
 
 # Dialoogvenster om een auto te bewerken
 @st.dialog("Auto Gegevens Bewerken")
@@ -104,17 +109,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
                 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?
                 WHERE id=?
             """,
-                (
-                    nieuw_naam,
-                    nieuw_kenteken.upper(),
-                    nieuw_km,
-                    n_inkoop,
-                    n_verkoop,
-                    str(nieuwe_apk),
-                    n_kosten,
-                    foto_data,
-                    auto_id,
-                ),
+                (nieuw_naam, nieuw_kenteken.upper(), nieuw_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, auto_id),
             )
         else:
             cursor.execute(
@@ -123,31 +118,25 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
                 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?
                 WHERE id=?
             """,
-                (
-                    nieuw_naam,
-                    nieuw_kenteken.upper(),
-                    nieuw_km,
-                    n_inkoop,
-                    n_verkoop,
-                    str(nieuwe_apk),
-                    n_kosten,
-                    auto_id,
-                ),
+                (nieuw_naam, nieuw_kenteken.upper(), nieuw_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, auto_id),
             )
             
         conn.commit()
         st.success("Gegevens succesvol bijgewerkt!")
         st.rerun()
 
-
-# --- KOPPELING BOVENAAN ---
-col_titel, col_logout = st.columns([0.85, 0.15])
+# --- HEADER MET LOGO EN TITEL BOVENAAN ---
+col_logo, col_titel, col_logout = st.columns([0.2, 0.65, 0.15])
+with col_logo:
+    toon_logo()
 with col_titel:
     st.title("🚗 Autohandel Inventaris")
 with col_logout:
     if st.button("🚪 Uitloggen"):
         st.session_state["ingelogd"] = False
         st.rerun()
+
+st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
 
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
@@ -184,16 +173,7 @@ if submit:
             INSERT INTO autos (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            (
-                naam,
-                kenteken.upper(),
-                km_stand,
-                inkoopprijs,
-                verkoopprijs,
-                str(apk_datum),
-                extra_kosten,
-                foto_data,
-            ),
+            (naam, kenteken.upper(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data),
         )
         conn.commit()
         st.success(f"Auto '{naam}' met kenteken {kenteken.upper()} toegevoegd!")
@@ -203,7 +183,6 @@ if submit:
 
 # --- INVENTARIS MET ZOEKBALK ---
 st.subheader("Huidige inventaris")
-
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
 if zoekterm:
@@ -256,11 +235,7 @@ if autos:
                         bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
 
                 with btn_col2:
-                    if st.button(
-                        "🗑️ Auto Verwijderen",
-                        key=f"delete_{auto_id}",
-                        type="primary",
-                    ):
+                    if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
                         cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
                         conn.commit()
                         st.success("Auto succesvol verwijderd!")
