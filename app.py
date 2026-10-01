@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ACHTERGROND EN DOELGERICHTE TEKST OUTLINE INSTELLEN ---
+# --- ACHTERGROND EN ALLESOMVATTENDE TEKST OUTLINE INSTELLEN ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,12 +25,10 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* 1. Titels, statistieken (metrics) en expanders wit met strakke rand */
-        h1, h2, h3, p, span, 
-        div[data-testid="stMetricValue"], 
-        div[data-testid="stMetricLabel"], 
-        .streamlit-expanderHeader p, 
-        .streamlit-expanderHeader span {{
+        /* Dwingt absoluut ALLE tekst-elementen, inclusief metrics en expanders, naar wit met zwarte outline */
+        h1, h2, h3, p, label, span, div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"],
+        .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label,
+        .streamlit-expanderHeader, .st-emotion-cache-p5msec, .st-emotion-cache-1wivap2 {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -43,22 +41,10 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* 2. Text van de invulvelden (labels) wit maken */
-        div[data-testid="stWidgetLabel"] p, label, .stSlider label {{
-            color: white !important;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
-        }}
-        
-        /* 3. De tekst IN de witte invoervakken zelf blijft strak zwart en leesbaar */
-        input, select, textarea {{
+        /* Zorgt dat invoervelden zelf wit/leesbaar blijven van binnen en zwarte tekst behouden */
+        input, select, textarea, div[data-baseweb="input"] div {{
             text-shadow: none !important;
             color: black !important;
-            -webkit-text-fill-color: black !important;
-        }}
-        
-        /* 4. Deactiveer outline op knoppen */
-        .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
-            text-shadow: none !important;
         }}
         </style>
         """
@@ -76,7 +62,7 @@ if not st.session_state["ingelogd"]:
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "GEHEIM123":
+        if wachtwoord_invoer == "DONGEN123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
@@ -260,11 +246,22 @@ if autos:
                     st.info("Geen afbeelding beschikbaar.")
 
             with kolom_rechts:
-                # Door de data onder elkaar te zetten is de foutmelding definitief weg en laadt het sneller op mobiel!
-                st.write(f"**Kilometerstand:** {km:,} km")
-                st.write(f"**APK Datum:** {apk_nl}")
-                st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
-                st.write(f"**Extra kosten:** €{kosten:,.2f}")
-                st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
-                st.write(f"**Verwachte Winst:** €{winst:,.2f}")
-                st.write("---")
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.metric(label="Kilometerstand", value=f"{km:,} km")
+                    st.metric(label="APK Datum", value=apk_nl)
+                with c2:
+                    st.metric(label="Inkoopprijs", value=f"€{inkoop:,.2f}")
+                    st.metric(label="Extra kosten", value=f"€{kosten:,.2f}")
+                with c3:
+                    st.metric(label="Verkoopprijs", value=f"€{verkoop:,.2f}")
+                    st.metric(label="Verwachte Winst", value=f"€{winst:,.2f}")
+
+                st.write("")
+                btn_col1, btn_col2 = st.columns(2)
+
+                with btn_col1:
+                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
+                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
+
+                with btn_col2:
