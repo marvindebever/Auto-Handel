@@ -25,7 +25,6 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* Dwingt absoluut ALLE tekst-elementen, inclusief metrics en expanders, naar wit met zwarte outline */
         h1, h2, h3, p, label, span, div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"],
         .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label,
         .streamlit-expanderHeader, .st-emotion-cache-p5msec, .st-emotion-cache-1wivap2 {{
@@ -41,7 +40,6 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        /* Zorgt dat invoervelden zelf wit/leesbaar blijven van binnen en zwarte tekst behouden */
         input, select, textarea, div[data-baseweb="input"] div {{
             text-shadow: none !important;
             color: black !important;
@@ -265,3 +263,6 @@ if autos:
                         bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
 
                 with btn_col2:
+                    if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
+                        cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
+                        conn.commit()
