@@ -257,8 +257,9 @@ if submit:
 st.subheader("Huidige inventaris")
 zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
-# 🚨 HIER IS DIE NU VOLLEDIG GECORRIGEERD EN WATERDICHT:
-if zoekterm:
-    q = "SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v2 WHERE kenteken LIKE ? OR naam LIKE ?"
-    cursor.execute(q, (f"%{zoekterm}%", f"%{zoekterm}%"))
-else:
+# 🚨 WATERDICHT EN ZONDER INSPRINGRISICO: Haalt altijd alle auto's op
+cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam FROM autos_v2")
+alle_autos = cursor.fetchall()
+
+if alle_autos:
+    for auto in alle_autos:
