@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ACHTERGROND EN ALLESOMVATTENDE TEKST OUTLINE INSTELLEN ---
+# --- ACHTERGROND EN DOELGERICHTE TEKST OUTLINE INSTELLEN ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,9 +25,14 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        h1, h2, h3, p, label, span, div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"],
+        /* Dwingt absoluut ALLE teksten, labels, headers, metrics en expander-titels naar wit met zwarte outline */
+        h1, h2, h3, p, label, span, 
+        div[data-testid="stMetricValue"], 
+        div[data-testid="stMetricLabel"],
         .stMarkdown, .stText, .stDialog, .stDialog div, .stDialog p, .stDialog label,
-        .streamlit-expanderHeader, .st-emotion-cache-p5msec, .st-emotion-cache-1wivap2 {{
+        .streamlit-expanderHeader, 
+        div[data-testid="stWidgetLabel"] p,
+        .st-emotion-cache-p5msec, .st-emotion-cache-1wivap2 {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -40,9 +45,14 @@ def zet_achtergrond(logo_path="logo.png"):
                  2px  2px 2px #000 !important;
         }}
         
-        input, select, textarea, div[data-baseweb="input"] div {{
+        /* Zorgt dat de tekst IN de invoervakken zelf wél zwart en goed leesbaar blijft op de witte vakjes */
+        input, select, textarea, 
+        div[data-baseweb="input"] input, 
+        div[data-baseweb="select"] div,
+        div[class*="stNumberInput"] input {{
             text-shadow: none !important;
             color: black !important;
+            -webkit-text-fill-color: black !important;
         }}
         </style>
         """
@@ -259,10 +269,3 @@ if autos:
                 btn_col1, btn_col2 = st.columns(2)
 
                 with btn_col1:
-                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_{auto_id}"):
-                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam)
-
-                with btn_col2:
-                    if st.button("🗑️ Auto Verwijderen", key=f"delete_{auto_id}", type="primary"):
-                        cursor.execute("DELETE FROM autos WHERE id=?", (auto_id,))
-                        conn.commit()
