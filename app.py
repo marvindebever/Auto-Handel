@@ -152,7 +152,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
     edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
-    edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
+    edit_apk = st.date_input("Pas APK Datum aan", value=standard_datum)
     
     opties = ["Handgeschakeld", "Automaat"]
     index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
@@ -224,8 +224,6 @@ for r in stat_rijen:
 
 # --- LIVE DASHBOARD STATISTIEKEN IN DE GEOPENDE EXPANDEERBALK ---
 st.write("")
-# We zetten de statistieken in een expander die standaard uitgeklapt staat (expanded=True)
-# Omdat expanders in jouw CSS al de perfecte diepdonkere kleur hebben, lost dit de bug direct op!
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
     stat_col1, stat_col2, stat_col3 = st.columns(3)
     with stat_col1:
@@ -235,7 +233,7 @@ with st.expander("📊 Actuele Status Dashboard", expanded=True):
     with stat_col3:
         st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
 
-st.write("---")
+# FIX: De extra loze scheidingslijn die hieronder stond is volledig gewist uit de code!
 
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
