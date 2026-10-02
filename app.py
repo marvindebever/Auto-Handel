@@ -332,7 +332,7 @@ if alle_autos:
     elif sorteer_optie == "APK Datum (Langste eerst)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "0000-00-00", reverse=True)
 
-    # --- GEOPTIMALISEERDE EXCEL GENERATOR (EXPORTEERT PRECIES DE SORTERING VAN HET SCHERM) ---
+    # --- GEOPTIMALISEERDE NATIVE EXCEL GENERATOR (STABIEL ZONDER XLSXWRITER) ---
     export_lijst = []
     for auto in verwerkte_autos:
         weergave_naam = auto["naam"] if auto["naam"] else "Onbekende auto"
@@ -345,18 +345,20 @@ if alle_autos:
             "Verkoopprijs (€)": auto["verkoopprijs"], "Verwachte Winst (€)": auto["winst"]
         })
         
-    df = pd.DataFrame(export_lijst)
-    towrite = io.BytesIO()
-    with pd.ExcelWriter(towrite, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Inventaris')
-    towrite.seek(0)
-    
-    with inv_col4:
-        st.markdown('<p style="margin-bottom: 0px; padding-bottom: 23px;"></p>', unsafe_allow_html=True)
-        st.download_button(
-            label="📊 Download Excel", data=towrite, file_name=f"inventaris_{datetime.now().strftime('%d-%m-%Y')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
-        )
+    if export_lijst:
+        df = pd.DataFrame(export_lijst)
+        towrite = io.BytesIO()
+        # FIX: engine is omgezet naar 'openpyxl' om de ontbrekende module-fout op te lossen
+        with pd.ExcelWriter(towrite, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Inventaris')
+        towrite.seek(0)
+        
+        with inv_col4:
+            st.markdown('<p style="margin-bottom: 0px; padding-bottom: 23px;"></p>', unsafe_allow_html=True)
+            st.download_button(
+                label="📊 Download Excel", data=towrite, file_name=f"inventaris_{datetime.now().strftime('%d-%m-%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
+            )
 
     # --- UITROL INVENTARIS ---
     for auto in verwerkte_autos:
