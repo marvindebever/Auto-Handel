@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VOLLEDIG GEOPTIMALISEERDE STYLING: EXACT DEZELFDE DONKERE LOOK VOOR ALLES ---
+# --- ULTIEME UNIFORME STYLING: DAADWERKELIJK ALLES IN EXACT DEZELFDE LOOK ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -29,10 +29,8 @@ def zet_achtergrond(logo_path="logo.png"):
             background-color: transparent !important;
         }}
         
-        /* GOUDEN UNIFORME BOX FIX: Zorgt dat alle containers exact dezelfde look hebben */
-        div[data-testid="stForm"], 
-        div[data-testid="stVerticalBlockBorderContainer"],
-        .custom-stat-box {{
+        /* GOUDEN UNIFORME BOX FIX: Zorgt dat ELK formulier er exact hetzelfde uitziet */
+        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
             background-color: rgba(25, 25, 25, 0.90) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -40,6 +38,11 @@ def zet_achtergrond(logo_path="logo.png"):
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
+        }}
+        
+        /* Verbergt specifiek de verplichte formulierknop van de statistiekenbalk */
+        div[id="stat_form_id"] button[data-testid="stFormSubmitButton"] {{
+            display: none !important;
         }}
         
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
@@ -224,21 +227,23 @@ for r in stat_rijen:
     totale_voorraadwaarde += (ink + kost)
     totale_verwachte_winst += (verk - (ink + kost))
 
-# --- LIVE DASHBOARD STATISTIEKEN IN DEZELFDE DONKERE STIJLBOX ---
+# --- LIVE DASHBOARD STATISTIEKEN IN DAADWERKELIJK IDENTIEKE BOX ---
 st.write("")
 st.subheader("📊 Actuele Status")
 
-# FIX: We laden de statistieken nu handmatig in een HTML div met de klasse 'custom-stat-box' 
-# zodat hij exact dezelfde diepdonkere achtergrond en rand krijgt als de rest van de app
-st.markdown('<div class="custom-stat-box">', unsafe_allow_html=True)
-stat_col1, stat_col2, stat_col3 = st.columns(3)
-with stat_col1:
-    st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
-with stat_col2:
-    st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
-with stat_col3:
-    st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
-st.markdown('</div>', unsafe_allow_html=True)
+# GOUDEN TRUK: We stoppen het in een st.form met een eigen ID, zodat de CSS de knop verbergt, 
+# maar de container exact even hoog en diep meekleurt als de rest van de app!
+with st.form("stat_form_id", clear_on_submit=False):
+    stat_col1, stat_col2, stat_col3 = st.columns(3)
+    with stat_col1:
+        st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
+    with stat_col2:
+        st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
+    with stat_col3:
+        st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
+    # Onzichtbare submit button die verplicht is voor de opbouw van st.form
+    st.form_submit_button("Submit")
+
 st.write("---")
 
 # --- TOEVOEGEN FORMULIER ---
@@ -323,7 +328,7 @@ if alle_autos:
                                     st.error("Fout bij laden foto.")
                     else:
                         try:
-                            st.image(base64.b64decode(alle_fotos), use_container_width=True)
+                            st.image(base64.b64decode(foto_string), use_container_width=True)
                         except Exception:
                             st.error("Fout bij het laden van de afbeelding.")
                 else:
