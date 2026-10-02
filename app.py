@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VOLLEDIG GEOPTIMALISEERDE STYLING: TEKSTEN GEGARANDEERD WIT EN LEESBAAR ---
+# --- VOLLEDIG GEOPTIMALISEERDE STYLING: TEKSTEN GEGARANDEERD WIT EN IN DE JUISTE BOX ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -29,7 +29,8 @@ def zet_achtergrond(logo_path="logo.png"):
             background-color: transparent !important;
         }}
         
-        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
+        /* Dwingt formulieren EN de nieuwe statistieken container in exact dezelfde donkere boxen */
+        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .stat-box {{
             background-color: rgba(25, 25, 25, 0.90) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -56,7 +57,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: none !important;
         }}
         
-        /* Specifieke styling om de st.metric getallen ook mooi wit en leesbaar te maken */
+        /* Getallen in de statistiekenboxen ook perfect helder wit maken */
         div[data-testid="stMetricValue"] div {{
             color: white !important;
             font-weight: bold !important;
@@ -219,21 +220,22 @@ totale_verwachte_winst = 0.0
 
 for r in stat_rijen:
     ink, verk, kost = r
-    # Waarde van de voorraad is inkoopprijs + eventuele gemaakte extra kosten
     totale_voorraadwaarde += (ink + kost)
-    # Verwachte winst per auto is verkoop - (inkoop + kosten)
     totale_verwachte_winst += (verk - (ink + kost))
 
-# --- LIVE DASHBOARD STATISTIEKEN BALK ---
+# --- LIVE DASHBOARD STATISTIEKEN IN DEZELFDE DONKERE STIJLBOX ---
 st.write("")
 st.subheader("📊 Actuele Status")
-stat_col1, stat_col2, stat_col3 = st.columns(3)
-with stat_col1:
-    st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
-with stat_col2:
-    st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
-with stat_col3:
-    st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
+
+# We openen een native streamlit container die via de CSS (.stat-box) exact dezelfde styling krijgt als de rest van de formulieren
+with st.container(border=True):
+    stat_col1, stat_col2, stat_col3 = st.columns(3)
+    with stat_col1:
+        st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
+    with stat_col2:
+        st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
+    with stat_col3:
+        st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
 st.write("---")
 
 # --- TOEVOEGEN FORMULIER ---
@@ -318,7 +320,7 @@ if alle_autos:
                                     st.error("Fout bij laden foto.")
                     else:
                         try:
-                            st.image(base64.b64decode(alle_fotos[0]), use_container_width=True)
+                            st.image(base64.b64decode(alle_fotos), use_container_width=True)
                         except Exception:
                             st.error("Fout bij het laden van de afbeelding.")
                 else:
