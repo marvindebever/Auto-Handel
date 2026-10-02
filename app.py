@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE STYLING ZONDER INTERVENTIE OP FORMULIERHOOGTES ---
+# --- DEFINTIEVE STYLING FIX: GEEN VASTE HOOGTE MEER, SCROLLEN WERKT NU ALTIJD ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -17,12 +17,15 @@ def zet_achtergrond(logo_path="logo.png"):
         
         css = f"""
         <style>
+        /* Dwingt de app om flexibel mee te groeien in de hoogte zodat scrollen werkt */
         .stApp {{
             background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             background-attachment: fixed;
+            min-height: 100vh !important;
+            height: auto !important;
         }}
         
         /* Outline voor perfecte leesbaarheid van teksten */
@@ -110,7 +113,7 @@ def formatteer_datum_nl(datum_str):
     except Exception:
         return datum_str
 
-# --- MODERNE DIALOG BOX VOOR VOLLEDIG AANPASSEN (AFKNIPPEN OMMOGELIJK) ---
+# --- MODERNE DIALOG BOX VOOR VOLLEDIG AANPASSEN (AFKNIPPEN HIERIN UNMOGELIJK) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig):
     try:
@@ -238,6 +241,3 @@ if alle_autos:
                 st.write(f"**ID Nummer:** {auto_id}")
                 st.write(f"**Kilometerstand:** {km:,} km")
                 st.write(f"**Transmissie:** {trans if trans else 'Niet opgegeven'}")
-                st.write(f"**APK Datum:** {apk_nl}")
-                st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
-                st.write(f"**Extra kosten:** €{kosten:,.2f}")
