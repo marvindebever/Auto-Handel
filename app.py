@@ -61,11 +61,6 @@ def zet_achtergrond(logo_path="logo.png"):
             color: white !important;
             font-weight: bold !important;
         }}
-
-        /* GOUDEN CSS-FIX: Lijn de verversknop handmatig uit zodat hij perfect gelijk staat aan de zoekbalk */
-        div[id="refresh_button_container"] button {{
-            margin-top: 28px !important;
-        }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
@@ -283,16 +278,15 @@ if submit:
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 
-# REFRESH INDELING FIXED: De kolommen maken nu gebruik van een stabiele, gelijke 2-koloms indeling.
-# De knop wordt via de CSS in Deel 1 (id="refresh_button_container") netjes uitgelijnd.
-inv_col1, inv_col2 = st.columns(2)
+# GOUDEN REFRESH INDELING FIXED: Er wordt nu een leeg label boven de knop geplaatst 
+# via een HTML-element, waardoor de knop automatisch exact gelijk zakt met de zoekbalk!
+inv_col1, inv_col2 = st.columns([4, 1])
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 with inv_col2:
-    st.markdown('<div id="refresh_button_container">', unsafe_allow_html=True)
+    st.markdown('<p style="margin-bottom: 0px; padding-bottom: 23px;"></p>', unsafe_allow_html=True)
     if st.button("🔄 Inventaris Verversen", use_container_width=True, type="secondary"):
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM voorraad")
 alle_autos = cursor.fetchall()
