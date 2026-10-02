@@ -276,7 +276,7 @@ if submit:
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 
-# REFRESH EN SORTEERBALK INDELING (3 KOLOMMEN PERFECT WATERPAS)
+# REFRESH EN SORTEERBALK INDELING (TEKSTEN LIJNEN NU KEURIG CONFORM JE WENS)
 inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1])
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
@@ -284,8 +284,8 @@ with inv_col2:
     sorteer_optie = st.selectbox(
         "🔀 Sorteren op",
         options=[
-            "ID Nummer (Oud naar nieuw)",
-            "ID Nummer (Nieuw naar oud)",
+            "ID Nummer (Oplopend)",
+            "ID Nummer (Aflopend)",
             "Verwachte Winst (Hoog naar laag)",
             "Verwachte Winst (Laag naar hoog)",
             "Kilometerstand (Laag naar hoog)",
@@ -313,7 +313,7 @@ if alle_autos:
             "afbeelding": foto_string, "naam": auto_naam, "transmissie": trans, "winst": winst
         })
 
-    # UITGEBREIDE SORTEER LOGICA
+    # SORTEER LOGICA ACTIVATIE CONFORM NIEUWE REWARD NAMEN
     if sorteer_optie == "ID Nummer (Oplopend)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["id"])
     elif sorteer_optie == "ID Nummer (Aflopend)":
