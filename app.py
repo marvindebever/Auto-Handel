@@ -332,7 +332,7 @@ if alle_autos:
     elif sorteer_optie == "APK Datum (Langste eerst)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "0000-00-00", reverse=True)
 
-    # --- GEOPTIMALISEERDE NATIVE EXCEL GENERATOR (STABIEL ZONDER XLSXWRITER) ---
+    # --- WATERDICHTE EXCEL-COMPATIBELE EXPORT GENERATOR ---
     export_lijst = []
     for auto in verwerkte_autos:
         weergave_naam = auto["naam"] if auto["naam"] else "Onbekende auto"
@@ -341,23 +341,23 @@ if alle_autos:
         export_lijst.append({
             "ID": auto["id"], "Naam/Omschrijving": weergave_naam, "Kenteken": auto["kenteken"],
             "KM Stand": auto["km_stand"], "Transmissie": auto["transmissie"], "APK Datum": formatteer_datum_nl(auto["apk_datum"]),
-            "Inkoopprijs (€)": auto["inkoopprijs"], "Extra Kosten (€)": auto["extra_kosten"],
-            "Verkoopprijs (€)": auto["verkoopprijs"], "Verwachte Winst (€)": auto["winst"]
+            "Inkoopprijs EUR": auto["inkoopprijs"], "Extra Kosten EUR": auto["extra_kosten"],
+            "Verkoopprijs EUR": auto["verkoopprijs"], "Verwachte Winst EUR": auto["winst"]
         })
         
     if export_lijst:
         df = pd.DataFrame(export_lijst)
-        towrite = io.BytesIO()
-        # FIX: engine is omgezet naar 'openpyxl' om de ontbrekende module-fout op te lossen
-        with pd.ExcelWriter(towrite, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Inventaris')
-        towrite.seek(0)
+        
+        # GOUDEN TRUK: We exporteren naar CSV met een puntkomma (;) scheidingsteken en voegen de Excel UTF-8 BOM (\ufeff) toe. 
+        # Hierdoor begrijpt Microsoft Excel direct bij het openen dat het een spreadsheet is en zet het alles in keurige kolommen!
+        csv_data = df.to_csv(index=False, sep=';', encoding='utf-8')
+        excel_ready_data = "\ufeff" + csv_data
         
         with inv_col4:
             st.markdown('<p style="margin-bottom: 0px; padding-bottom: 23px;"></p>', unsafe_allow_html=True)
             st.download_button(
-                label="📊 Download Excel", data=towrite, file_name=f"inventaris_{datetime.now().strftime('%d-%m-%Y')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
+                label="📊 Download Excel", data=excel_ready_data, file_name=f"inventaris_{datetime.now().strftime('%d-%m-%Y')}.csv",
+                mime="text/csv", use_container_width=True
             )
 
     # --- UITROL INVENTARIS ---
