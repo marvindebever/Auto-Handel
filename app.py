@@ -332,32 +332,83 @@ if alle_autos:
     elif sorteer_optie == "APK Datum (Langste eerst)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "0000-00-00", reverse=True)
 
-    # --- WATERDICHTE EXCEL-COMPATIBELE EXPORT GENERATOR ---
+    # --- PROFESSIONELE EN MET CSS AANGEKLEEDDE EXCEL GENERATOR ---
     export_lijst = []
     for auto in verwerkte_autos:
         weergave_naam = auto["naam"] if auto["naam"] else "Onbekende auto"
         if zoekterm and (zoekterm not in auto["kenteken"]) and (zoekterm not in weergave_naam.upper()):
             continue
         export_lijst.append({
-            "ID": auto["id"], "Naam/Omschrijving": weergave_naam, "Kenteken": auto["kenteken"],
+            "ID": auto["id"], "Naam / Omschrijving": weergave_naam, "Kenteken": auto["kenteken"],
             "KM Stand": auto["km_stand"], "Transmissie": auto["transmissie"], "APK Datum": formatteer_datum_nl(auto["apk_datum"]),
-            "Inkoopprijs EUR": auto["inkoopprijs"], "Extra Kosten EUR": auto["extra_kosten"],
-            "Verkoopprijs EUR": auto["verkoopprijs"], "Verwachte Winst EUR": auto["winst"]
+            "Inkoopprijs": auto["inkoopprijs"], "Extra Kosten": auto["extra_kosten"],
+            "Verkoopprijs": auto["verkoopprijs"], "Verwachte Winst": auto["winst"]
         })
         
     if export_lijst:
         df = pd.DataFrame(export_lijst)
+        towrite = io.BytesIO()
         
-        # GOUDEN TRUK: We exporteren naar CSV met een puntkomma (;) scheidingsteken en voegen de Excel UTF-8 BOM (\ufeff) toe. 
-        # Hierdoor begrijpt Microsoft Excel direct bij het openen dat het een spreadsheet is en zet het alles in keurige kolommen!
-        csv_data = df.to_csv(index=False, sep=';', encoding='utf-8')
-        excel_ready_data = "\ufeff" + csv_data
+        with pd.ExcelWriter(towrite, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Voorraad Inventaris')
+            workbook = writer.book
+            worksheet = writer.sheets['Voorraad Inventaris']
+            
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            
+            header_fill = PatternFill(start_color="1E1E24", end_color="1E1E24", fill_type="solid")
+            header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+            data_font = Font(name="Arial", size=10, color="000000")
+            center_alignment = Alignment(horizontal="center", vertical="center")
+            left_alignment = Alignment(horizontal="left", vertical="center")
+            right_alignment = Alignment(horizontal="right", vertical="center")
+            
+            thin_border = Border(
+                left=Side(style='thin', color='DDDDDD'), right=Side(style='thin', color='DDDDDD'),
+                top=Side(style='thin', color='DDDDDD'), bottom=Side(style='thin', color='DDDDDD')
+            )
+            
+            # Geef de titels een professionele look
+            for col_idx in range(1, worksheet.max_column + 1):
+                cell = worksheet.cell(row=1, column=col_idx)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = center_alignment
+            worksheet.row_dimensions[1].height = 26
+
+            # Loop door alle data-cellen voor styling en valuta-opmaak
+            for row_idx in range(2, worksheet.max_row + 1):
+                worksheet.row_dimensions[row_idx].height = 20
+                for col_idx in range(1, worksheet.max_column + 1):
+                    cell = worksheet.cell(row=row_idx, column=col_idx)
+                    cell.font = data_font
+                    cell.border = thin_border
+                    
+                    # Uitlijning & Getalnotaties op basis van kolom-index (1-based)
+                    if col_idx in:  # ID (1), Kenteken (3), Transmissie (5), APK Datum (6)
+                        cell.alignment = center_alignment
+                    elif col_idx in:         # Naam / Omschrijving (2)
+                        cell.alignment = left_alignment
+                    elif col_idx in:         # KM Stand (4)
+                        cell.alignment = right_alignment
+                        cell.number_format = '#,##0" km"'
+                    elif col_idx in: # Financiële kolommen (7, 8, 9, 10)
+                        cell.alignment = right_alignment
+                        cell.number_format = '"€ " #,##0.00'
+            
+            # Automatische kolombreedte bepaling zodat er nooit meer '###' of afgekapte tekst staat
+            for col in worksheet.columns:
+                max_len = max(len(str(cell.value or '')) for cell in col)
+                col_letter = col.column_letter
+                worksheet.column_dimensions[col_letter].width = max(max_len + 4, 13)
+                
+        towrite.seek(0)
         
         with inv_col4:
             st.markdown('<p style="margin-bottom: 0px; padding-bottom: 23px;"></p>', unsafe_allow_html=True)
             st.download_button(
-                label="📊 Download Excel", data=excel_ready_data, file_name=f"inventaris_{datetime.now().strftime('%d-%m-%Y')}.csv",
-                mime="text/csv", use_container_width=True
+                label="📊 Download Excel", data=towrite, file_name=f"inventaris_{datetime.now().strftime('%d-%m-%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
             )
 
     # --- UITROL INVENTARIS ---
@@ -371,42 +422,39 @@ if alle_autos:
             col1, col2 = st.columns(2)
             
             with col1:
-                if auto["afbeelding"]:
-                    alle_fotos = auto["afbeelding"].split("||")
-                    if len(alle_fotos) > 1:
-                        foto_cols = st.columns(min(len(alle_fotos), 3))
-                        for idx, f_data in enumerate(alle_fotos):
-                            with foto_cols[idx % min(len(alle_fotos), 3)]:
-                                try:
-                                    st.image(base64.b64decode(f_data), use_container_width=True)
-                                except Exception:
-                                    st.error("Fout bij laden foto.")
-                    else:
-                        try:
-                            st.image(base64.b64decode(auto["afbeelding"]), use_container_width=True)
-                        except Exception:
-                            st.error("Fout bij het laden van de afbeelding.")
-                else:
-                    st.info("Geen afbeelding beschikbaar.")
-            
-            with col2:
-                st.write(f"**ID Nummer:** {auto['id']}")
-                st.write(f"**Kilometerstand:** {auto['km_stand']:,} km")
-                st.write(f"**Transmissie:** {auto['transmissie'] if auto['transmissie'] else 'Niet opgegeven'}")
-                st.write(f"**APK Datum:** {apk_nl}")
-                st.write(f"**Inkoopprijs:** €{auto['inkoopprijs']:,.2f}")
-                st.write(f"**Extra kosten:** €{auto['extra_kosten']:,.2f}")
-                st.write(f"**Verkoopprijs:** €{auto['verkoopprijs']:,.2f}")
-                st.write(f"**Verwachte Winst:** €{auto['winst']:,.2f}")
-                
-                st.write("")
-                btn_edit, btn_del = st.columns(2)
-                with btn_edit:
-                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto['id']}", use_container_width=True, type="primary"):
-                        bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"])
-                with btn_del:
-                    if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto['id']}", use_container_width=True):
-                        cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
-                        conn.commit()
-                        st.success(f"Auto succesvol verwijderd!")
-                        st.rerun()
+                if auto["afbeelding"]:alle_fotos = auto["afbeelding"].split("||")
+if len(alle_fotos) > 1:
+foto_cols = st.columns(min(len(alle_fotos), 3))
+for idx, f_data in enumerate(alle_fotos):
+with foto_cols[idx % min(len(alle_fotos), 3)]:
+try:
+st.image(base64.b64decode(f_data), use_container_width=True)
+except Exception:
+st.error("Fout bij laden foto.")
+else:
+try:
+st.image(base64.b64decode(auto["afbeelding"]), use_container_width=True)
+except Exception:
+st.error("Fout bij het laden van de afbeelding.")
+else:
+st.info("Geen afbeelding beschikbaar.")
+with col2:
+st.write(f"ID Nummer: {auto['id']}")
+st.write(f"Kilometerstand: {auto['km_stand']:,} km")
+st.write(f"Transmissie: {auto['transmissie'] if auto['transmissie'] else 'Niet opgegeven'}")
+st.write(f"APK Datum: {apk_nl}")
+st.write(f"Inkoopprijs: €{auto['inkoopprijs']:,.2f}")
+st.write(f"Extra kosten: €{auto['extra_kosten']:,.2f}")
+st.write(f"Verkoopprijs: €{auto['verkoopprijs']:,.2f}")
+st.write(f"Verwachte Winst: €{auto['winst']:,.2f}")
+st.write("")
+btn_edit, btn_del = st.columns(2)
+with btn_edit:
+if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto['id']}", use_container_width=True, type="primary"):
+bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"])
+with btn_del:
+if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto['id']}", use_container_width=True):
+cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
+conn.commit()
+st.success(f"Auto succesvol verwijderd!")
+st.rerun()
