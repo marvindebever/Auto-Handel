@@ -142,6 +142,11 @@ def formatteer_datum_nl(datum_str):
         return dt.strftime("%d-%m-%Y")
     except Exception:
         return datum_str
+
+# --- GOUDEN NEDERLANDSE FORMATTEER FUNCTIE ---
+def formatteer_euro_nl(bedrag):
+    tijdelijk = f"{bedrag:,.2f}"
+    return tijdelijk.replace(",", "X").replace(".", ",").replace("X", ".")
 # --- MODERNE DIALOG BOX VOOR VOLLEDIG AANPASSEN (MET MEERDERE FOTO'S) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig):
@@ -222,16 +227,16 @@ for r in stat_rijen:
     totale_voorraadwaarde += (ink + kost)
     totale_verwachte_winst += (verk - (ink + kost))
 
-# --- LIVE DASHBOARD STATISTIEKEN ---
+# --- LIVE DASHBOARD STATISTIEKEN MET NEDERLANDSE NOTATIE ---
 st.write("")
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
     stat_col1, stat_col2, stat_col3 = st.columns(3)
     with stat_col1:
         st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
     with stat_col2:
-        st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
+        st.metric(label="Totale Investeringswaarde", value=f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     with stat_col3:
-        st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
+        st.metric(label="Totale Verwachte Winst", value=f"€ {formatteer_euro_nl(totale_verwachte_winst)}")
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
@@ -390,15 +395,17 @@ if alle_autos:
                         cell.alignment = left_alignment
                     elif col_idx == 4:
                         cell.alignment = right_alignment
-                        cell.number_format = '#,##0" km"'
+                        # Nederlandse kilometerstand-notatie voor Excel (Punt als duizendtal)
+                        cell.number_format = '#.##0" km"'
                     elif col_idx == 7 or col_idx == 8 or col_idx == 9 or col_idx == 10:
                         cell.alignment = right_alignment
-                        cell.number_format = '"€ " #,##0.00'
+                        # GOUDEN EXCEL-NOTATIE: Euroteken met punt als duizendtal en komma voor centen
+                        cell.number_format = '"€ " #.##0,00'
             
-            # DE GOUDEN REPARATIE: col[0].column haalt nu foutloos het kolomnummer op voor openpyxl
+            # Automatische kolombreedte bepaling zodat er nooit meer '###' staat
             for col in worksheet.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col)
-                col_letter = get_column_letter(col[0].column)
+                col_letter = get_column_letter(col.column)
                 worksheet.column_dimensions[col_letter].width = max(max_len + 4, 13)
                 
         towrite.seek(0)
@@ -417,7 +424,8 @@ if alle_autos:
             continue
         apk_nl = formatteer_datum_nl(auto["apk_datum"])
 
-        with st.expander(f"🚗 {weergave_naam} ({auto['kenteken']}) - Verkoopprijs: €{auto['verkoopprijs']:,.2f}"):
+        # Nederlandse prijzennotatie in de balk van de expander zelf
+        with st.expander(f"🚗 {weergave_naam} ({auto['kenteken']}) - Verkoopprijs: € {formatteer_euro_nl(auto['verkoopprijs'])}"):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -441,13 +449,13 @@ if alle_autos:
             
             with col2:
                 st.write(f"**ID Nummer:** {auto['id']}")
-                st.write(f"**Kilometerstand:** {auto['km_stand']:,} km")
+                st.write(f"**Kilometerstand:** {auto['km_stand']:,}.replace(',', '.') km".replace(',', '.'))
                 st.write(f"**Transmissie:** {auto['transmissie'] if auto['transmissie'] else 'Niet opgegeven'}")
                 st.write(f"**APK Datum:** {apk_nl}")
-                st.write(f"**Inkoopprijs:** €{auto['inkoopprijs']:,.2f}")
-                st.write(f"**Extra kosten:** €{auto['extra_kosten']:,.2f}")
-                st.write(f"**Verkoopprijs:** €{auto['verkoopprijs']:,.2f}")
-                st.write(f"**Verwachte Winst:** €{auto['winst']:,.2f}")
+                st.write(f"**Inkoopprijs:** € {formatteer_euro_nl(auto['inkoopprijs'])}")
+                st.write(f"**Extra kosten:** € {formatteer_euro_nl(auto['extra_kosten'])}")
+                st.write(f"**Verkoopprijs:** € {formatteer_euro_nl(auto['verkoopprijs'])}")
+                st.write(f"**Verwachte Winst:** € {formatteer_euro_nl(auto['winst'])}")
                 
                 st.write("")
                 btn_edit, btn_del = st.columns(2)
