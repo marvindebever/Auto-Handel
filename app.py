@@ -9,7 +9,6 @@ import pandas as pd
 import requests
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
-
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -20,22 +19,43 @@ def zet_achtergrond(logo_path="logo.png"):
         <style>
         [data-testid="stAppViewContainer"] {{
             background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("data:image/png;base64,{encoded}");
-            background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
         }}
-        [data-testid="stMain"] {{ background-color: transparent !important; }}
+        
+        [data-testid="stMain"] {{
+            background-color: transparent !important;
+        }}
+        
         div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .streamlit-expanderContent {{
-            background-color: rgba(25, 25, 25, 0.90) !important; padding: 25px !important;
-            border-radius: 12px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            height: auto !important; max-height: none !important; overflow: visible !important;
+            background-color: rgba(25, 25, 25, 0.90) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
         }}
+        
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
-            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+            color: white !important;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px  1px 0 #000, 1px  1px 0 #000 !important;
         }}
+        
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
-            background-color: #1e1e24 !important; color: white !important; -webkit-text-fill-color: white !important;
-            border: 1px solid rgba(255, 255, 255, 0.2) !important; text-shadow: none !important;
+            background-color: #1e1e24 !important;
+            color: white !important;
+            -webkit-text-fill-color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            text-shadow: none !important;
         }}
-        div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
+        
+        div[data-testid="stMetricValue"] div {{
+            color: white !important;
+            font-weight: bold !important;
+        }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
@@ -70,6 +90,7 @@ cursor.execute("""
 """)
 conn.commit()
 
+# Controleer via de kolomnamen of status al bestaat
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -93,33 +114,45 @@ def haal_rdw_gegevens(kenteken_str):
     if not schoon:
         return None
     
-    # Gecorrigeerde link naar de officiële overheid-API van het RDW
     url = f"https://rdw.nl{schoon}"
+    
+    # Officiële headers om aan het RDW te bewijzen dat dit een legitieme app is (helpt tegen Cloud-blokkades)
+    headers = {
+        "User-Agent": "AutohandelInventarisApp/1.0 (StreamlitCloud; Contact: info@autohandel.nl)",
+        "Accept": "application/json"
+    }
+    
     try:
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200 and len(res.json()) > 0:
-            # Pak de eerste auto uit het overzichtslijstje
-            data = res.json()[0]
-            
-            merk = data.get("merk", "").title()
-            model = data.get("handelsbenaming", "").title()
-            volledige_naam = f"{merk} {model}".strip()
-            
-            apk_verval = data.get("vervaldatum_apk", "")
-            apk_formatted = datetime.today().date()
-            if apk_verval:
-                try: 
-                    apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                except: 
-                    pass
-                    
-            return {
-                "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
-                "apk": apk_formatted
-            }
-    except:
-        pass
-    return None
+        res = requests.get(url, headers=headers, timeout=7)
+        if res.status_code == 200:
+            data = res.json()
+            if len(data) > 0:
+                voertuig = data[0]
+                merk = voertuig.get("merk", "").title()
+                model = voertuig.get("handelsbenaming", "").title()
+                volledige_naam = f"{merk} {model}".strip()
+                
+                apk_verval = voertuig.get("vervaldatum_apk", "")
+                apk_formatted = datetime.today().date()
+                if apk_verval:
+                    try: 
+                        apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
+                    except: 
+                        pass
+                        
+                return {
+                    "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
+                    "apk": apk_formatted,
+                    "fout": None
+                }
+            else:
+                return {"fout": "Kenteken niet gevonden in het RDW-register."}
+        else:
+            return {"fout": f"RDW Server weigerde toegang. Foutcode: {res.status_code}."}
+    except requests.exceptions.Timeout:
+        return {"fout": "Verbinding met RDW duurde te lang (Timeout)."}
+    except Exception as e:
+        return {"fout": f"Verbindingsfout: {str(e)}"}
 
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde:
@@ -210,13 +243,16 @@ with rdw_col2:
 
 if klik_rdw:
     rdw_data = haal_rdw_gegevens(rdw_kenteken)
-    if rdw_data:
+    if rdw_data and rdw_data.get("fout") is None:
         st.session_state["rdw_naam"] = rdw_data["naam"]
         st.session_state["rdw_apk"] = rdw_data["apk"]
         st.session_state["rdw_ktk"] = rdw_kenteken
         st.toast("⚡ RDW Gegevens succesvol geladen!", icon="✅")
-    else: 
-        st.error("Kenteken niet gevonden bij het RDW of API-fout.")
+    elif rdw_data and rdw_data.get("fout"):
+        # Dit laat nu de échte oorzaak zien op Streamlit Cloud (bijv. Foutcode: 403)
+        st.error(rdw_data["fout"])
+    else:
+        st.error("Onbekende API-fout opgetreden.")
 
 with st.form("auto_form", clear_on_submit=False):
     naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
