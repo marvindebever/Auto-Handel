@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- GEOPTIMALISEERDE STYLING: TEKSTEN GEGARANDEERD WIT EN LEESBAAR ---
+# --- VOLLEDIG GEOPTIMALISEERDE STYLING: TEKSTEN GEGARANDEERD WIT EN LEESBAAR ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -131,7 +131,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     
     opties = ["Handgeschakeld", "Automaat"]
     index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-    # DE GOUDEN FIX: index_standard is nu correct gewijzigd naar index_standaard
     edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
     
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
@@ -169,9 +168,16 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
             st.success("Auto succesvol bijgewerkt!")
             st.rerun()
 
-# --- HEADER ---
-st.title("🚗 Autohandel Inventaris")
-st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
+# --- HEADER SPREADING (TITEL LINKS, UITLOGGEN RECHTS) ---
+head_col1, head_col2 = st.columns([4, 1])
+with head_col1:
+    st.title("🚗 Autohandel Inventaris")
+    st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
+with head_col2:
+    st.write("")  # Uitlijning ruimte
+    if st.button("🚪 Systeem Uitloggen", use_container_width=True):
+        st.session_state["ingelogd"] = False
+        st.rerun()
 
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
@@ -210,8 +216,16 @@ if submit:
         st.error("Vul tenminste een kenteken in om de auto toe te voegen.")
 
 # --- INVENTARIS SECTIE ---
+st.write("---")
 st.subheader("Huidige inventaris")
-zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
+
+# GOUDEN REFRESH INDELING (ZOEKBALK LINKS, REFRESH KNOP RECHTS)
+inv_col1, inv_col2 = st.columns([4, 1])
+with inv_col1:
+    zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...", label_visibility="collapsed").upper()
+with inv_col2:
+    if st.button("🔄 Inventaris Verversen", use_container_width=True, type="secondary"):
+        st.rerun()
 
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM voorraad")
 alle_autos = cursor.fetchall()
@@ -259,9 +273,3 @@ if alle_autos:
                         conn.commit()
                         st.success(f"Auto succesvol verwijderd!")
                         st.rerun()
-
-# --- UITLOG KNOP ONDERAAN ---
-st.write("---")
-if st.button("🚪 Uitloggen uit systeem"):
-    st.session_state["ingelogd"] = False
-    st.rerun()
