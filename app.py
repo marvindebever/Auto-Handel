@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE STYLING: FORMULIER STYLING COMPLEET VERWIJDERD OM AFKNIPPEN TE VOORKOMEN ---
+# --- VEILIGE EN GEOPTIMALISEERDE STYLING: KAPT NOOIT MEER FORMULIEREN AF ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,6 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
+        /* Alleen teksten krijgen een outline voor leesbaarheid, we raken de form-functionaliteit niet aan */
         h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
             color: white !important;
             text-shadow: 
@@ -43,16 +44,10 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        input, select, textarea, div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
-            background-color: #262730 !important;
+        /* Clean inputs die geen rare hoogtes forceren */
+        div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             color: white !important;
             -webkit-text-fill-color: white !important;
-            text-shadow: none !important;
-            border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        }}
-
-        .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
-            text-shadow: none !important;
         }}
         </style>
         """
@@ -198,14 +193,13 @@ if alle_autos:
                 st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
                 st.write(f"**Verwachte Winst:** €{winst:,.2f}")
                 
-                # VERWIJDEREN HIER DIRECT GEPLAATST:
                 if st.button("🗑️ Deze auto definitief verwijderen", key=f"del_inv_{auto_id}", type="primary"):
                     cursor.execute("DELETE FROM voorraad WHERE id=?", (auto_id,))
                     conn.commit()
                     st.success(f"Auto met ID {auto_id} succesvol verwijderd!")
                     st.rerun()
 
-# --- DIRECT ACTIEBLOK ONDERAAN (ALLEEN VOOR AANPASSEN VIA ID) ---
+# --- DIRECT ACTIEBLOK ONDERAAN (VEILIG EN VOLLEDIG) ---
 st.write("")
 st.subheader("🛠️ Auto Gegevens Aanpassen via ID")
 
@@ -220,20 +214,22 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        # Dit formulier toont nu GEGARANDEERD alle velden en de opslaanknop onderaan
-        with st.form("edit_form", clear_on_submit=False):
-            edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
-            edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
-            edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
+        # We maken gebruik van st.container om de data-afkapping te omzeilen
+        with st.container():
+            edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "", key="ed_naam")
+            edit_ktk = st.text_input("Pas Kenteken aan", value=ktk, key="ed_ktk")
+            edit_km = st.text_input("Pas Kilometerstand aan", value=str(km), key="ed_km")
             
             try:
                 standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
             except Exception:
                 standaard_datum = datetime.today().date()
                 
-            edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
+            edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum, key="ed_apk")
             
             opties = ["Handgeschakeld", "Automaat"]
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
+            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard, key="ed_trans")
             
+            edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop), key="ed_inkoop")
+            edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop), key="ed_verkoop")
