@@ -1,61 +1,12 @@
-import base64
 from datetime import datetime
 import io
 import os
 import sqlite3
+import base64
 from PIL import Image
 import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
-
-# --- DEFINTIEVE STYLING FIX: GEEN VASTE HOOGTE MEER, SCROLLEN WERKT NU ALTIJD ---
-def zet_achtergrond(logo_path="logo.png"):
-    if os.path.exists(logo_path):
-        with open(logo_path, "rb") as f:
-            data = f.read()
-        encoded = base64.b64encode(data).decode("utf-8")
-        
-        css = f"""
-        <style>
-        /* Dwingt de app om flexibel mee te groeien in de hoogte zodat scrollen werkt */
-        .stApp {{
-            background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            min-height: 100vh !important;
-            height: auto !important;
-        }}
-        
-        /* Outline voor perfecte leesbaarheid van teksten */
-        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
-            color: white !important;
-            text-shadow: 
-                -1px -1px 0 #000,  
-                 1px -1px 0 #000,
-                -1px  1px 0 #000,
-                 1px  1px 0 #000,
-                -2px -2px 2px #000,
-                 2px -2px 2px #000,
-                -2px  2px 2px #000,
-                 2px  2px 2px #000 !important;
-        }}
-        
-        div[data-testid="stWidgetLabel"] p, label {{
-            color: white !important;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
-        }}
-        
-        div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
-            color: white !important;
-            -webkit-text-fill-color: white !important;
-        }}
-        </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
-
-zet_achtergrond("logo.png")
 
 # --- WACHTWOORDBEVEILIGING ---
 if "ingelogd" not in st.session_state:
@@ -113,7 +64,7 @@ def formatteer_datum_nl(datum_str):
     except Exception:
         return datum_str
 
-# --- MODERNE DIALOG BOX VOOR VOLLEDIG AANPASSEN (AFKNIPPEN HIERIN UNMOGELIJK) ---
+# --- MODERNE DIALOG BOX VOOR VOLLEDIG AANPASSEN ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig):
     try:
@@ -225,7 +176,7 @@ if alle_autos:
         if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
             continue
 
-        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}  |  ID: {auto_id}"):
+        with st.expander(f"🚗 {weergave_naam} ({ktk}) - Verkoopprijs: €{verkoop:,.2f}"):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -241,3 +192,20 @@ if alle_autos:
                 st.write(f"**ID Nummer:** {auto_id}")
                 st.write(f"**Kilometerstand:** {km:,} km")
                 st.write(f"**Transmissie:** {trans if trans else 'Niet opgegeven'}")
+                st.write(f"**APK Datum:** {apk_nl}")
+                st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
+                st.write(f"**Extra kosten:** €{kosten:,.2f}")
+                st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
+                st.write(f"**Verwachte Winst:** €{winst:,.2f}")
+                
+                st.write("")
+                btn_edit, btn_del = st.columns(2)
+                with btn_edit:
+                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto_id}", use_container_width=True, type="primary"):
+                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam, trans)
+                with btn_del:
+                    if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto_id}", use_container_width=True):
+                        cursor.execute("DELETE FROM voorraad WHERE id=?", (auto_id,))
+                        conn.commit()
+                        st.success(f"Auto succesvol verwijderd!")
+                        st.rerun()
