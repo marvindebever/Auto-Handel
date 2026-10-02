@@ -29,8 +29,10 @@ def zet_achtergrond(logo_path="logo.png"):
             background-color: transparent !important;
         }}
         
-        /* GOUDEN UNIFORME BOX FIX: Zorgt dat ELK formulier er exact hetzelfde uitziet */
-        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
+        /* GOUDEN UNIFORME BOX FIX: Zorgt dat ELK formulier EN de nieuwe statistieken-balk er exact hetzelfde uitzien */
+        div[data-testid="stForm"], 
+        div[data-testid="stVerticalBlockBorderContainer"],
+        div[data-testid="stVerticalBlock"] > div[style*="border"] {{
             background-color: rgba(25, 25, 25, 0.90) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -38,11 +40,6 @@ def zet_achtergrond(logo_path="logo.png"):
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
-        }}
-        
-        /* Verbergt specifiek de verplichte formulierknop van de statistiekenbalk */
-        div[id="stat_form_id"] button[data-testid="stFormSubmitButton"] {{
-            display: none !important;
         }}
         
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
@@ -231,9 +228,10 @@ for r in stat_rijen:
 st.write("")
 st.subheader("📊 Actuele Status")
 
-# GOUDEN TRUK: We stoppen het in een st.form met een eigen ID, zodat de CSS de knop verbergt, 
-# maar de container exact even hoog en diep meekleurt als de rest van de app!
-with st.form("stat_form_id", clear_on_submit=False):
+# GECORRIGEERDE HOOFD-FIX: De statistieken staan nu in een st.container met een border.
+# De aangescherpte CSS in Deel 1 herkent deze specifieke border-container nu en tovert hem
+# om in exact dezelfde diepdonkere glazen stijl als je toevoegformulier, ZONDER Submit-knop!
+with st.container(border=True):
     stat_col1, stat_col2, stat_col3 = st.columns(3)
     with stat_col1:
         st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
@@ -241,8 +239,6 @@ with st.form("stat_form_id", clear_on_submit=False):
         st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
     with stat_col3:
         st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
-    # Onzichtbare submit button die verplicht is voor de opbouw van st.form
-    st.form_submit_button("Submit")
 
 st.write("---")
 
@@ -328,7 +324,7 @@ if alle_autos:
                                     st.error("Fout bij laden foto.")
                     else:
                         try:
-                            st.image(base64.b64decode(foto_string), use_container_width=True)
+                            st.image(base64.b64decode(alle_fotos), use_container_width=True)
                         except Exception:
                             st.error("Fout bij het laden van de afbeelding.")
                 else:
