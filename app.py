@@ -176,11 +176,11 @@ actie_id_str = st.text_input("Voer het ID-nummer van de auto in om te openen:")
 actie_id = naar_getal(actie_id_str, int)
 
 if actie_id > 0:
-    cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, naam, transmissie FROM voorraad WHERE id=?", (actie_id,))
+    cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, naam, transmissie, afbeelding FROM voorraad WHERE id=?", (actie_id,))
     bestaande_auto = cursor.fetchone()
     
     if bestaande_auto:
-        ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig = bestaande_auto
+        ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
         with st.form("edit_form", clear_on_submit=False):
@@ -213,11 +213,13 @@ if actie_id > 0:
                 n_verkoop = naar_getal(edit_verkoop, float)
                 n_kosten = naar_getal(edit_kosten, float)
                 
+                # 🚨 DE GOUDEN FIX: Geen if/else splitsing meer voor queries. We bepalen de fotostring eerst! [sqlite3]
+                foto_opslaan = foto_huidig
                 if edit_foto is not None:
                     img = Image.open(edit_foto)
                     img.thumbnail((800, 800))
                     buffer = io.BytesIO()
                     img.save(buffer, format="JPEG", quality=70)
-                    foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                    cursor.execute("UPDATE voorraad SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=?, afbeelding=? WHERE id=?", (edit_naam, edit_ktk.upper().strip(), n_km, n_inkoop, n_verkoop, str(edit_apk), n_kosten, edit_trans, foto_data, actie_id))
-                if edit_foto is None:
+                    foto_opslaan = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                
+                # Één enkele rechte, foutloze query [sqlite3]
