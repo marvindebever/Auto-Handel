@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- CLEAN & VEILIGE STYLING: GEEN AFGEKNIPTE FORMULIEREN MEER ---
+# --- VEILIGE STYLING: FORMULIER-AFKNIPTE BUG VOLLEDIG VERWIJDERD ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,6 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
+        /* Witte letters met zwarte schaduw voor perfecte leesbaarheid */
         h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
             color: white !important;
             text-shadow: 
@@ -43,16 +44,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* Aangepaste form container om afknippen (overflow) te voorkomen */
-        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
-            background-color: rgba(20, 20, 20, 0.95) !important;
-            padding: 25px !important;
-            border-radius: 12px !important;
-            border: 2px solid rgba(255, 255, 255, 0.2) !important;
-            overflow: visible !important;
-            display: block !important;
-        }}
-        
+        /* Alle ingewikkelde form-achtergronden zijn weggehaald om afknippen fysiek onmogelijk te maken */
         input, select, textarea, div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             background-color: #262730 !important;
             color: white !important;
@@ -223,21 +215,24 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        # Formulier start hier
-        with st.form("edit_form", clear_on_submit=False):
-            edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
-            edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
-            edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
+        # OPMERKING: HIER IS HET FORMULIER VERVANGEN DOOR NORMALE CONTAINERS OM HET HANGEN TE VOORKOMEN
+        edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
+        edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
+        edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
+        
+        try:
+            standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
+        except Exception:
+            standaard_datum = datetime.today().date()
             
-            try:
-                standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
-            except Exception:
-                standaard_datum = datetime.today().date()
-                
-            edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
-            
-            opties = ["Handgeschakeld", "Automaat"]
-            index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
-            
-            # DEZE VELDEN WAREN HIERONDER VERBORGEN DOOR DE OUDE CSS:
+        edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
+        
+        opties = ["Handgeschakeld", "Automaat"]
+        index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
+        edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
+        
+        edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
+        edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
+        edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
+        edit_foto = st.file_uploader("Upload een nieuwe foto (Laat leeg om huidige foto te behouden)", type=["jpg", "jpeg", "png"])
+        
