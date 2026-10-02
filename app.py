@@ -77,7 +77,7 @@ if not st.session_state["ingelogd"]:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
 
-# --- DATABASE SETUP ---
+# --- DATABASE VERBINDING ---
 conn = sqlite3.connect("autohandel_v4.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -90,7 +90,7 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Automatische database update (migratie) voor de statuskolom
+# Automatische database update voor de status-kolom
 cursor.execute("PRAGMA table_info(voorraad)")
 if "status" not in [k[1] for k in cursor.fetchall()]:
     cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
@@ -110,17 +110,28 @@ def haal_rdw_gegevens(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
+    
+    # Officiële RDW endpoint voor openbare voertuiggegevens
+    url = f"https://rdw.nl{schoon}"
     try:
-        res = requests.get(f"https://rdw.nl{schoon}", timeout=5)
+        res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            data = res.json()
+            data = res.json()[0]
+            
+            merk = data.get("merk", "").title()
+            model = data.get("handelsbenaming", "").title()
+            volledige_naam = f"{merk} {model}".strip()
+            
             apk_verval = data.get("vervaldatum_apk", "")
             apk_formatted = datetime.today().date()
             if apk_verval:
-                try: apk_formatted = datetime.strptime(apk_verval, "%Y%m%d").date()
-                except: pass
+                try: 
+                    apk_formatted = datetime.strptime(apk_verval, "%Y%m%d").date()
+                except: 
+                    pass
+                    
             return {
-                "naam": f"{data.get('merk', '')} {data.get('handelsbenaming', '')}".title().strip(),
+                "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
                 "apk": apk_formatted
             }
     except:
@@ -153,7 +164,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
     edit_status = st.selectbox("Status", options=["In voorraad", "Gereserveerd", "Verkocht"], index=["In voorraad", "Gereserveerd", "Verkocht"].index(status_huidig) if status_huidig in ["In voorraad", "Gereserveerd", "Verkocht"] else 0)
     edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
-    edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
+    edit_apk = st.date_input("Pas APK Datum aan", value=standard_datum)
     edit_trans = st.selectbox("Pas Transmissie aan", options=["Handgeschakeld", "Automaat"], index=["Handgeschakeld", "Automaat"].index(trans_huidig) if trans_huidig in ["Handgeschakeld", "Automaat"] else 0)
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
@@ -208,7 +219,7 @@ with st.expander("📊 Actuele Status Dashboard", expanded=True):
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 rdw_col1, rdw_col2 = st.columns(2)
-rdw_kenteken = rdw_col1.text_input("Optioneel: Snel RDW Gegevens ophalen via kenteken", placeholder="Bijv. 12ABC3").upper().replace("-", "")
+rdw_kenteken = rdw_col1.text_input("Optioneel: Snel RDW Gegevens ophalen via kenteken", placeholder="Bijv. G-581-HH").upper().replace("-", "")
 
 if rdw_col2.button("🔍 RDW Gegevens Ophalen", use_container_width=True):
     rdw_data = haal_rdw_gegevens(rdw_kenteken)
@@ -221,7 +232,6 @@ if rdw_col2.button("🔍 RDW Gegevens Ophalen", use_container_width=True):
     else:
         st.error("Kenteken niet gevonden bij het RDW of API-fout.")
 
-# Zorg dat het formulier NIET zomaar gereset wordt vóór het opslaan
 with st.form("auto_form", clear_on_submit=False):
     naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
     kenteken = st.text_input("Kenteken (Verplicht)", value=st.session_state.get("rdw_ktk", ""))
@@ -254,7 +264,6 @@ if submit:
         """, (naam, kenteken.upper().strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer))
         conn.commit()
         
-        # Wis de tijdelijke RDW cache pas NA het succesvol opslaan
         for k in ["rdw_naam", "rdw_apk", "rdw_ktk"]: 
             st.session_state.pop(k, None)
             
@@ -278,9 +287,8 @@ alle_autos = cursor.fetchall()
 verwerkte_autos = []
 
 if alle_autos:
-    # GOUDEN HERSTEL: Wijs elk database-veld correct toe op index (voorkomt lege velden / crashes)
     for auto in alle_autos:
-        winst = auto[4] - (auto[3] + auto[6])  # verkoopprijs - (inkoopprijs + extra_kosten)
+        winst = auto[4] - (auto[3] + auto[6])
         verwerkte_autos.append({
             "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
             "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
