@@ -1,59 +1,17 @@
-import base64
 from datetime import datetime
 import io
 import os
 import sqlite3
+import base64
 from PIL import Image
 import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- NIEUWE VEILIGE ACHTERGROND METHODE: GOOIT GEEN LAYOUT MEER IN DE WAR ---
-def zet_achtergrond(logo_path="logo.png"):
-    if os.path.exists(logo_path):
-        with open(logo_path, "rb") as f:
-            data = f.read()
-        encoded = base64.b64encode(data).decode("utf-8")
-        
-        css = f"""
-        <style>
-        /* Achtergrond direct op de HTML body zetten in plaats van stApp voorkomt layout bugs */
-        html, body, [data-testid="stAppViewContainer"] {{
-            background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)), url("data:image/png;base64,{encoded}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-        }}
-        
-        /* Zorgt dat teksten altijd perfect leesbaar zijn op de achtergrond */
-        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
-            color: white !important;
-            text-shadow: 
-                -1px -1px 0 #000,  
-                 1px -1px 0 #000,
-                -1px  1px 0 #000,
-                 1px  1px 0 #000,
-                -2px -2px 2px #000,
-                 2px -2px 2px #000,
-                -2px  2px 2px #000,
-                 2px  2px 2px #000 !important;
-        }}
-        
-        div[data-testid="stWidgetLabel"] p, label {{
-            color: white !important;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
-        }}
-        
-        div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
-            color: white !important;
-            -webkit-text-fill-color: white !important;
-        }}
-        </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
-
-zet_achtergrond("logo.png")
+# --- VEILIGE VISUELE BANNER BOVENAAN DE PAGINA ---
+if os.path.exists("logo.png"):
+    # Toont je logo als een prachtige, brede banner bovenaan zonder de code te verstoren
+    st.image("logo.png", use_container_width=True)
 
 # --- WACHTWOORDBEVEILIGING ---
 if "ingelogd" not in st.session_state:
@@ -240,3 +198,19 @@ if alle_autos:
                 st.write(f"**Kilometerstand:** {km:,} km")
                 st.write(f"**Transmissie:** {trans if trans else 'Niet opgegeven'}")
                 st.write(f"**APK Datum:** {apk_nl}")
+                st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
+                st.write(f"**Extra kosten:** €{kosten:,.2f}")
+                st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
+                st.write(f"**Verwachte Winst:** €{winst:,.2f}")
+                
+                st.write("")
+                btn_edit, btn_del = st.columns(2)
+                with btn_edit:
+                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto_id}", use_container_width=True, type="primary"):
+                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam, trans)
+                with btn_del:
+                    if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto_id}", use_container_width=True):
+                        cursor.execute("DELETE FROM voorraad WHERE id=?", (auto_id,))
+                        conn.commit()
+                        st.success(f"Auto succesvol verwijderd!")
+                        st.rerun()
