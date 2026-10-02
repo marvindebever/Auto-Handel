@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE STYLING: KAPT NOOIT MEER ELEMENTEN AF ---
+# --- VEILIGE STYLING: KNOTSGEKKE CSS-CONFLICTEN VOLLEDIG SCHOONGEMAAKT ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -47,6 +47,15 @@ def zet_achtergrond(logo_path="logo.png"):
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             color: white !important;
             -webkit-text-fill-color: white !important;
+        }}
+        
+        /* GOUDEN REDDINGSBOEI: Dwingt knoppen in de zijbalk om ALTIJD 100% zichtbaar te zijn */
+        [data-testid="stSidebar"] button {{
+            background-color: #ff4b4b !important;
+            color: white !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            display: inline-block !important;
         }}
         </style>
         """
@@ -212,26 +221,22 @@ if actie_id > 0:
     if bestaande_auto:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         
-        # --- GOUDEN FIX: DE ZIJEBALK DIENT NU ALS VOLLEDIG SCHAALBAAR AANPASMENU ---
         st.sidebar.markdown(f"### ✏️ Auto Aanpassen (ID: {actie_id})")
         st.sidebar.write(f"Je bewerkt nu: **{auto_naam if auto_naam else 'Onbekend'}**")
         
-        with st.sidebar.form("sidebar_edit_form", clear_on_submit=False):
-            edit_naam = st.sidebar.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
-            edit_ktk = st.sidebar.text_input("Pas Kenteken aan", value=ktk)
-            edit_km = st.sidebar.text_input("Pas Kilometerstand aan", value=str(km))
+        # We halen het formulier WEG uit de sidebar om te zorgen dat de knop een normale, direct reagerende Streamlit-knop is
+        edit_naam = st.sidebar.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
+        edit_ktk = st.sidebar.text_input("Pas Kenteken aan", value=ktk)
+        edit_km = st.sidebar.text_input("Pas Kilometerstand aan", value=str(km))
+        
+        try:
+            standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
+        except Exception:
+            standaard_datum = datetime.today().date()
             
-            try:
-                standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
-            except Exception:
-                standaard_datum = datetime.today().date()
-                
-            edit_apk = st.sidebar.date_input("Pas APK Datum aan", value=standaard_datum)
-            
-            opties = ["Handgeschakeld", "Automaat"]
-            index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-            edit_trans = st.sidebar.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
-            
-            edit_inkoop = st.sidebar.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
-            edit_verkoop = st.sidebar.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
-            edit_kosten = st.sidebar.text_input("Pas Extra kosten aan (€)", value=str(kosten))
+        edit_apk = st.sidebar.date_input("Pas APK Datum aan", value=standaard_datum)
+        
+        opties = ["Handgeschakeld", "Automaat"]
+        index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
+        edit_trans = st.sidebar.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
+        
