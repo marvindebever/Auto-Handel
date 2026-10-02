@@ -90,7 +90,6 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Waterdichte pragma-check om fouten met dubbele statuskolommen te voorkomen
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -118,7 +117,7 @@ def haal_rdw_gegevens(kenteken_str):
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            data = res.json()[0]  # Pakt direct de voertuiggegevens uit de lijst resultaten
+            data = res.json()[0]  # CORRECTIE: Pak direct het eerste element uit de lijst!
             
             merk = data.get("merk", "").title()
             model = data.get("handelsbenaming", "").title()
