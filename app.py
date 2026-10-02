@@ -314,9 +314,9 @@ if alle_autos:
         })
 
     # UITGEBREIDE SORTEER LOGICA
-    if sorteer_optie == "ID Nummer (Oud naar nieuw)":
+    if sorteer_optie == "ID Nummer (Oplopend)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["id"])
-    elif sorteer_optie == "ID Nummer (Nieuw naar oud)":
+    elif sorteer_optie == "ID Nummer (Aflopend)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["id"], reverse=True)
     elif sorteer_optie == "Verwachte Winst (Hoog naar laag)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["winst"], reverse=True)
