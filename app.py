@@ -43,8 +43,6 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* GOUDEN FIX: ALLE DOWNSIDE CSS OP stForm EN CONTAINERS IS VERWIJDERD */
-        
         input, select, textarea, div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             background-color: #262730 !important;
             color: white !important;
@@ -199,12 +197,19 @@ if alle_autos:
                 st.write(f"**Extra kosten:** €{kosten:,.2f}")
                 st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
                 st.write(f"**Verwachte Winst:** €{winst:,.2f}")
+                
+                # VERWIJDEREN HIER DIRECT GEPLAATST:
+                if st.button("🗑️ Deze auto definitief verwijderen", key=f"del_inv_{auto_id}", type="primary"):
+                    cursor.execute("DELETE FROM voorraad WHERE id=?", (auto_id,))
+                    conn.commit()
+                    st.success(f"Auto met ID {auto_id} succesvol verwijderd!")
+                    st.rerun()
 
-# --- DIRECT ACTIEBLOK ONDERAAN ---
+# --- DIRECT ACTIEBLOK ONDERAAN (ALLEEN VOOR AANPASSEN VIA ID) ---
 st.write("")
-st.subheader("🛠️ Auto Aanpassen of Verwijderen")
+st.subheader("🛠️ Auto Gegevens Aanpassen via ID")
 
-actie_id_str = st.text_input("Voer het ID-nummer van de auto in om te openen:")
+actie_id_str = st.text_input("Voer het ID-nummer van de auto in om de gegevens te laden:")
 actie_id = naar_getal(actie_id_str, int)
 
 if actie_id > 0:
@@ -215,7 +220,7 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        # Dit formulier maakt nu gebruik van de native Streamlit layout en schaalt altijd 100% volledig mee
+        # Dit formulier toont nu GEGARANDEERD alle velden en de opslaanknop onderaan
         with st.form("edit_form", clear_on_submit=False):
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
             edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -232,6 +237,3 @@ if actie_id > 0:
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
             edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
             
-            edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
-            edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
-            edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
