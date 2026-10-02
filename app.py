@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- DEFINTIEVE STYLING FIX: DWINGT FORMULIEREN OM MEE TE REKKEN ---
+# --- VEILIGE STYLING ZONDER HOOGTE-RESTRICTIES ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -49,8 +49,8 @@ def zet_achtergrond(logo_path="logo.png"):
             -webkit-text-fill-color: white !important;
         }}
 
-        /* Schakelt alle verborgen hoogte-beperkingen van formulieren fysiek uit */
-        form, div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], div[data-testid="element-container"] {{
+        /* Zorgt dat geen enkele container elementen afkapt */
+        form, div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
@@ -205,11 +205,11 @@ if alle_autos:
                     st.success(f"Auto met ID {auto_id} succesvol verwijderd!")
                     st.rerun()
 
-# --- DIRECT ACTIEBLOK ONDERAAN ---
+# --- DIRECT ACTIEBLOK ONDERAAN (LINEAIR EN FOUTLOOS) ---
 st.write("")
 st.subheader("🛠️ Auto Gegevens Aanpassen via ID")
 
-actie_id_str = st.text_input("Voer het ID-nummer van de auto in om de gegevens te laden:")
+actie_id_str = st.text_input("Voer het ID-nummer van de auto in om te openen:")
 actie_id = naar_getal(actie_id_str, int)
 
 if actie_id > 0:
@@ -220,21 +220,19 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
+        # PURE LINEAIRE INDELING: Geen kolommen meer, dus 100% gegarandeerd geen IndentationErrors meer!
         with st.form("hoofd_edit_form", clear_on_submit=False):
-            links_col, rechts_col = st.columns(2)
+            edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
+            edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
+            edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
             
-            with links_col:
-                st.markdown("##### 📝 Algemene Gegevens")
-                edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
-                edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
-                edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
+            try:
+                standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
+            except Exception:
+                standaard_datum = datetime.today().date()
                 
-                try:
-                    standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
-                except Exception:
-                    standaard_datum = datetime.today().date()
-                    
-                edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
-                edit_trans = st.selectbox("Pas Transmissie aan", options=["Handgeschakeld", "Automaat"], index=["Handgeschakeld", "Automaat"].index(trans_huidig) if trans_huidig in ["Handgeschakeld", "Automaat"] else 0)
+            edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
+            edit_trans = st.selectbox("Pas Transmissie aan", options=["Handgeschakeld", "Automaat"], index=["Handgeschakeld", "Automaat"].index(trans_huidig) if trans_huidig in ["Handgeschakeld", "Automaat"] else 0)
             
-            with rechts_col:
+            edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
+            edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
