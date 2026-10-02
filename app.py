@@ -5,7 +5,6 @@ import os
 import sqlite3
 from PIL import Image
 import streamlit as st
-import pandas as pd
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
@@ -89,6 +88,7 @@ if not st.session_state["ingelogd"]:
 conn = sqlite3.connect("autohandel_v4.db", check_same_thread=False)
 cursor = conn.cursor()
 
+# Zorg dat de tabel voorraad exact alle benodigde kolommen bevat
 cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS voorraad (
@@ -169,18 +169,50 @@ if submit:
 
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
+zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 
-df = pd.read_sql_query("SELECT id AS ID, naam AS Omschrijving, kenteken AS Kenteken, km_stand AS [KM Stand], transmissie AS Transmissie, inkoopprijs AS Inkoop, extra_kosten AS [Extra Kosten], verkoopprijs AS Verkoop, apk_datum AS [APK Datum] FROM voorraad", conn)
-df["Verwachte Winst"] = df["Verkoop"] - (df["Inkoop"] + df["Extra Kosten"])
+cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM voorraad")
+alle_autos = cursor.fetchall()
 
-# Dataframe netjes tonen aan de gebruiker
-st.dataframe(df, use_container_width=True, hide_index=True)
+if alle_autos:
+    for auto in alle_autos:
+        auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam, trans = auto
+        winst = verkoop - (inkoop + kosten)
+        apk_nl = formatteer_datum_nl(apk)
+        weergave_naam = auto_naam if auto_naam else "Onbekende auto"
+
+        # Filter toepassen op de zoekbalk
+        if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
+            continue
+
+        # Prachtige visuele expander met titelgegevens
+        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}  |  ID: {auto_id}"):
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                if foto_string:
+                    try:
+                        st.image(base64.b64decode(foto_string), use_container_width=True)
+                    except Exception:
+                        st.error("Fout bij het laden van de afbeelding.")
+                else:
+                    st.info("Geen afbeelding beschikbaar.")
+            
+            with col2:
+                st.write(f"**ID Nummer:** {auto_id}")
+                st.write(f"**Kilometerstand:** {km:,} km")
+                st.write(f"**Transmissie:** {trans if trans else 'Niet opgegeven'}")
+                st.write(f"**APK Datum:** {apk_nl}")
+                st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
+                st.write(f"**Extra kosten:** €{kosten:,.2f}")
+                st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
+                st.write(f"**Verwachte Winst:** €{winst:,.2f}")
 
 # --- DIRECT ACTIEBLOK ONDERAAN ---
 st.write("")
 st.subheader("🛠️ Auto Aanpassen of Verwijderen")
 
-actie_id_str = st.text_input("Voer het ID-nummer van de auto in om te openen:")
+actie_id_str = st.text_input("Voer het ID-nummer van de auto in om te bewerken/verwijderen:")
 actie_id = naar_getal(actie_id_str, int)
 
 if actie_id > 0:
@@ -189,13 +221,7 @@ if actie_id > 0:
     
     if bestaande_auto:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
-        st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
-        
-        # Laat direct de huidige foto zien als deze bestaat
-        if foto_huidig:
-            st.image(base64.b64decode(foto_huidig), width=300, caption="Huidige afbeelding")
-        else:
-            st.info("Geen afbeelding gekoppeld aan deze auto.")
+        st.write(f"Je bewerkt nu: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
         with st.form("edit_form", clear_on_submit=False):
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
@@ -213,26 +239,3 @@ if actie_id > 0:
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
             edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
             
-            edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
-            edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
-            edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
-            edit_foto = st.file_uploader("Voeg een foto toe of vervang de huidige foto", type=["jpg", "jpeg", "png"])
-            
-            col_save, col_del = st.columns(2)
-            with col_save:
-                save_submit = st.form_submit_button("💾 Wijzigingen Live Opslaan", use_container_width=True)
-            with col_del:
-                del_submit = st.form_submit_button("🗑️ Auto Definitief Wissen", type="primary", use_container_width=True)
-                
-        if save_submit:
-            if not edit_ktk.strip():
-                st.error("Kenteken is verplicht.")
-            else:
-                n_km = naar_getal(edit_km, int)
-                n_inkoop = naar_getal(edit_inkoop, float)
-                n_verkoop = naar_getal(edit_verkoop, float)
-                n_kosten = naar_getal(edit_kosten, float)
-                
-                foto_opslaan = foto_huidig
-                if edit_foto is not None:
-                    img = Image.open(edit_foto)
