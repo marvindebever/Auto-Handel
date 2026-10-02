@@ -100,6 +100,29 @@ cursor.execute(
 )
 conn.commit()
 
+# --- GOUDEN ID HERNUMMERING FIX ---
+def hernummer_database_ids():
+    # Haal alle huidige records op gesorteerd op hun oude ID
+    cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM voorraad ORDER BY id ASC")
+    rijen = cursor.fetchall()
+    
+    # Maak de tabel leeg en reset de teller volledig
+    cursor.execute("DELETE FROM voorraad")
+    cursor.execute("DELETE FROM sqlite_sequence WHERE name='voorraad'")
+    
+    # Voeg alles opnieuw toe zodat de ID's opeenvolgend vanaf 1 beginnen
+    for rij in rijen:
+        cursor.execute(
+            """
+            INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, rij
+        )
+    conn.commit()
+
+# Voer de hernummering direct uit bij het inladen om de gaten op te vullen
+hernummer_database_ids()
+
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde:
         return 0 if type_getal == int else 0.0
@@ -137,7 +160,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
     edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
     
-    # Foto-uploader die nu meerdere bestanden accepteert
     edit_fotos = st.file_uploader("Upload nieuwe foto's (Laat leeg om huidige foto's te behouden)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     
     st.write("")
@@ -175,12 +197,12 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
             st.rerun()
 
 # --- HEADER SPREADING (TITEL LINKS, UITLOGGEN RECHTS) ---
-head_col1, head_col2 = st.columns([4, 1])
+head_col1, head_col2 = st.columns()
 with head_col1:
     st.title("🚗 Autohandel Inventaris")
     st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
 with head_col2:
-    st.write("")  # Uitlijning ruimte
+    st.write("")  
     if st.button("🚪 Uitloggen", use_container_width=True):
         st.session_state["ingelogd"] = False
         st.rerun()
@@ -197,7 +219,6 @@ with st.form("auto_form", clear_on_submit=True):
     verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
     extra_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value="0.00")
     
-    # Hier staat accept_multiple_files op True om direct meerdere foto's te uploaden
     gevoegde_fotos = st.file_uploader("Kies foto's van de auto (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     submit = st.form_submit_button("Voeg toe aan voorraad")
 
@@ -231,8 +252,8 @@ if submit:
 st.write("---")
 st.subheader("Huidige inventaris")
 
-# GOUDEN REFRESH INDELING (ZOEKBALK LINKS, REFRESH KNOP RECHTS)
-inv_col1, inv_col2 = st.columns([4, 1])
+# REFRESH INDELING (ZOEKBALK LINKS, REFRESH KNOP RECHTS)
+inv_col1, inv_col2 = st.columns()
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...", label_visibility="collapsed").upper()
 with inv_col2:
@@ -257,12 +278,8 @@ if alle_autos:
             
             with col1:
                 if foto_string:
-                    # Splits de opgeslagen foto's op basis van de scheidingstekens
                     alle_fotos = foto_string.split("||")
-                    
-                    # Toon de foto's netjes in een carrousel/grid afhankelijk van de hoeveelheid
                     if len(alle_fotos) > 1:
-                        # Maak kolommen voor de mini-galerij (maximaal 3 naast elkaar per rij)
                         foto_cols = st.columns(min(len(alle_fotos), 3))
                         for idx, f_data in enumerate(alle_fotos):
                             with foto_cols[idx % 3]:
