@@ -108,7 +108,7 @@ if not st.session_state["ingelogd"]:
     st.stop()
 
 # --- DATABASE VERBINDING ---
-# 🚨 DE GOUDEN REDDING: Een compleet nieuwe database-naam om interne conflicten op de server op te lossen!
+# We gebruiken nu een frisse database en overal exact dezelfde tabelnaam: 'autos_final'
 conn = sqlite3.connect("autohandel_definitief.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -187,7 +187,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
                 buffer = io.BytesIO()
                 img.save(buffer, format="JPEG", quality=70)
                 foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                cursor.execute("UPDATE autos_final SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?, transmissie=? WHERE id?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, nieuw_transmissie, auto_id))
+                cursor.execute("UPDATE autos_final SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, nieuw_transmissie, auto_id))
             else:
                 cursor.execute("UPDATE autos_final SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, nieuw_transmissie, auto_id))
             conn.commit()
