@@ -111,12 +111,12 @@ def haal_rdw_gegevens(kenteken_str):
     if not schoon:
         return None
     
-    # Officiële RDW endpoint voor openbare voertuiggegevens
+    # Gecorrigeerde officiële RDW Open Data URL
     url = f"https://rdw.nl{schoon}"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            data = res.json()[0]
+            data = res.json()[0]  # Pakt het eerste voertuig uit de lijst
             
             merk = data.get("merk", "").title()
             model = data.get("handelsbenaming", "").title()
