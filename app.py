@@ -55,6 +55,12 @@ def zet_achtergrond(logo_path="logo.png"):
             border: 1px solid rgba(255, 255, 255, 0.2) !important;
             text-shadow: none !important;
         }}
+        
+        /* Specifieke styling om de st.metric getallen ook mooi wit en leesbaar te maken */
+        div[data-testid="stMetricValue"] div {{
+            color: white !important;
+            font-weight: bold !important;
+        }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
@@ -192,7 +198,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
             st.success("Auto succesvol bijgewerkt!")
             st.rerun()
 
-# --- HEADER SPREADING (FIX: st.columns HEEFT NU ALTIJD EEN WAARDE) ---
+# --- HEADER SPREADING ---
 head_col1, head_col2 = st.columns(2)
 with head_col1:
     st.title("🚗 Autohandel Inventaris")
@@ -202,6 +208,33 @@ with head_col2:
     if st.button("🚪 Uitloggen", use_container_width=True):
         st.session_state["ingelogd"] = False
         st.rerun()
+
+# --- DATA BEREKENEN VOOR STATISTIEKEN ---
+cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten FROM voorraad")
+stat_rijen = cursor.fetchall()
+
+totaal_autos = len(stat_rijen)
+totale_voorraadwaarde = 0.0
+totale_verwachte_winst = 0.0
+
+for r in stat_rijen:
+    ink, verk, kost = r
+    # Waarde van de voorraad is inkoopprijs + eventuele gemaakte extra kosten
+    totale_voorraadwaarde += (ink + kost)
+    # Verwachte winst per auto is verkoop - (inkoop + kosten)
+    totale_verwachte_winst += (verk - (ink + kost))
+
+# --- LIVE DASHBOARD STATISTIEKEN BALK ---
+st.write("")
+st.subheader("📊 Actuele Status")
+stat_col1, stat_col2, stat_col3 = st.columns(3)
+with stat_col1:
+    st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
+with stat_col2:
+    st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
+with stat_col3:
+    st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
+st.write("---")
 
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
@@ -245,10 +278,9 @@ if submit:
         st.error("Vul tenminste een kenteken in om de auto toe te voegen.")
 
 # --- INVENTARIS SECTIE ---
-st.write("---")
 st.subheader("Huidige inventaris")
 
-# REFRESH INDELING (FIX: st.columns HEEFT NU ALTIJD EEN WAARDE)
+# REFRESH INDELING
 inv_col1, inv_col2 = st.columns(2)
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
