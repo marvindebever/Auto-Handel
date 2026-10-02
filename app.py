@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VOLLEDIG GEOPTIMALISEERDE STYLING: EXACt DEZELFDE DONKERE LOOK VOOR ALLES ---
+# --- VOLLEDIG GEOPTIMALISEERDE STYLING: EXACT DEZELFDE DONKERE LOOK VOOR ALLES ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -29,11 +29,10 @@ def zet_achtergrond(logo_path="logo.png"):
             background-color: transparent !important;
         }}
         
-        /* GOUDEN UNIFORME BOX FIX: Dwingt alle containers EN expanders in exact dezelfde look */
+        /* GOUDEN UNIFORME BOX FIX: Zorgt dat alle containers exact dezelfde look hebben */
         div[data-testid="stForm"], 
-        div[data-testid="stVerticalBlockBorderContainer"], 
-        div[data-testid="stElementContainer"] div[style*="border"],
-        .stElementContainer [data-testid="stVerticalBlock"] {{
+        div[data-testid="stVerticalBlockBorderContainer"],
+        .custom-stat-box {{
             background-color: rgba(25, 25, 25, 0.90) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -229,8 +228,9 @@ for r in stat_rijen:
 st.write("")
 st.subheader("📊 Actuele Status")
 
-# Hier gebruiken we HTML/CSS via een div-container om exact dezelfde donkere box-look te garanderen
-st.markdown('<div class="div[data-testid=''"stVerticalBlockBorderContainer"'']">', unsafe_allow_html=True)
+# FIX: We laden de statistieken nu handmatig in een HTML div met de klasse 'custom-stat-box' 
+# zodat hij exact dezelfde diepdonkere achtergrond en rand krijgt als de rest van de app
+st.markdown('<div class="custom-stat-box">', unsafe_allow_html=True)
 stat_col1, stat_col2, stat_col3 = st.columns(3)
 with stat_col1:
     st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
