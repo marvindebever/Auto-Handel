@@ -157,7 +157,7 @@ if submit:
         conn.commit()
         st.success(f"Auto met kenteken {kenteken.upper().strip()} succesvol toegevoegd!")
         st.rerun()
-    else:
+    if not kenteken.strip():
         st.error("Vul tenminste een kenteken in om de auto toe te voegen.")
 
 # --- INVENTARIS SECTIE ---
@@ -172,7 +172,6 @@ st.dataframe(df, use_container_width=True, hide_index=True)
 st.write("")
 st.subheader("🛠️ Auto Aanpassen of Verwijderen")
 
-# Vraag eerst stabiel om het ID nummer buiten het formulier om conflicten te vermijden
 actie_id_str = st.text_input("Voer het ID-nummer van de auto in om te openen:")
 actie_id = naar_getal(actie_id_str, int)
 
@@ -184,7 +183,6 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig = bestaande_auto
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        # 🚨 OPLOSSING: Het hele bewerkscherm zit nu in één prachtig gesloten formulierblok
         with st.form("edit_form", clear_on_submit=False):
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
             edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -193,12 +191,12 @@ if actie_id > 0:
             
             opties = ["Handgeschakeld", "Automaat"]
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-            # 🚨 GECORRIGEERD: index_standard typfout is hersteld naar index_standaard
             edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
             
             edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
             edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
             edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
+            edit_foto = st.file_uploader("Voeg een foto toe of vervang de huidige foto", type=["jpg", "jpeg", "png"])
             
             col_save, col_del = st.columns(2)
             with col_save:
@@ -207,17 +205,19 @@ if actie_id > 0:
                 del_submit = st.form_submit_button("🗑️ Auto Definitief Wissen", type="primary", use_container_width=True)
                 
         if save_submit:
-            n_km = naar_getal(edit_km, int)
-            n_inkoop = naar_getal(edit_inkoop, float)
-            n_verkoop = naar_getal(edit_verkoop, float)
-            n_kosten = naar_getal(edit_kosten, float)
-            cursor.execute("UPDATE voorraad SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=? WHERE id=?", (edit_naam, edit_ktk.upper().strip(), n_km, n_inkoop, n_verkoop, str(edit_apk), n_kosten, edit_trans, actie_id))
-            conn.commit()
-            st.success("Gegevens succesvol bijgewerkt!")
-            st.rerun()
-            
-        if del_submit:
-            cursor.execute("DELETE FROM voorraad WHERE id=?", (actie_id,))
-            conn.commit()
-            st.success("Auto succesvol gewist!")
-            st.rerun()
+            if not edit_ktk.strip():
+                st.error("Kenteken is verplicht.")
+            if edit_ktk.strip():
+                n_km = naar_getal(edit_km, int)
+                n_inkoop = naar_getal(edit_inkoop, float)
+                n_verkoop = naar_getal(edit_verkoop, float)
+                n_kosten = naar_getal(edit_kosten, float)
+                
+                if edit_foto is not None:
+                    img = Image.open(edit_foto)
+                    img.thumbnail((800, 800))
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="JPEG", quality=70)
+                    foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                    cursor.execute("UPDATE voorraad SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=?, afbeelding=? WHERE id=?", (edit_naam, edit_ktk.upper().strip(), n_km, n_inkoop, n_verkoop, str(edit_apk), n_kosten, edit_trans, foto_data, actie_id))
+                if edit_foto is None:
