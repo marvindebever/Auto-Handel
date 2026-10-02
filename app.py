@@ -49,7 +49,7 @@ def zet_achtergrond(logo_path="logo.png"):
             -webkit-text-fill-color: white !important;
         }}
 
-        /* GOUDEN FIX: Schakelt alle verborgen hoogte-beperkingen van formulieren fysiek uit */
+        /* Schakelt alle verborgen hoogte-beperkingen van formulieren fysiek uit */
         form, div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], div[data-testid="element-container"] {{
             height: auto !important;
             max-height: none !important;
@@ -218,7 +218,6 @@ if actie_id > 0:
     
     if bestaande_auto:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
-        
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
         with st.form("hoofd_edit_form", clear_on_submit=False):
