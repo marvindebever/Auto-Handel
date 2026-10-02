@@ -108,12 +108,13 @@ if not st.session_state["ingelogd"]:
     st.stop()
 
 # --- DATABASE VERBINDING ---
-conn = sqlite3.connect("autohandel.db", check_same_thread=False)
+# 🚨 DE GOUDEN REDDING: Een compleet nieuwe database-naam om interne conflicten op de server op te lossen!
+conn = sqlite3.connect("autohandel_definitief.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute(
     """
-    CREATE TABLE IF NOT EXISTS autos_v3 (
+    CREATE TABLE IF NOT EXISTS autos_final (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         kenteken TEXT,
         km_stand INTEGER,
@@ -128,12 +129,6 @@ cursor.execute(
 """
 )
 conn.commit()
-
-try:
-    cursor.execute("ALTER TABLE autos_v3 ADD COLUMN transmissie TEXT")
-    conn.commit()
-except sqlite3.OperationalError:
-    pass
 
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde or str(tekst_waarde).strip() == "":
@@ -160,6 +155,8 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     except Exception:
         standaard_datum = datetime.date.today()
 
+    v_kosten = "" if kosten == 0.0 else str(kosten)
+
     nieuw_naam = st.text_input("Naam / Omschrijving", value=naam_huidig if naam_huidig else "")
     nieuw_kenteken = st.text_input("Kenteken (Verplicht)", value=ktk)
     nieuw_km_str = st.text_input("Kilometerstand", value=str(km))
@@ -171,7 +168,7 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
     
     n_inkoop_str = st.text_input("Inkoopprijs (€)", value=str(inkoop))
     n_verkoop_str = st.text_input("Verkoopprijs (€)", value=str(verkoop))
-    n_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value="" if kosten == 0.0 else str(kosten))
+    n_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value=v_kosten)
 
     nieuwe_foto = st.file_uploader("Voeg een nieuwe foto toe", type=["jpg", "jpeg", "png"], key=f"upload_edit_{auto_id}")
 
@@ -190,9 +187,9 @@ def bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huid
                 buffer = io.BytesIO()
                 img.save(buffer, format="JPEG", quality=70)
                 foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, nieuw_transmissie, auto_id))
+                cursor.execute("UPDATE autos_final SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?, transmissie=? WHERE id?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, nieuw_transmissie, auto_id))
             else:
-                cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, nieuw_transmissie, auto_id))
+                cursor.execute("UPDATE autos_final SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper().strip(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, nieuw_transmissie, auto_id))
             conn.commit()
             st.success("Gegevens succesvol bijgewerkt!")
             st.rerun()
@@ -218,7 +215,6 @@ with st.form("auto_form", clear_on_submit=True):
     gevoegde_foto = st.file_uploader("Kies een foto van de auto (Optioneel)", type=["jpg", "jpeg", "png"])
     submit = st.form_submit_button("Voeg toe aan inventaris")
 
-# 🚨 WATERDICHTE OPSLAG LOGICA: Alleen kenteken is vanaf NU écht verplicht!
 if submit:
     if kenteken.strip():
         km_stand = naar_getal(km_stand_str, int)
@@ -234,10 +230,12 @@ if submit:
             img.save(buffer, format="JPEG", quality=70)
             foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
             
-        cursor.execute("INSERT INTO autos_v3 (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (naam, kenteken.upper().strip(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data, transmissie))
+        cursor.execute("INSERT INTO autos_final (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (naam, kenteken.upper().strip(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data, transmissie))
         conn.commit()
         st.success(f"Auto met kenteken {kenteken.upper().strip()} succesvol toegevoegd!")
         st.rerun()
     else:
         st.error("Vul tenminste een kenteken in om de auto toe te voegen.")
 
+# --- INVENTARIS SECTIE ---
+st.subheader("Huidige inventaris")
