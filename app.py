@@ -116,7 +116,7 @@ def formatteer_datum_nl(datum_str):
         return dt.strftime("%d-%m-%Y")
     except Exception:
         return datum_str
-# --- MODERNE DIALOG BOX VOOR VOLLEDIG AANPASSEN ---
+# --- MODERNE DIALOG BOX VOOR VOLLEDIG AANPASSEN (MET MEERDERE FOTO'S) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig):
     try:
@@ -136,7 +136,9 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
     edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
-    edit_foto = st.file_uploader("Upload een nieuwe foto (Laat leeg om huidige foto te behouden)", type=["jpg", "jpeg", "png"])
+    
+    # Foto-uploader die nu meerdere bestanden accepteert
+    edit_fotos = st.file_uploader("Upload nieuwe foto's (Laat leeg om huidige foto's te behouden)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     
     st.write("")
     if st.button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True):
@@ -149,12 +151,16 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
             n_kosten = naar_getal(edit_kosten, float)
             
             foto_opslaan = foto_huidig
-            if edit_foto is not None:
-                img = Image.open(edit_foto)
-                img.thumbnail((800, 800))
-                buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=70)
-                foto_opslaan = base64.b64encode(buffer.getvalue()).decode("utf-8")
+            if edit_fotos:
+                foto_lijst = []
+                for f in edit_fotos:
+                    img = Image.open(f)
+                    img.thumbnail((800, 800))
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="JPEG", quality=70)
+                    encoded_foto = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                    foto_lijst.append(encoded_foto)
+                foto_opslaan = "||".join(foto_lijst)
             
             cursor.execute(
                 """
@@ -190,7 +196,9 @@ with st.form("auto_form", clear_on_submit=True):
     inkoopprijs_str = st.text_input("Inkoopprijs (€)", value="0.00")
     verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
     extra_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value="0.00")
-    gevoegde_foto = st.file_uploader("Kies een foto van de auto (Optioneel)", type=["jpg", "jpeg", "png"])
+    
+    # Hier staat accept_multiple_files op True om direct meerdere foto's te uploaden
+    gevoegde_fotos = st.file_uploader("Kies foto's van de auto (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     submit = st.form_submit_button("Voeg toe aan voorraad")
 
 if submit:
@@ -201,12 +209,16 @@ if submit:
         extra_kosten = naar_getal(extra_kosten_str, float)
         
         foto_data = ""
-        if gevoegde_foto is not None:
-            img = Image.open(gevoegde_foto)
-            img.thumbnail((800, 800))
-            buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=70)
-            foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        if gevoegde_fotos:
+            foto_lijst = []
+            for f in gevoegde_fotos:
+                img = Image.open(f)
+                img.thumbnail((800, 800))
+                buffer = io.BytesIO()
+                img.save(buffer, format="JPEG", quality=70)
+                encoded_foto = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                foto_lijst.append(encoded_foto)
+            foto_data = "||".join(foto_lijst)
             
         cursor.execute("INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (naam, kenteken.upper().strip(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data, transmissie))
         conn.commit()
@@ -245,10 +257,24 @@ if alle_autos:
             
             with col1:
                 if foto_string:
-                    try:
-                        st.image(base64.b64decode(foto_string), use_container_width=True)
-                    except Exception:
-                        st.error("Fout bij het laden van de afbeelding.")
+                    # Splits de opgeslagen foto's op basis van de scheidingstekens
+                    alle_fotos = foto_string.split("||")
+                    
+                    # Toon de foto's netjes in een carrousel/grid afhankelijk van de hoeveelheid
+                    if len(alle_fotos) > 1:
+                        # Maak kolommen voor de mini-galerij (maximaal 3 naast elkaar per rij)
+                        foto_cols = st.columns(min(len(alle_fotos), 3))
+                        for idx, f_data in enumerate(alle_fotos):
+                            with foto_cols[idx % 3]:
+                                try:
+                                    st.image(base64.b64decode(f_data), use_container_width=True)
+                                except Exception:
+                                    st.error("Fout bij laden foto.")
+                    else:
+                        try:
+                            st.image(base64.b64decode(alle_fotos[0]), use_container_width=True)
+                        except Exception:
+                            st.error("Fout bij het laden van de afbeelding.")
                 else:
                     st.info("Geen afbeelding beschikbaar.")
             
