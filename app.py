@@ -29,8 +29,8 @@ def zet_achtergrond(logo_path="logo.png"):
             background-color: transparent !important;
         }}
         
-        /* Zorgt dat het toevoegformulier en aanpasblokken er exact hetzelfde uitzien */
-        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
+        /* Zorgt dat alle formulieren, containers EN expanders er exact hetzelfde uitzien */
+        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .streamlit-expanderContent {{
             background-color: rgba(25, 25, 25, 0.90) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -222,39 +222,18 @@ for r in stat_rijen:
     totale_voorraadwaarde += (ink + kost)
     totale_verwachte_winst += (verk - (ink + kost))
 
-# --- LIVE DASHBOARD STATISTIEKEN IN VOLLEDIG HARCODED DONKERE BOX ---
+# --- LIVE DASHBOARD STATISTIEKEN IN DE GEOPENDE EXPANDEERBALK ---
 st.write("")
-st.subheader("📊 Actuele Status")
-
-# WATERDICHTE INLINE FIX: We maken handmatig 3 kolommen via st.columns maar verpakken 
-# ze visueel in één gecodeerde HTML-achtergrondbox die door niks overschreven kan worden!
-st.markdown(
-    f"""
-    <div style="
-        background-color: rgba(25, 25, 25, 0.90) !important;
-        padding: 25px !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        margin-bottom: 25px !important;
-    ">
-        <div style="display: flex; justify-content: space-between; text-align: center; width: 100%;">
-            <div style="flex: 1;">
-                <p style="margin: 0; font-size: 14px; color: rgba(255,255,255,0.7) !important;">Voorraad Aantal</p>
-                <h2 style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: white !important;">{totaal_autos} stuks</h2>
-            </div>
-            <div style="flex: 1; border-left: 1px solid rgba(255,255,255,0.1); border-right: 1px solid rgba(255,255,255,0.1);">
-                <p style="margin: 0; font-size: 14px; color: rgba(255,255,255,0.7) !important;">Totale Investeringswaarde</p>
-                <h2 style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: white !important;">€ {totale_voorraadwaarde:,.2f}</h2>
-            </div>
-            <div style="flex: 1;">
-                <p style="margin: 0; font-size: 14px; color: rgba(255,255,255,0.7) !important;">Totale Verwachte Winst</p>
-                <h2 style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: white !important;">€ {totale_verwachte_winst:,.2f}</h2>
-            </div>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# We zetten de statistieken in een expander die standaard uitgeklapt staat (expanded=True)
+# Omdat expanders in jouw CSS al de perfecte diepdonkere kleur hebben, lost dit de bug direct op!
+with st.expander("📊 Actuele Status Dashboard", expanded=True):
+    stat_col1, stat_col2, stat_col3 = st.columns(3)
+    with stat_col1:
+        st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
+    with stat_col2:
+        st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
+    with stat_col3:
+        st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
 
 st.write("---")
 
@@ -353,3 +332,17 @@ if alle_autos:
                 st.write(f"**APK Datum:** {apk_nl}")
                 st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
                 st.write(f"**Extra kosten:** €{kosten:,.2f}")
+                st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
+                st.write(f"**Verwachte Winst:** €{winst:,.2f}")
+                
+                st.write("")
+                btn_edit, btn_del = st.columns(2)
+                with btn_edit:
+                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto_id}", use_container_width=True, type="primary"):
+                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam, trans)
+                with btn_del:
+                    if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto_id}", use_container_width=True):
+                        cursor.execute("DELETE FROM voorraad WHERE id=?", (auto_id,))
+                        conn.commit()
+                        st.success(f"Auto succesvol verwijderd!")
+                        st.rerun()
