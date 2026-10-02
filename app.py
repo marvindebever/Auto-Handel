@@ -9,7 +9,6 @@ import pandas as pd
 import requests
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
-
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -20,22 +19,43 @@ def zet_achtergrond(logo_path="logo.png"):
         <style>
         [data-testid="stAppViewContainer"] {{
             background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("data:image/png;base64,{encoded}");
-            background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
         }}
-        [data-testid="stMain"] {{ background-color: transparent !important; }}
+        
+        [data-testid="stMain"] {{
+            background-color: transparent !important;
+        }}
+        
         div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .streamlit-expanderContent {{
-            background-color: rgba(25, 25, 25, 0.90) !important; padding: 25px !important;
-            border-radius: 12px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            height: auto !important; max-height: none !important; overflow: visible !important;
+            background-color: rgba(25, 25, 25, 0.90) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
         }}
+        
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
-            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+            color: white !important;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px  1px 0 #000, 1px  1px 0 #000 !important;
         }}
+        
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
-            background-color: #1e1e24 !important; color: white !important; -webkit-text-fill-color: white !important;
-            border: 1px solid rgba(255, 255, 255, 0.2) !important; text-shadow: none !important;
+            background-color: #1e1e24 !important;
+            color: white !important;
+            -webkit-text-fill-color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            text-shadow: none !important;
         }}
-        div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
+        
+        div[data-testid="stMetricValue"] div {{
+            color: white !important;
+            font-weight: bold !important;
+        }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
@@ -79,8 +99,10 @@ if "status" not in bestaande_kolommen:
 def hernummer_database_ids():
     cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad ORDER BY id ASC")
     rijen = cursor.fetchall()
+    
     cursor.execute("DELETE FROM voorraad")
     cursor.execute("DELETE FROM sqlite_sequence WHERE name='voorraad'")
+    
     for rij in rijen:
         cursor.execute("INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rij)
     conn.commit()
@@ -91,12 +113,11 @@ def haal_rdw_gegevens(kenteken_str):
     if not schoon:
         return None
     
-    # De officiële API URL voor openbare voertuiggegevens
     url = f"https://rdw.nl{schoon}"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            # ULTIEME FIX: Pak de eerste dictionary uit de lijst die de API teruggeeft!
+            # GEFIXT: Selecteer specifiek de eerste auto uit de JSON-lijst
             data = res.json()[0]
             
             merk = data.get("merk", "").title()
@@ -200,7 +221,7 @@ with st.expander("📊 Actuele Status Dashboard", expanded=True):
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 rdw_col1, rdw_col2 = st.columns(2)
-rdw_kenteken = rdw_col1.text_input("Optioneel: Snel RDW Gegevens ophalen via kenteken", placeholder="Bijv. G-581-HH").upper().replace("-", "")
+rdw_kenteken = rdw_col1.text_input("Optioneel: Snel RDW Gegevens ophalen via kenteken", placeholder="Bijv. 47-LV-JV").upper().replace("-", "")
 
 with rdw_col2:
     st.markdown('<p style="margin-bottom: 0px; padding-bottom: 24px;"></p>', unsafe_allow_html=True)
