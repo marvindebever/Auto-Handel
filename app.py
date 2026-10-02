@@ -19,43 +19,22 @@ def zet_achtergrond(logo_path="logo.png"):
         <style>
         [data-testid="stAppViewContainer"] {{
             background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("data:image/png;base64,{encoded}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
+            background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;
         }}
-        
-        [data-testid="stMain"] {{
-            background-color: transparent !important;
-        }}
-        
+        [data-testid="stMain"] {{ background-color: transparent !important; }}
         div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .streamlit-expanderContent {{
-            background-color: rgba(25, 25, 25, 0.90) !important;
-            padding: 25px !important;
-            border-radius: 12px !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
+            background-color: rgba(25, 25, 25, 0.90) !important; padding: 25px !important;
+            border-radius: 12px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            height: auto !important; max-height: none !important; overflow: visible !important;
         }}
-        
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
-            color: white !important;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px  1px 0 #000, 1px  1px 0 #000 !important;
+            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
-        
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
-            background-color: #1e1e24 !important;
-            color: white !important;
-            -webkit-text-fill-color: white !important;
-            border: 1px solid rgba(255, 255, 255, 0.2) !important;
-            text-shadow: none !important;
+            background-color: #1e1e24 !important; color: white !important; -webkit-text-fill-color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important; text-shadow: none !important;
         }}
-        
-        div[data-testid="stMetricValue"] div {{
-            color: white !important;
-            font-weight: bold !important;
-        }}
+        div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
@@ -77,8 +56,8 @@ if not st.session_state["ingelogd"]:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
 
-# --- DATABASE VERBINDING ---
-conn = sqlite3.connect("autohandel_v4.db", check_same_thread=False)
+# --- DATABASE VERBINDING (Nieuwe v5 database forceert een schone cloud-omgeving) ---
+conn = sqlite3.connect("autohandel_v5.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -90,7 +69,7 @@ cursor.execute("""
 """)
 conn.commit()
 
-# CORRECTIE: Pak de naam van de kolom op index 1 van de PRAGMA-tuple
+# Haal pragma info op van de nieuwe tabel
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -114,6 +93,7 @@ def laad_voertuig_data_overheid(kenteken_str):
     if not schoon:
         return None
     
+    # Officiële endpoint voor openbare voertuigkenmerken
     url = f"https://rdw.nl{schoon}"
     
     headers = {
@@ -126,7 +106,7 @@ def laad_voertuig_data_overheid(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if len(data) > 0:
-                voertuig = data[0]  # Selecteer het eerste voertuig-object uit de lijst
+                voertuig = data[0]  # Pakt direct het eerste voertuig uit de json array
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
