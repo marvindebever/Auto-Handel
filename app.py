@@ -26,7 +26,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        h1, h2, h3, p, span {{
+        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -44,7 +44,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
+        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .stDialog div[role="dialog"] {{
             background-color: rgba(20, 20, 20, 0.95) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -117,6 +117,13 @@ def naar_getal(tekst_waarde, type_getal=float):
     except ValueError:
         return 0 if type_getal == int else 0.0
 
+def formatteer_datum_nl(datum_str):
+    try:
+        dt = datetime.strptime(datum_str, "%Y-%m-%d")
+        return dt.strftime("%d-%m-%Y")
+    except Exception:
+        return datum_str
+
 # --- HEADER ---
 st.title("🚗 Autohandel Inventaris")
 st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
@@ -134,7 +141,7 @@ with st.form("auto_form", clear_on_submit=True):
     transmissie = st.selectbox("Transmissie", options=["Handgeschakeld", "Automaat"])
     inkoopprijs_str = st.text_input("Inkoopprijs (€)", value="0.00")
     verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
-    extra_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value="")
+    extra_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value="0.00")
     gevoegde_foto = st.file_uploader("Kies een foto van de auto (Optioneel)", type=["jpg", "jpeg", "png"])
     submit = st.form_submit_button("Voeg toe aan voorraad")
 
@@ -157,7 +164,7 @@ if submit:
         conn.commit()
         st.success(f"Auto met kenteken {kenteken.upper().strip()} succesvol toegevoegd!")
         st.rerun()
-    if not kenteken.strip():
+    else:
         st.error("Vul tenminste een kenteken in om de auto toe te voegen.")
 
 # --- INVENTARIS SECTIE ---
@@ -166,6 +173,7 @@ st.subheader("Huidige inventaris")
 df = pd.read_sql_query("SELECT id AS ID, naam AS Omschrijving, kenteken AS Kenteken, km_stand AS [KM Stand], transmissie AS Transmissie, inkoopprijs AS Inkoop, extra_kosten AS [Extra Kosten], verkoopprijs AS Verkoop, apk_datum AS [APK Datum] FROM voorraad", conn)
 df["Verwachte Winst"] = df["Verkoop"] - (df["Inkoop"] + df["Extra Kosten"])
 
+# Dataframe netjes tonen aan de gebruiker
 st.dataframe(df, use_container_width=True, hide_index=True)
 
 # --- DIRECT ACTIEBLOK ONDERAAN ---
@@ -183,11 +191,23 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
+        # Laat direct de huidige foto zien als deze bestaat
+        if foto_huidig:
+            st.image(base64.b64decode(foto_huidig), width=300, caption="Huidige afbeelding")
+        else:
+            st.info("Geen afbeelding gekoppeld aan deze auto.")
+        
         with st.form("edit_form", clear_on_submit=False):
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
             edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
             edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
-            edit_apk = st.date_input("Pas APK Datum aan", value=datetime.strptime(apk, "%Y-%m-%d").date() if apk else datetime.today().date())
+            
+            try:
+                standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
+            except Exception:
+                standaard_datum = datetime.today().date()
+                
+            edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
             
             opties = ["Handgeschakeld", "Automaat"]
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
@@ -207,19 +227,12 @@ if actie_id > 0:
         if save_submit:
             if not edit_ktk.strip():
                 st.error("Kenteken is verplicht.")
-            if edit_ktk.strip():
+            else:
                 n_km = naar_getal(edit_km, int)
                 n_inkoop = naar_getal(edit_inkoop, float)
                 n_verkoop = naar_getal(edit_verkoop, float)
                 n_kosten = naar_getal(edit_kosten, float)
                 
-                # 🚨 DE GOUDEN FIX: Geen if/else splitsing meer voor queries. We bepalen de fotostring eerst! [sqlite3]
                 foto_opslaan = foto_huidig
                 if edit_foto is not None:
                     img = Image.open(edit_foto)
-                    img.thumbnail((800, 800))
-                    buffer = io.BytesIO()
-                    img.save(buffer, format="JPEG", quality=70)
-                    foto_opslaan = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                
-                # Één enkele rechte, foutloze query [sqlite3]
