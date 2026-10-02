@@ -86,12 +86,13 @@ if not st.session_state["ingelogd"]:
     st.stop()
 
 # --- DATABASE VERBINDING ---
-conn = sqlite3.connect("autohandel.db", check_same_thread=False)
+# 🚨 DE GOUDEN REDDING: Een volledig schone database-naam om interne kolom-conflicten op te lossen!
+conn = sqlite3.connect("autohandel_definitief.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute(
     """
-    CREATE TABLE IF NOT EXISTS autos_v3 (
+    CREATE TABLE IF NOT EXISTS autos_final (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         kenteken TEXT,
         km_stand INTEGER,
@@ -107,12 +108,6 @@ cursor.execute(
 )
 conn.commit()
 
-try:
-    cursor.execute("ALTER TABLE autos_v3 ADD COLUMN transmissie TEXT")
-    conn.commit()
-except sqlite3.OperationalError:
-    pass
-
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde:
         return 0 if type_getal == int else 0.0
@@ -123,14 +118,14 @@ def naar_getal(tekst_waarde, type_getal=float):
     except ValueError:
         return 0 if type_getal == int else 0.0
 
-# ✏️ GERASSUREERD BEWERKEN VENSTER (VEILIG LINEAIR INGERICHT)
+# ✏️ GERASSUREERD BEWERKEN VENSTER
 @st.dialog("Auto Gegevens Aanpassen")
 def bewerk_auto_sneller_dialog():
     id_invoer = st.text_input("Voer het ID-nummer in van de auto die je wilt aanpassen:")
     target_id = naar_getal(id_invoer, int)
     
     if target_id > 0:
-        cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, naam, transmissie FROM autos_v3 WHERE id=?", (target_id,))
+        cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, naam, transmissie FROM autos_final WHERE id=?", (target_id,))
         bestaande_auto = cursor.fetchone()
         
         if bestaande_auto:
@@ -164,22 +159,22 @@ def bewerk_auto_sneller_dialog():
                     buffer = io.BytesIO()
                     img.save(buffer, format="JPEG", quality=70)
                     foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                    cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, nieuw_transmissie, target_id))
+                    cursor.execute("UPDATE autos_final SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, afbeelding=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, foto_data, nieuw_transmissie, target_id))
                 else:
-                    cursor.execute("UPDATE autos_v3 SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, nieuw_transmissie, target_id))
+                    cursor.execute("UPDATE autos_final SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=? WHERE id=?", (nieuw_naam, nieuw_kenteken.upper(), n_km, n_inkoop, n_verkoop, str(nieuwe_apk), n_kosten, nieuw_transmissie, target_id))
                 
                 conn.commit()
                 st.success("Auto succesvol bijgewerkt!")
                 st.rerun()
 
-# 🗑️ LOSSE VERWIJDER KNOP
+# --- DISKREET VERWIJDEREN VENSTER ---
 @st.dialog("Auto Definitief Verwijderen")
 def verwijder_auto_dialog():
     id_invoer = st.text_input("Voer het ID-nummer in van de auto die je wilt WISSEN:")
     target_id = naar_getal(id_invoer, int)
     
     if target_id > 0:
-        cursor.execute("DELETE FROM autos_v3 WHERE id=?", (target_id,))
+        cursor.execute("DELETE FROM autos_final WHERE id=?", (target_id,))
         conn.commit()
         st.success("Auto succesvol gewist!")
         st.rerun()
@@ -218,14 +213,14 @@ if submit:
             buffer = io.BytesIO()
             img.save(buffer, format="JPEG", quality=70)
             foto_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-        cursor.execute("INSERT INTO autos_v3 (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (naam, kenteken.upper(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data, transmissie))
+        cursor.execute("INSERT INTO autos_final (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (naam, kenteken.upper(), km_stand, inkoopprijs, verkoopprijs, str(apk_datum), extra_kosten, foto_data, transmissie))
         conn.commit()
         st.success(f"Auto '{naam}' succesvol toegevoegd!")
         st.rerun()
     else:
         st.error("Vul een geldig kenteken in.")
 
-# --- INVENTARIS SECTIE (VOLLEDIG LINEAIR VIA DATAFRAME) ---
+# --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 
-# 🚨 DE GOUDEN LOGICA: Geen lussen, geen expansies, geen risico op IndentationErrors!
+# We lezen direct en sluitend uit de gloednieuwe tabel 'autos_final'
