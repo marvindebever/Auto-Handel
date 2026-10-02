@@ -77,8 +77,12 @@ if "status" not in [k[1] for k in cursor.fetchall()]:
 
 def hernummer_database_ids():
     cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad ORDER BY id ASC")
-    rijen = cursor.fetchall()
-    cursor.execute("DELETE FROM voorraad; DELETE FROM sqlite_sequence WHERE name='voorraad';")
+    rijen = cursor.fetchall()  # Laad alle records veilig in het geheugen
+    
+    # Voer opdrachten apart uit om sqlite3-fouten te voorkomen
+    cursor.execute("DELETE FROM voorraad")
+    cursor.execute("DELETE FROM sqlite_sequence WHERE name='voorraad'")
+    
     for rij in rijen:
         cursor.execute("INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rij)
     conn.commit()
@@ -89,12 +93,12 @@ def haal_rdw_gegevens(kenteken_str):
     if not schoon:
         return None
     
-    # Gecorrigeerde API URL voor openbare voertuigkenmerken
+    # Gecorrigeerde open data API URL voor openbare voertuigkenmerken
     url = f"https://rdw.nl{schoon}"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            data = res.json()[0]
+            data = res.json()[0]  # Selecteer de eerste voertuig-match uit het JSON-bestand
             
             merk = data.get("merk", "").title()
             model = data.get("handelsbenaming", "").title()
