@@ -90,7 +90,7 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Controleer via de kolomnamen of status al bestaat
+# Pragma check om te controleren of de statuskolom al bestaat
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -109,16 +109,16 @@ def hernummer_database_ids():
     conn.commit()
 
 hernummer_database_ids()
-def haal_rdw_gegevens(kenteken_str):
+def haal_rdw_gegevens_v2(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
+    # De 100% correcte link naar de openbare overheidsdatabase van het RDW
     url = f"https://rdw.nl{schoon}"
     
-    # Officiële headers om aan het RDW te bewijzen dat dit een legitieme app is (helpt tegen Cloud-blokkades)
     headers = {
-        "User-Agent": "AutohandelInventarisApp/1.0 (StreamlitCloud; Contact: info@autohandel.nl)",
+        "User-Agent": "AutohandelInventarisApp/2.0 (StreamlitCloud; Contact: info@autohandel.nl)",
         "Accept": "application/json"
     }
     
@@ -127,7 +127,7 @@ def haal_rdw_gegevens(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if len(data) > 0:
-                voertuig = data[0]
+                voertuig = data[0]  # Pak de eerste auto uit de lijst resultaten
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -148,11 +148,9 @@ def haal_rdw_gegevens(kenteken_str):
             else:
                 return {"fout": "Kenteken niet gevonden in het RDW-register."}
         else:
-            return {"fout": f"RDW Server weigerde toegang. Foutcode: {res.status_code}."}
-    except requests.exceptions.Timeout:
-        return {"fout": "Verbinding met RDW duurde te lang (Timeout)."}
+            return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
-        return {"fout": f"Verbindingsfout: {str(e)}"}
+        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
 
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde:
@@ -242,14 +240,14 @@ with rdw_col2:
     klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
 
 if klik_rdw:
-    rdw_data = haal_rdw_gegevens(rdw_kenteken)
+    # Roept geforceerd de nieuwe v2-functie aan om cache te omzeilen
+    rdw_data = haal_rdw_gegevens_v2(rdw_kenteken)
     if rdw_data and rdw_data.get("fout") is None:
         st.session_state["rdw_naam"] = rdw_data["naam"]
         st.session_state["rdw_apk"] = rdw_data["apk"]
         st.session_state["rdw_ktk"] = rdw_kenteken
         st.toast("⚡ RDW Gegevens succesvol geladen!", icon="✅")
     elif rdw_data and rdw_data.get("fout"):
-        # Dit laat nu de échte oorzaak zien op Streamlit Cloud (bijv. Foutcode: 403)
         st.error(rdw_data["fout"])
     else:
         st.error("Onbekende API-fout opgetreden.")
