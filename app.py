@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE STYLING: FORMULIER-AFKNIPTE BUG VOLLEDIG VERWIJDERD ---
+# --- VEILIGE STYLING ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,7 +25,6 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* Witte letters met zwarte schaduw voor perfecte leesbaarheid */
         h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
             color: white !important;
             text-shadow: 
@@ -44,7 +43,13 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* Alle ingewikkelde form-achtergronden zijn weggehaald om afknippen fysiek onmogelijk te maken */
+        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .stDialog div[role="dialog"] {{
+            background-color: rgba(20, 20, 20, 0.95) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            border: 2px solid rgba(255, 255, 255, 0.2) !important;
+        }}
+        
         input, select, textarea, div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             background-color: #262730 !important;
             color: white !important;
@@ -118,6 +123,68 @@ def formatteer_datum_nl(datum_str):
     except Exception:
         return datum_str
 
+# --- MODERNE DIALOOG BOX VOOR BEWERKEN ---
+@st.dialog("🚗 Auto Gegevens Aanpassen of Verwijderen")
+def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig):
+    try:
+        standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
+    except Exception:
+        standaard_datum = datetime.today().date()
+
+    edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
+    edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
+    edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
+    edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
+    
+    opties = ["Handgeschakeld", "Automaat"]
+    index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
+    edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
+    
+    edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
+    edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
+    edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
+    edit_foto = st.file_uploader("Upload een nieuwe foto (Laat leeg om huidige foto te behouden)", type=["jpg", "jpeg", "png"])
+    
+    st.write("---")
+    col_save, col_del = st.columns(2)
+    
+    with col_save:
+        if st.button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True):
+            if not edit_ktk.strip():
+                st.error("Kenteken is verplicht.")
+            else:
+                n_km = naar_getal(edit_km, int)
+                n_inkoop = naar_getal(edit_inkoop, float)
+                n_verkoop = naar_getal(edit_verkoop, float)
+                n_kosten = naar_getal(edit_kosten, float)
+                
+                foto_opslaan = foto_huidig
+                if edit_foto is not None:
+                    img = Image.open(edit_foto)
+                    img.thumbnail((800, 800))
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="JPEG", quality=70)
+                    foto_opslaan = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                
+                cursor.execute(
+                    """
+                    UPDATE voorraad 
+                    SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=? 
+                    WHERE id=?
+                    """, 
+                    (edit_naam, edit_ktk.upper().strip(), n_km, str(edit_apk), edit_trans, n_inkoop, n_verkoop, n_kosten, foto_opslaan, actie_id)
+                )
+                conn.commit()
+                st.success("Auto succesvol bijgewerkt!")
+                st.rerun()
+                
+    with col_del:
+        if st.button("🗑️ Auto Definitief Wissen", use_container_width=True):
+            cursor.execute("DELETE FROM voorraad WHERE id=?", (actie_id,))
+            conn.commit()
+            st.success("Auto succesvol verwijderd!")
+            st.rerun()
+
 # --- HEADER ---
 st.title("🚗 Autohandel Inventaris")
 st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
@@ -173,66 +240,3 @@ if alle_autos:
         auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam, trans = auto
         winst = verkoop - (inkoop + kosten)
         apk_nl = formatteer_datum_nl(apk)
-        weergave_naam = auto_naam if auto_naam else "Onbekende auto"
-
-        if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
-            continue
-
-        with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}  |  ID: {auto_id}"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if foto_string:
-                    try:
-                        st.image(base64.b64decode(foto_string), use_container_width=True)
-                    except Exception:
-                        st.error("Fout bij het laden van de afbeelding.")
-                else:
-                    st.info("Geen afbeelding beschikbaar.")
-            
-            with col2:
-                st.write(f"**ID Nummer:** {auto_id}")
-                st.write(f"**Kilometerstand:** {km:,} km")
-                st.write(f"**Transmissie:** {trans if trans else 'Niet opgegeven'}")
-                st.write(f"**APK Datum:** {apk_nl}")
-                st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
-                st.write(f"**Extra kosten:** €{kosten:,.2f}")
-                st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
-                st.write(f"**Verwachte Winst:** €{winst:,.2f}")
-
-# --- DIRECT ACTIEBLOK ONDERAAN ---
-st.write("")
-st.subheader("🛠️ Auto Aanpassen of Verwijderen")
-
-actie_id_str = st.text_input("Voer het ID-nummer van de auto in om te bewerken/verwijderen:")
-actie_id = naar_getal(actie_id_str, int)
-
-if actie_id > 0:
-    cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, naam, transmissie, afbeelding FROM voorraad WHERE id=?", (actie_id,))
-    bestaande_auto = cursor.fetchone()
-    
-    if bestaande_auto:
-        ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
-        st.write(f"Je bewerkt nu: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
-        
-        # OPMERKING: HIER IS HET FORMULIER VERVANGEN DOOR NORMALE CONTAINERS OM HET HANGEN TE VOORKOMEN
-        edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
-        edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
-        edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
-        
-        try:
-            standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
-        except Exception:
-            standaard_datum = datetime.today().date()
-            
-        edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
-        
-        opties = ["Handgeschakeld", "Automaat"]
-        index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-        edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
-        
-        edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
-        edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
-        edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
-        edit_foto = st.file_uploader("Upload een nieuwe foto (Laat leeg om huidige foto te behouden)", type=["jpg", "jpeg", "png"])
-        
