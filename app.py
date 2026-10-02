@@ -9,6 +9,7 @@ import pandas as pd
 import requests
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
+
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -19,43 +20,22 @@ def zet_achtergrond(logo_path="logo.png"):
         <style>
         [data-testid="stAppViewContainer"] {{
             background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("data:image/png;base64,{encoded}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
+            background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;
         }}
-        
-        [data-testid="stMain"] {{
-            background-color: transparent !important;
-        }}
-        
+        [data-testid="stMain"] {{ background-color: transparent !important; }}
         div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .streamlit-expanderContent {{
-            background-color: rgba(25, 25, 25, 0.90) !important;
-            padding: 25px !important;
-            border-radius: 12px !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
+            background-color: rgba(25, 25, 25, 0.90) !important; padding: 25px !important;
+            border-radius: 12px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            height: auto !important; max-height: none !important; overflow: visible !important;
         }}
-        
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
-            color: white !important;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px  1px 0 #000, 1px  1px 0 #000 !important;
+            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
-        
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
-            background-color: #1e1e24 !important;
-            color: white !important;
-            -webkit-text-fill-color: white !important;
-            border: 1px solid rgba(255, 255, 255, 0.2) !important;
-            text-shadow: none !important;
+            background-color: #1e1e24 !important; color: white !important; -webkit-text-fill-color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important; text-shadow: none !important;
         }}
-        
-        div[data-testid="stMetricValue"] div {{
-            color: white !important;
-            font-weight: bold !important;
-        }}
+        div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
@@ -90,7 +70,6 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Controleer via de kolomnamen of status al bestaat
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -114,11 +93,12 @@ def haal_rdw_gegevens(kenteken_str):
     if not schoon:
         return None
     
+    # Gecorrigeerde link naar de officiële overheid-API van het RDW
     url = f"https://rdw.nl{schoon}"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            # Gecorrigeerd: Pak direct de eerste auto (dictionary) uit de JSON-lijst
+            # Pak de eerste auto uit het overzichtslijstje
             data = res.json()[0]
             
             merk = data.get("merk", "").title()
@@ -235,7 +215,6 @@ if klik_rdw:
         st.session_state["rdw_apk"] = rdw_data["apk"]
         st.session_state["rdw_ktk"] = rdw_kenteken
         st.toast("⚡ RDW Gegevens succesvol geladen!", icon="✅")
-        # Gecorrigeerd: De st.rerun() is hier weggehaald zodat Streamlit de waardes niet direct leeggooit!
     else: 
         st.error("Kenteken niet gevonden bij het RDW of API-fout.")
 
