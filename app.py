@@ -384,7 +384,6 @@ if alle_autos:
                     cell.font = data_font
                     cell.border = thin_border
                     
-                    # WATERDICHTE INDEXERING ZONDER RECHTSSTREEKSE IN-LIJST CRASHES
                     if col_idx == 1 or col_idx == 3 or col_idx == 5 or col_idx == 6:
                         cell.alignment = center_alignment
                     elif col_idx == 2:
@@ -396,10 +395,10 @@ if alle_autos:
                         cell.alignment = right_alignment
                         cell.number_format = '"€ " #,##0.00'
             
-            # Automatische kolombreedte bepaling via de officiële utils-functie
+            # DE GOUDEN REPARATIE: col[0].column haalt nu foutloos het kolomnummer op voor openpyxl
             for col in worksheet.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col)
-                col_letter = get_column_letter(col.column)
+                col_letter = get_column_letter(col[0].column)
                 worksheet.column_dimensions[col_letter].width = max(max_len + 4, 13)
                 
         towrite.seek(0)
