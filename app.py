@@ -166,7 +166,26 @@ st.subheader("Huidige inventaris")
 df = pd.read_sql_query("SELECT id AS ID, naam AS Omschrijving, kenteken AS Kenteken, km_stand AS [KM Stand], transmissie AS Transmissie, inkoopprijs AS Inkoop, extra_kosten AS [Extra Kosten], verkoopprijs AS Verkoop, apk_datum AS [APK Datum] FROM voorraad", conn)
 df["Verwachte Winst"] = df["Verkoop"] - (df["Inkoop"] + df["Extra Kosten"])
 
+# 1. Cijfers en tekst overzichtelijk in de tabel tonen
 st.dataframe(df, use_container_width=True, hide_index=True)
+
+# 2. 🚨 NIEUW: Fotogalerij direct onder de tabel gekoppeld
+cursor.execute("SELECT id, kenteken, naam, afbeelding FROM voorraad")
+fotos_voorraad = cursor.fetchall()
+
+if fotos_voorraad:
+    st.write("")
+    st.subheader("🖼️ Fotogalerij voorraad")
+    for item in fotos_voorraad:
+        auto_id, ktk, omschrijving, foto_string = item
+        weergave_naam = omschrijving if omschrijving else "Onbekende auto"
+        
+        # Snel open te klappen dropdown per voertuig om foto's groot te bekijken
+        with st.expander(f"Bekijk foto van ID {auto_id}: {weergave_naam} ({ktk})"):
+            if foto_string:
+                st.image(base64.b64decode(foto_string), width=400)
+            if not foto_string:
+                st.info("Er is voor deze auto nog geen afbeelding geüpload. Voeg deze eventueel hieronder toe bij 'Auto Aanpassen'.")
 
 # --- DIRECT ACTIEBLOK ONDERAAN ---
 st.write("")
@@ -210,16 +229,3 @@ if actie_id > 0:
             if edit_ktk.strip():
                 n_km = naar_getal(edit_km, int)
                 n_inkoop = naar_getal(edit_inkoop, float)
-                n_verkoop = naar_getal(edit_verkoop, float)
-                n_kosten = naar_getal(edit_kosten, float)
-                
-                # 🚨 DE GOUDEN FIX: Geen if/else splitsing meer voor queries. We bepalen de fotostring eerst! [sqlite3]
-                foto_opslaan = foto_huidig
-                if edit_foto is not None:
-                    img = Image.open(edit_foto)
-                    img.thumbnail((800, 800))
-                    buffer = io.BytesIO()
-                    img.save(buffer, format="JPEG", quality=70)
-                    foto_opslaan = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                
-                # Één enkele rechte, foutloze query [sqlite3]
