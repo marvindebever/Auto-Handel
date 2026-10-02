@@ -131,7 +131,8 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     
     opties = ["Handgeschakeld", "Automaat"]
     index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-    edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standard)
+    # DE GOUDEN FIX: index_standard is nu correct gewijzigd naar index_standaard
+    edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
     
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
