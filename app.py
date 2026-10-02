@@ -90,9 +90,8 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Pragma check om te controleren of de statuskolom al bestaat
 cursor.execute("PRAGMA table_info(voorraad)")
-bestaande_kolommen = [k[1] for k in cursor.fetchall()]
+bestaande_kolommen = [k for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
     cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
     conn.commit()
@@ -109,7 +108,7 @@ def hernummer_database_ids():
     conn.commit()
 
 hernummer_database_ids()
-def haal_rdw_gegevens_v2(kenteken_str):
+def laad_voertuig_data_overheid(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
@@ -118,16 +117,17 @@ def haal_rdw_gegevens_v2(kenteken_str):
     url = f"https://rdw.nl{schoon}"
     
     headers = {
-        "User-Agent": "AutohandelInventarisApp/2.0 (StreamlitCloud; Contact: info@autohandel.nl)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AutohandelApp/3.0",
         "Accept": "application/json"
     }
     
     try:
-        res = requests.get(url, headers=headers, timeout=7)
+        # Geforceerd requests aanroepen zonder gecashte sessies
+        res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200:
             data = res.json()
             if len(data) > 0:
-                voertuig = data[0]  # Pak de eerste auto uit de lijst resultaten
+                voertuig = data
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -146,7 +146,7 @@ def haal_rdw_gegevens_v2(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het RDW-register."}
+                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
         else:
             return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
@@ -216,12 +216,12 @@ if head_col2.button("🚪 Uitloggen", use_container_width=True):
 cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
 stat_rijen = cursor.fetchall()
 
-autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
-autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
+autos_in_voorraad = [r for r in stat_rijen if r != 'Verkocht']
+autos_verkocht = [r for r in stat_rijen if r == 'Verkocht']
 
-totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
-totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
-gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
+totale_voorraadwaarde = sum(r + r for r in autos_in_voorraad)
+totale_verwachte_winst = sum(r - (r + r) for r in autos_in_voorraad)
+gerealiseerde_winst = sum(r - (r + r) for r in autos_verkocht)
 
 st.write("")
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
@@ -240,8 +240,8 @@ with rdw_col2:
     klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
 
 if klik_rdw:
-    # Roept geforceerd de nieuwe v2-functie aan om cache te omzeilen
-    rdw_data = haal_rdw_gegevens_v2(rdw_kenteken)
+    # Roept de gloednieuwe functie aan om de cache op Streamlit Cloud definitief te omzeilen
+    rdw_data = laad_voertuig_data_overheid(rdw_kenteken)
     if rdw_data and rdw_data.get("fout") is None:
         st.session_state["rdw_naam"] = rdw_data["naam"]
         st.session_state["rdw_apk"] = rdw_data["apk"]
@@ -296,11 +296,11 @@ verwerkte_autos = []
 
 if alle_autos:
     for auto in alle_autos:
-        winst = auto[4] - (auto[3] + auto[6])
+        winst = auto - (auto + auto)
         verwerkte_autos.append({
-            "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
-            "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
-            "status": auto[10], "winst": winst
+            "id": auto, "kenteken": auto, "km_stand": auto, "inkoopprijs": auto, "verkoopprijs": auto,
+            "apk_datum": auto, "extra_kosten": auto, "afbeelding": auto, "naam": auto, "transmissie": auto, 
+            "status": auto, "winst": winst
         })
 
     if filter_status != "Alle": verwerkte_autos = [x for x in verwerkte_autos if x["status"] == filter_status]
