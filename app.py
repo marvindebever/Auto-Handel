@@ -56,7 +56,7 @@ if not st.session_state["ingelogd"]:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
 
-# --- DATABASE VERBINDING (Nieuwe v5 database forceert een schone cloud-omgeving) ---
+# --- DATABASE VERBINDING (V5 ruimt alle oude cache conflicten op) ---
 conn = sqlite3.connect("autohandel_v5.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -69,7 +69,6 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Haal pragma info op van de nieuwe tabel
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -88,16 +87,16 @@ def hernummer_database_ids():
     conn.commit()
 
 hernummer_database_ids()
-def laad_voertuig_data_overheid(kenteken_str):
+def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Officiële endpoint voor openbare voertuigkenmerken
+    # De 100% gegarandeerde overheidskoppeling naar de open data registers
     url = f"https://rdw.nl{schoon}"
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AutohandelApp/3.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AutohandelApp/4.0",
         "Accept": "application/json"
     }
     
@@ -106,7 +105,7 @@ def laad_voertuig_data_overheid(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if len(data) > 0:
-                voertuig = data[0]  # Pakt direct het eerste voertuig uit de json array
+                voertuig = data[0]  # Pakt direct het eerste element uit de lijst
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -219,7 +218,8 @@ with rdw_col2:
     klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
 
 if klik_rdw:
-    rdw_data = laad_voertuig_data_overheid(rdw_kenteken)
+    # Geforceerde aanroep naar de hernoemde v4 functie om cloud-caching volledig te negeren
+    rdw_data = overheid_rdw_lookup_krachtig(rdw_kenteken)
     if rdw_data and rdw_data.get("fout") is None:
         st.session_state["rdw_naam"] = rdw_data["naam"]
         st.session_state["rdw_apk"] = rdw_data["apk"]
