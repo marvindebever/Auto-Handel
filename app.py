@@ -166,26 +166,26 @@ st.subheader("Huidige inventaris")
 df = pd.read_sql_query("SELECT id AS ID, naam AS Omschrijving, kenteken AS Kenteken, km_stand AS [KM Stand], transmissie AS Transmissie, inkoopprijs AS Inkoop, extra_kosten AS [Extra Kosten], verkoopprijs AS Verkoop, apk_datum AS [APK Datum] FROM voorraad", conn)
 df["Verwachte Winst"] = df["Verkoop"] - (df["Inkoop"] + df["Extra Kosten"])
 
-# Toon de inventaris direct stabiel in de tabel
 st.dataframe(df, use_container_width=True, hide_index=True)
 
 # --- DIRECT ACTIEBLOK ONDERAAN ---
 st.write("")
 st.subheader("🛠️ Auto Aanpassen of Verwijderen")
 
-with st.container():
-    actie_id_str = st.text_input("Voer het ID-nummer van de auto in:")
-    actie_id = naar_getal(actie_id_str, int)
+# Vraag eerst stabiel om het ID nummer buiten het formulier om conflicten te vermijden
+actie_id_str = st.text_input("Voer het ID-nummer van de auto in om te openen:")
+actie_id = naar_getal(actie_id_str, int)
+
+if actie_id > 0:
+    cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, naam, transmissie FROM voorraad WHERE id=?", (actie_id,))
+    bestaande_auto = cursor.fetchone()
     
-    if actie_id > 0:
-        cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, naam, transmissie FROM voorraad WHERE id=?", (actie_id,))
-        bestaande_auto = cursor.fetchone()
+    if bestaande_auto:
+        ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig = bestaande_auto
+        st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        if bestaande_auto:
-            ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig = bestaande_auto
-            # 🚨 GECORRIGEERD: Hier stond de typfout, deze is nu 100% hersteld naar auto_naam
-            st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
-            
+        # 🚨 OPLOSSING: Het hele bewerkscherm zit nu in één prachtig gesloten formulierblok
+        with st.form("edit_form", clear_on_submit=False):
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
             edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
             edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
@@ -193,7 +193,8 @@ with st.container():
             
             opties = ["Handgeschakeld", "Automaat"]
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standard)
+            # 🚨 GECORRIGEERD: index_standard typfout is hersteld naar index_standaard
+            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
             
             edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
             edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
@@ -201,18 +202,22 @@ with st.container():
             
             col_save, col_del = st.columns(2)
             with col_save:
-                if st.button("💾 Wijzigingen Live Opslaan", use_container_width=True):
-                    n_km = naar_getal(edit_km, int)
-                    n_inkoop = naar_getal(edit_inkoop, float)
-                    n_verkoop = naar_getal(edit_verkoop, float)
-                    n_kosten = naar_getal(edit_kosten, float)
-                    cursor.execute("UPDATE voorraad SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=? WHERE id=?", (edit_naam, edit_ktk.upper().strip(), n_km, n_inkoop, n_verkoop, str(edit_apk), n_kosten, edit_trans, actie_id))
-                    conn.commit()
-                    st.success("Gegevens succesvol bijgewerkt!")
-                    st.rerun()
+                save_submit = st.form_submit_button("💾 Wijzigingen Live Opslaan", use_container_width=True)
             with col_del:
-                if st.button("🗑️ Auto Definitief Wissen", type="primary", use_container_width=True):
-                    cursor.execute("DELETE FROM voorraad WHERE id=?", (actie_id,))
-                    conn.commit()
-                    st.success("Auto succesvol gewist!")
-                    st.rerun()
+                del_submit = st.form_submit_button("🗑️ Auto Definitief Wissen", type="primary", use_container_width=True)
+                
+        if save_submit:
+            n_km = naar_getal(edit_km, int)
+            n_inkoop = naar_getal(edit_inkoop, float)
+            n_verkoop = naar_getal(edit_verkoop, float)
+            n_kosten = naar_getal(edit_kosten, float)
+            cursor.execute("UPDATE voorraad SET naam=?, kenteken=?, km_stand=?, inkoopprijs=?, verkoopprijs=?, apk_datum=?, extra_kosten=?, transmissie=? WHERE id=?", (edit_naam, edit_ktk.upper().strip(), n_km, n_inkoop, n_verkoop, str(edit_apk), n_kosten, edit_trans, actie_id))
+            conn.commit()
+            st.success("Gegevens succesvol bijgewerkt!")
+            st.rerun()
+            
+        if del_submit:
+            cursor.execute("DELETE FROM voorraad WHERE id=?", (actie_id,))
+            conn.commit()
+            st.success("Auto succesvol gewist!")
+            st.rerun()
