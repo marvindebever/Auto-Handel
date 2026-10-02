@@ -25,7 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
+        h1, h2, h3, p, span {{
             color: white !important;
             text-shadow: 
                 -1px -1px 0 #000,  
@@ -60,6 +60,30 @@ def zet_achtergrond(logo_path="logo.png"):
 
         .stButton button, .stButton button span, button[data-testid="stBaseButton-primary"] span {{
             text-shadow: none !important;
+        }}
+
+        /* Styling voor de onverwoestbare HTML Dropdown container */
+        summary {{
+            padding: 15px;
+            background-color: rgba(30, 30, 30, 0.95);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            margin-top: 12px;
+        }}
+        details {{
+            background-color: rgba(15, 15, 15, 0.95);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            padding: 5px;
+        }}
+        .dropdown-inhoud {{
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }}
         </style>
         """
@@ -106,7 +130,7 @@ cursor.execute(
 )
 conn.commit()
 
-# Veilig de nieuwe kolom toevoegen als deze nog niet bestaat in een oudere database-versie
+# Veilig de nieuwe kolom toevoegen als deze nog niet bestaat
 try:
     cursor.execute("ALTER TABLE autos_v3 ADD COLUMN transmissie TEXT")
     conn.commit()
@@ -220,19 +244,4 @@ zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM autos_v3")
 alle_autos = cursor.fetchall()
 
-# 🚨 VOLLEDIG RECHTE CONTROLE ZONDER ELSE: Heft elk risico op inspringfouten op!
 if len(alle_autos) == 0:
-    st.info("Er staan momenteel geen auto's in de database. Voeg hierboven een auto toe om de inventaris te bekijken!")
-
-for auto in alle_autos:
-    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam, trans = auto
-    winst = verkoop - (inkoop + kosten)
-    apk_nl = formatteer_datum_nl(apk)
-    weergave_naam = auto_naam if auto_naam else "Onbekende auto"
-    weergave_trans = trans if trans else "Onbekend"
-
-    if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
-        continue
-
-    with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}"):
-        if foto_string:
