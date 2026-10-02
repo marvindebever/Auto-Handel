@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE STYLING: FLEXIBELE CONTAINERS VOOR COMPLETE FORMULIEREN ---
+# --- VEILIGE STYLING: FORMULIER STYLING COMPLEET VERWIJDERD OM AFKNIPPEN TE VOORKOMEN ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -43,16 +43,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* Dwingt de containers af om mee te schalen met de inhoud en NOOIT iets af te knippen */
-        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
-            background-color: rgba(20, 20, 20, 0.95) !important;
-            padding: 25px !important;
-            border-radius: 12px !important;
-            border: 2px solid rgba(255, 255, 255, 0.2) !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-        }}
+        /* GOUDEN FIX: ALLE DOWNSIDE CSS OP stForm EN CONTAINERS IS VERWIJDERD */
         
         input, select, textarea, div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             background-color: #262730 !important;
@@ -209,7 +200,7 @@ if alle_autos:
                 st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
                 st.write(f"**Verwachte Winst:** €{winst:,.2f}")
 
-# --- DIRECT ACTIEBLOK ONDERAAN (INLINE EN STABIEL) ---
+# --- DIRECT ACTIEBLOK ONDERAAN ---
 st.write("")
 st.subheader("🛠️ Auto Aanpassen of Verwijderen")
 
@@ -224,7 +215,7 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        # Geplaatst in een stabiel formulier met gecorrigeerde CSS-hoogtes
+        # Dit formulier maakt nu gebruik van de native Streamlit layout en schaalt altijd 100% volledig mee
         with st.form("edit_form", clear_on_submit=False):
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
             edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -239,3 +230,8 @@ if actie_id > 0:
             
             opties = ["Handgeschakeld", "Automaat"]
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
+            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
+            
+            edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
+            edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
+            edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
