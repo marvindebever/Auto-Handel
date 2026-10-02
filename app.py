@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE EN OPSCHOONDE STYLING: GEEN HOOGTE-RESTRICTIES MEER ---
+# --- DEFINTIEVE STYLING FIX: DWINGT FORMULIEREN OM MEE TE REKKEN ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -47,6 +47,13 @@ def zet_achtergrond(logo_path="logo.png"):
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             color: white !important;
             -webkit-text-fill-color: white !important;
+        }}
+
+        /* GOUDEN FIX: Schakelt alle verborgen hoogte-beperkingen van formulieren fysiek uit */
+        form, div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], div[data-testid="element-container"] {{
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
         }}
         </style>
         """
@@ -214,7 +221,6 @@ if actie_id > 0:
         
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        # --- GOUDEN INDELING: TWEE PURE NATIVE STREAMLIT KOLOMMEN ---
         with st.form("hoofd_edit_form", clear_on_submit=False):
             links_col, rechts_col = st.columns(2)
             
@@ -233,6 +239,3 @@ if actie_id > 0:
                 edit_trans = st.selectbox("Pas Transmissie aan", options=["Handgeschakeld", "Automaat"], index=["Handgeschakeld", "Automaat"].index(trans_huidig) if trans_huidig in ["Handgeschakeld", "Automaat"] else 0)
             
             with rechts_col:
-                st.markdown("##### 💰 Financiële Gegevens & Foto")
-                edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
-                edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
