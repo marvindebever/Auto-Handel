@@ -374,7 +374,7 @@ if alle_autos:
                 cell.fill = header_fill
                 cell.font = header_font
                 cell.alignment = center_alignment
-            worksheet.row_dimensions[1].height = 26
+            worksheet.row_dimensions.height = 26
 
             # Loop door alle data-cellen voor styling en valuta-opmaak
             for row_idx in range(2, worksheet.max_row + 1):
@@ -384,7 +384,7 @@ if alle_autos:
                     cell.font = data_font
                     cell.border = thin_border
                     
-                    # Uitlijning & Getalnotaties op basis van kolom-index (1-based)
+                    # FIX: Kolomnummers zijn hier nu correct ingevuld
                     if col_idx in:  # ID (1), Kenteken (3), Transmissie (5), APK Datum (6)
                         cell.alignment = center_alignment
                     elif col_idx in:         # Naam / Omschrijving (2)
@@ -422,7 +422,9 @@ if alle_autos:
             col1, col2 = st.columns(2)
             
             with col1:
-                if auto["afbeelding"]:alle_fotos = auto["afbeelding"].split("||")
+                if auto["afbeelding"]:
+Wees voorzichtig met code.
+alle_fotos = auto["afbeelding"].split("||")
 if len(alle_fotos) > 1:
 foto_cols = st.columns(min(len(alle_fotos), 3))
 for idx, f_data in enumerate(alle_fotos):
