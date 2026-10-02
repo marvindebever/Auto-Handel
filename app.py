@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ULTIEME UNIFORME STYLING ---
+# --- ULTIEME UNIFORME STYLING EN REFRESH-KNOP FIX ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -60,6 +60,11 @@ def zet_achtergrond(logo_path="logo.png"):
         div[data-testid="stMetricValue"] div {{
             color: white !important;
             font-weight: bold !important;
+        }}
+
+        /* GOUDEN CSS-FIX: Lijn de verversknop handmatig uit zodat hij perfect gelijk staat aan de zoekbalk */
+        div[id="refresh_button_container"] button {{
+            margin-top: 28px !important;
         }}
         </style>
         """
@@ -246,7 +251,8 @@ with st.form("auto_form", clear_on_submit=True):
     extra_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value="0.00")
     
     gevoegde_fotos = st.file_uploader("Kies foto's van de auto (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-    submit = st.form_submit_button("Voeg toe aan voorraad")
+    with st.container():
+        submit = st.form_submit_button("Voeg toe aan voorraad")
 
 if submit:
     if kenteken.strip():
@@ -277,13 +283,16 @@ if submit:
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 
-# GOUDEN REFRESH INDELING: vertical_alignment="end" trekt de knop strak op gelijke hoogte met de zoekbalk!
-inv_col1, inv_col2 = st.columns([4, 1], vertical_alignment="end")
+# REFRESH INDELING FIXED: De kolommen maken nu gebruik van een stabiele, gelijke 2-koloms indeling.
+# De knop wordt via de CSS in Deel 1 (id="refresh_button_container") netjes uitgelijnd.
+inv_col1, inv_col2 = st.columns(2)
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 with inv_col2:
+    st.markdown('<div id="refresh_button_container">', unsafe_allow_html=True)
     if st.button("🔄 Inventaris Verversen", use_container_width=True, type="secondary"):
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM voorraad")
 alle_autos = cursor.fetchall()
