@@ -90,6 +90,7 @@ cursor.execute("""
 """)
 conn.commit()
 
+# Controleer via de kolomnamen of status al bestaat
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -117,7 +118,7 @@ def haal_rdw_gegevens(kenteken_str):
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            # GEFIXT: Selecteer specifiek de eerste auto uit de JSON-lijst
+            # Gecorrigeerd: Pak direct de eerste auto (dictionary) uit de JSON-lijst
             data = res.json()[0]
             
             merk = data.get("merk", "").title()
@@ -230,9 +231,11 @@ with rdw_col2:
 if klik_rdw:
     rdw_data = haal_rdw_gegevens(rdw_kenteken)
     if rdw_data:
-        st.session_state["rdw_naam"], st.session_state["rdw_apk"], st.session_state["rdw_ktk"] = rdw_data["naam"], rdw_data["apk"], rdw_kenteken
+        st.session_state["rdw_naam"] = rdw_data["naam"]
+        st.session_state["rdw_apk"] = rdw_data["apk"]
+        st.session_state["rdw_ktk"] = rdw_kenteken
         st.toast("⚡ RDW Gegevens succesvol geladen!", icon="✅")
-        st.rerun()
+        # Gecorrigeerd: De st.rerun() is hier weggehaald zodat Streamlit de waardes niet direct leeggooit!
     else: 
         st.error("Kenteken niet gevonden bij het RDW of API-fout.")
 
@@ -243,7 +246,9 @@ with st.form("auto_form", clear_on_submit=False):
     apk_datum = st.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()))
     transmissie = st.selectbox("Transmissie", options=["Handgeschakeld", "Automaat"])
     status_invoer = st.selectbox("Status bij instroom", options=["In voorraad", "Gereserveerd"])
-    inkoopprijs_str, verkoopprijs_str, extra_kosten_str = st.text_input("Inkoopprijs (€)", "0.00"), st.text_input("Verkoopprijs (€)", "0.00"), st.text_input("Extra kosten (€)", "0.00")
+    inkoopprijs_str = st.text_input("Inkoopprijs (€)", value="0.00")
+    verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
+    extra_kosten_str = st.text_input("Extra kosten (€)", value="0.00")
     gevoegde_fotos = st.file_uploader("Kies foto's van de auto (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     submit = st.form_submit_button("Voeg toe aan voorraad")
 
