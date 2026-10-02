@@ -102,15 +102,12 @@ conn.commit()
 
 # --- GOUDEN ID HERNUMMERING FIX ---
 def hernummer_database_ids():
-    # Haal alle huidige records op gesorteerd op hun oude ID
     cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM voorraad ORDER BY id ASC")
     rijen = cursor.fetchall()
     
-    # Maak de tabel leeg en reset de teller volledig
     cursor.execute("DELETE FROM voorraad")
     cursor.execute("DELETE FROM sqlite_sequence WHERE name='voorraad'")
     
-    # Voeg alles opnieuw toe zodat de ID's opeenvolgend vanaf 1 beginnen
     for rij in rijen:
         cursor.execute(
             """
@@ -120,7 +117,6 @@ def hernummer_database_ids():
         )
     conn.commit()
 
-# Voer de hernummering direct uit bij het inladen om de gaten op te vullen
 hernummer_database_ids()
 
 def naar_getal(tekst_waarde, type_getal=float):
@@ -196,8 +192,8 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
             st.success("Auto succesvol bijgewerkt!")
             st.rerun()
 
-# --- HEADER SPREADING (TITEL LINKS, UITLOGGEN RECHTS) ---
-head_col1, head_col2 = st.columns()
+# --- HEADER SPREADING (FIX: st.columns HEEFT NU ALTIJD EEN WAARDE) ---
+head_col1, head_col2 = st.columns(2)
 with head_col1:
     st.title("🚗 Autohandel Inventaris")
     st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
@@ -252,11 +248,12 @@ if submit:
 st.write("---")
 st.subheader("Huidige inventaris")
 
-# REFRESH INDELING (ZOEKBALK LINKS, REFRESH KNOP RECHTS)
-inv_col1, inv_col2 = st.columns()
+# REFRESH INDELING (FIX: st.columns HEEFT NU ALTIJD EEN WAARDE)
+inv_col1, inv_col2 = st.columns(2)
 with inv_col1:
-    zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...", label_visibility="collapsed").upper()
+    zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 with inv_col2:
+    st.write("")  
     if st.button("🔄 Inventaris Verversen", use_container_width=True, type="secondary"):
         st.rerun()
 
@@ -282,7 +279,7 @@ if alle_autos:
                     if len(alle_fotos) > 1:
                         foto_cols = st.columns(min(len(alle_fotos), 3))
                         for idx, f_data in enumerate(alle_fotos):
-                            with foto_cols[idx % 3]:
+                            with foto_cols[idx % min(len(alle_fotos), 3)]:
                                 try:
                                     st.image(base64.b64decode(f_data), use_container_width=True)
                                 except Exception:
