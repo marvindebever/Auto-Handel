@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ULTIEME UNIFORME STYLING EN REFRESH-KNOP FIX ---
+# --- ULTIEME UNIFORME STYLING ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -161,7 +161,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
     edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
-    edit_fotos = st.file_uploader("Upload nieuwe foto's", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    edit_fotos = st.file_uploader("Upload nieuwe foto's (Laat leeg om huidige foto's te behouden)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     
     st.write("")
     if st.button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True):
@@ -231,6 +231,7 @@ with st.expander("📊 Actuele Status Dashboard", expanded=True):
         st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
     with stat_col3:
         st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
+
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 with st.form("auto_form", clear_on_submit=True):
@@ -242,10 +243,8 @@ with st.form("auto_form", clear_on_submit=True):
     inkoopprijs_str = st.text_input("Inkoopprijs (€)", value="0.00")
     verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
     extra_kosten_str = st.text_input("Extra kosten (€) - Optioneel", value="0.00")
-    
     gevoegde_fotos = st.file_uploader("Kies foto's van de auto (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-    with st.container():
-        submit = st.form_submit_button("Voeg toe aan voorraad")
+    submit = st.form_submit_button("Voeg toe aan voorraad")
 
 if submit:
     if kenteken.strip():
@@ -276,8 +275,8 @@ if submit:
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 
-# REFRESH EN SORTEERBALK INDELING (3 KOLOMMEN PERFECT WATERPAS)
-inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1])
+# REFRESH EN SORTEERBALK INDELING (3 STREKKE KOLOMMEN WATERPAS)
+inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1], vertical_alignment="end")
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 with inv_col2:
@@ -291,7 +290,6 @@ with inv_col2:
         ]
     )
 with inv_col3:
-    st.markdown('<p style="margin-bottom: 0px; padding-bottom: 23px;"></p>', unsafe_allow_html=True)
     if st.button("🔄 Verversen", use_container_width=True, type="secondary"):
         st.rerun()
 
@@ -309,7 +307,6 @@ if alle_autos:
             "afbeelding": foto_string, "naam": auto_naam, "transmissie": trans, "winst": winst
         })
 
-    # SORTEER LOGICA ACTIVATIE
     if sorteer_optie == "ID Nummer (Oud naar nieuw)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["id"])
     elif sorteer_optie == "Verwachte Winst (Hoog naar laag)":
@@ -355,18 +352,3 @@ if alle_autos:
                 st.write(f"**Transmissie:** {auto['transmissie'] if auto['transmissie'] else 'Niet opgegeven'}")
                 st.write(f"**APK Datum:** {apk_nl}")
                 st.write(f"**Inkoopprijs:** €{auto['inkoopprijs']:,.2f}")
-                st.write(f"**Extra kosten:** €{auto['extra_kosten']:,.2f}")
-                st.write(f"**Verkoopprijs:** €{auto['verkoopprijs']:,.2f}")
-                st.write(f"**Verwachte Winst:** €{auto['winst']:,.2f}")
-                
-                st.write("")
-                btn_edit, btn_del = st.columns(2)
-                with btn_edit:
-                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto['id']}", use_container_width=True, type="primary"):
-                        bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"])
-                with btn_del:
-                    if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto_id}", use_container_width=True):
-                        cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
-                        conn.commit()
-                        st.success(f"Auto succesvol verwijderd!")
-                        st.rerun()
