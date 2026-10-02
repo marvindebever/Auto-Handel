@@ -5,6 +5,7 @@ import os
 import sqlite3
 from PIL import Image
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
@@ -276,8 +277,8 @@ if submit:
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 
-# REFRESH EN SORTEERBALK INDELING (TEKSTEN LIJNEN NU KEURIG CONFORM JE WENS)
-inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1])
+# REFRESH, SORTEER EN EXPORT INDELING (4 KOLOMMEN WATERPAS)
+inv_col1, inv_col2, inv_col3, inv_col4 = st.columns([2, 1.5, 1, 1])
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 with inv_col2:
@@ -313,7 +314,7 @@ if alle_autos:
             "afbeelding": foto_string, "naam": auto_naam, "transmissie": trans, "winst": winst
         })
 
-    # SORTEER LOGICA ACTIVATIE CONFORM NIEUWE REWARD NAMEN
+    # SORTEER LOGICA ACTIVATIE
     if sorteer_optie == "ID Nummer (Oplopend)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["id"])
     elif sorteer_optie == "ID Nummer (Aflopend)":
@@ -331,12 +332,37 @@ if alle_autos:
     elif sorteer_optie == "APK Datum (Langste eerst)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "0000-00-00", reverse=True)
 
+    # --- GEOPTIMALISEERDE EXCEL GENERATOR (EXPORTEERT PRECIES DE SORTERING VAN HET SCHERM) ---
+    export_lijst = []
     for auto in verwerkte_autos:
         weergave_naam = auto["naam"] if auto["naam"] else "Onbekende auto"
-
         if zoekterm and (zoekterm not in auto["kenteken"]) and (zoekterm not in weergave_naam.upper()):
             continue
+        export_lijst.append({
+            "ID": auto["id"], "Naam/Omschrijving": weergave_naam, "Kenteken": auto["kenteken"],
+            "KM Stand": auto["km_stand"], "Transmissie": auto["transmissie"], "APK Datum": formatteer_datum_nl(auto["apk_datum"]),
+            "Inkoopprijs (€)": auto["inkoopprijs"], "Extra Kosten (€)": auto["extra_kosten"],
+            "Verkoopprijs (€)": auto["verkoopprijs"], "Verwachte Winst (€)": auto["winst"]
+        })
+        
+    df = pd.DataFrame(export_lijst)
+    towrite = io.BytesIO()
+    with pd.ExcelWriter(towrite, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Inventaris')
+    towrite.seek(0)
+    
+    with inv_col4:
+        st.markdown('<p style="margin-bottom: 0px; padding-bottom: 23px;"></p>', unsafe_allow_html=True)
+        st.download_button(
+            label="📊 Download Excel", data=towrite, file_name=f"inventaris_{datetime.now().strftime('%d-%m-%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
+        )
 
+    # --- UITROL INVENTARIS ---
+    for auto in verwerkte_autos:
+        weergave_naam = auto["naam"] if auto["naam"] else "Onbekende auto"
+        if zoekterm and (zoekterm not in auto["kenteken"]) and (zoekterm not in weergave_naam.upper()):
+            continue
         apk_nl = formatteer_datum_nl(auto["apk_datum"])
 
         with st.expander(f"🚗 {weergave_naam} ({auto['kenteken']}) - Verkoopprijs: €{auto['verkoopprijs']:,.2f}"):
