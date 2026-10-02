@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE EN GEOPTIMALISEERDE STYLING: KAPT NOOIT MEER FORMULIEREN AF ---
+# --- VEILIGE STYLING: CSS KAPT NOOIT MEER HET FORMULIER OF DE KNOPPEN AF ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -25,7 +25,7 @@ def zet_achtergrond(logo_path="logo.png"):
             background-attachment: fixed;
         }}
         
-        /* Alleen teksten krijgen een outline voor leesbaarheid, we raken de form-functionaliteit niet aan */
+        /* Outline voor perfecte leesbaarheid van teksten */
         h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
             color: white !important;
             text-shadow: 
@@ -44,7 +44,7 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* Clean inputs die geen rare hoogtes forceren */
+        /* Input styling zonder hoogte-restricties */
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             color: white !important;
             -webkit-text-fill-color: white !important;
@@ -199,7 +199,7 @@ if alle_autos:
                     st.success(f"Auto met ID {auto_id} succesvol verwijderd!")
                     st.rerun()
 
-# --- DIRECT ACTIEBLOK ONDERAAN (VEILIG EN VOLLEDIG) ---
+# --- DIRECT ACTIEBLOK ONDERAAN (MET STABIEL FORMULIER) ---
 st.write("")
 st.subheader("🛠️ Auto Gegevens Aanpassen via ID")
 
@@ -214,8 +214,8 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        # We maken gebruik van st.container om de data-afkapping te omzeilen
-        with st.container():
+        # OPLOSSING: We gebruiken weer st.form, maar zonder de foute CSS-regels die de hoogte afknipten
+        with st.form("edit_form", clear_on_submit=False):
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "", key="ed_naam")
             edit_ktk = st.text_input("Pas Kenteken aan", value=ktk, key="ed_ktk")
             edit_km = st.text_input("Pas Kilometerstand aan", value=str(km), key="ed_km")
