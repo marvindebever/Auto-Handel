@@ -90,9 +90,10 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Automatische database update voor de status-kolom
+# Gecorrigeerde database check: Controleer waterdicht of 'status' al bestaat
 cursor.execute("PRAGMA table_info(voorraad)")
-if "status" not in [k for k in cursor.fetchall()]:
+bestaande_kolommen = [k[1] for k in cursor.fetchall()]
+if "status" not in bestaande_kolommen:
     cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
     conn.commit()
 
@@ -113,12 +114,11 @@ def haal_rdw_gegevens(kenteken_str):
     if not schoon:
         return None
     
-    # De officiële open data API URL voor openbare voertuigkenmerken
     url = f"https://rdw.nl{schoon}"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            data = res.json()[0]  # Gecorrigeerd: Pak het eerste element uit de lijst
+            data = res.json()[0]
             
             merk = data.get("merk", "").title()
             model = data.get("handelsbenaming", "").title()
@@ -204,12 +204,12 @@ if head_col2.button("🚪 Uitloggen", use_container_width=True):
 cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
 stat_rijen = cursor.fetchall()
 
-autos_in_voorraad = [r for r in stat_rijen if r != 'Verkocht']
-autos_verkocht = [r for r in stat_rijen if r == 'Verkocht']
+autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
+autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
 
-totale_voorraadwaarde = sum(r + r for r in autos_in_voorraad)
-totale_verwachte_winst = sum(r - (r + r) for r in autos_in_voorraad)
-gerealiseerde_winst = sum(r - (r + r) for r in autos_verkocht)
+totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
+totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
+gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
 
 st.write("")
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
@@ -223,7 +223,6 @@ st.subheader("Nieuwe auto toevoegen")
 rdw_col1, rdw_col2 = st.columns(2)
 rdw_kenteken = rdw_col1.text_input("Optioneel: Snel RDW Gegevens ophalen via kenteken", placeholder="Bijv. G-581-HH").upper().replace("-", "")
 
-# Visuele uitlijning: Knop zakt exact evenveel als de invoerbalk
 with rdw_col2:
     st.markdown('<p style="margin-bottom: 0px; padding-bottom: 24px;"></p>', unsafe_allow_html=True)
     klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
@@ -279,10 +278,11 @@ verwerkte_autos = []
 
 if alle_autos:
     for auto in alle_autos:
+        winst = auto[4] - (auto[3] + auto[6])
         verwerkte_autos.append({
-            "id": auto, "kenteken": auto, "km_stand": auto, "inkoopprijs": auto, "verkoopprijs": auto,
-            "apk_datum": auto, "extra_kosten": auto, "afbeelding": auto, "naam": auto, "transmissie": auto, 
-            "status": auto, "winst": auto - (auto + auto)
+            "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
+            "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
+            "status": auto[10], "winst": winst
         })
 
     if filter_status != "Alle": verwerkte_autos = [x for x in verwerkte_autos if x["status"] == filter_status]
