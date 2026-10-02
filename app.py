@@ -152,7 +152,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
     edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
-    # DE GOUDEN FIX: standard_datum is hier nu correct gewijzigd naar standaard_datum
     edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
     
     opties = ["Handgeschakeld", "Automaat"]
@@ -278,12 +277,11 @@ if submit:
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 
-# REFRESH INDELING
-inv_col1, inv_col2 = st.columns(2)
+# GOUDEN REFRESH INDELING: vertical_alignment="end" trekt de knop strak op gelijke hoogte met de zoekbalk!
+inv_col1, inv_col2 = st.columns([4, 1], vertical_alignment="end")
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 with inv_col2:
-    st.write("")  
     if st.button("🔄 Inventaris Verversen", use_container_width=True, type="secondary"):
         st.rerun()
 
