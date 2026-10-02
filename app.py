@@ -1,17 +1,74 @@
+import base64
 from datetime import datetime
 import io
 import os
 import sqlite3
-import base64
 from PIL import Image
 import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE VISUELE BANNER BOVENAAN DE PAGINA ---
-if os.path.exists("logo.png"):
-    # Toont je logo als een prachtige, brede banner bovenaan zonder de code te verstoren
-    st.image("logo.png", use_container_width=True)
+# --- COORRECTE EN VEILIGE ACHTERGROND METHODE: INFORMATIE BLIJFT GEGARANDEERD ZICHTBAAR ---
+def zet_achtergrond(logo_path="logo.png"):
+    if os.path.exists(logo_path):
+        with open(logo_path, "rb") as f:
+            data = f.read()
+        encoded = base64.b64encode(data).decode("utf-8")
+        
+        css = f"""
+        <style>
+        /* Plaatst de afbeelding op de allerachterste laag van de browser */
+        [data-testid="stAppViewContainer"] {{
+            background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("data:image/png;base64,{encoded}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        
+        /* Maakt de hoofd-werkbox transparant zodat de afbeelding doorschijnt */
+        [data-testid="stMain"] {{
+            background-color: transparent !important;
+        }}
+        
+        /* Zorgt dat alle formulieren een donkere, goed leesbare en flexibele box krijgen */
+        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
+            background-color: rgba(25, 25, 25, 0.90) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+        }}
+        
+        /* Teksten krijgen een scherpe rand zodat ze opvallen op de donkere achtergrond */
+        h1, h2, h3, p, span, .streamlit-expanderHeader p, .streamlit-expanderHeader span {{
+            color: white !important;
+            text-shadow: 
+                -1px -1px 0 #000,  
+                 1px -1px 0 #000,
+                -1px  1px 0 #000,
+                 1px  1px 0 #000 !important;
+        }}
+        
+        div[data-testid="stWidgetLabel"] p, label {{
+            color: white !important;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+        }}
+        
+        /* Geef invoervelden een strakke, goed zichtbare donkere stijl */
+        div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
+            background-color: #1e1e24 !important;
+            color: white !important;
+            -webkit-text-fill-color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }}
+        </style>
+        """
+        st.markdown(css, unsafe_allow_html=True)
+
+zet_achtergrond("logo.png")
 
 # --- WACHTWOORDBEVEILIGING ---
 if "ingelogd" not in st.session_state:
@@ -84,7 +141,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     
     opties = ["Handgeschakeld", "Automaat"]
     index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-    edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
+    edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standard)
     
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
@@ -124,9 +181,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 # --- HEADER ---
 st.title("🚗 Autohandel Inventaris")
 st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
-if st.button("🚪 Uitloggen"):
-    st.session_state["ingelogd"] = False
-    st.rerun()
 
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
@@ -184,33 +238,3 @@ if alle_autos:
         with st.expander(f"🚗 {weergave_naam} ({ktk}) - Verkoopprijs: €{verkoop:,.2f}"):
             col1, col2 = st.columns(2)
             
-            with col1:
-                if foto_string:
-                    try:
-                        st.image(base64.b64decode(foto_string), use_container_width=True)
-                    except Exception:
-                        st.error("Fout bij het laden van de afbeelding.")
-                else:
-                    st.info("Geen afbeelding beschikbaar.")
-            
-            with col2:
-                st.write(f"**ID Nummer:** {auto_id}")
-                st.write(f"**Kilometerstand:** {km:,} km")
-                st.write(f"**Transmissie:** {trans if trans else 'Niet opgegeven'}")
-                st.write(f"**APK Datum:** {apk_nl}")
-                st.write(f"**Inkoopprijs:** €{inkoop:,.2f}")
-                st.write(f"**Extra kosten:** €{kosten:,.2f}")
-                st.write(f"**Verkoopprijs:** €{verkoop:,.2f}")
-                st.write(f"**Verwachte Winst:** €{winst:,.2f}")
-                
-                st.write("")
-                btn_edit, btn_del = st.columns(2)
-                with btn_edit:
-                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto_id}", use_container_width=True, type="primary"):
-                        bewerk_auto_dialog(auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam, trans)
-                with btn_del:
-                    if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto_id}", use_container_width=True):
-                        cursor.execute("DELETE FROM voorraad WHERE id=?", (auto_id,))
-                        conn.commit()
-                        st.success(f"Auto succesvol verwijderd!")
-                        st.rerun()
