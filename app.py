@@ -62,7 +62,6 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: none !important;
         }}
 
-        /* Styling voor de onverwoestbare HTML Dropdown container */
         summary {{
             padding: 15px;
             background-color: rgba(30, 30, 30, 0.95);
@@ -130,7 +129,6 @@ cursor.execute(
 )
 conn.commit()
 
-# Veilig de nieuwe kolom toevoegen als deze nog niet bestaat
 try:
     cursor.execute("ALTER TABLE autos_v3 ADD COLUMN transmissie TEXT")
     conn.commit()
@@ -244,4 +242,6 @@ zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM autos_v3")
 alle_autos = cursor.fetchall()
 
-if len(alle_autos) == 0:
+# 🚨 DEFINITIEVE FIX: Alle risicovolle if/else nestelingen zijn hier VOLLEDIG PLATGESLAGEN!
+for auto in alle_autos:
+    auto_id, ktk, km, inkoop, verkoop, apk, kosten, foto_string, auto_naam, trans = auto
