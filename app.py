@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VOLLEDIG GEOPTIMALISEERDE STYLING: TEKSTEN GEGARANDEERD WIT EN IN DE JUISTE BOX ---
+# --- VOLLEDIG GEOPTIMALISEERDE STYLING: EXACt DEZELFDE DONKERE LOOK VOOR ALLES ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -29,8 +29,11 @@ def zet_achtergrond(logo_path="logo.png"):
             background-color: transparent !important;
         }}
         
-        /* Dwingt formulieren EN de nieuwe statistieken container in exact dezelfde donkere boxen */
-        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .stat-box {{
+        /* GOUDEN UNIFORME BOX FIX: Dwingt alle containers EN expanders in exact dezelfde look */
+        div[data-testid="stForm"], 
+        div[data-testid="stVerticalBlockBorderContainer"], 
+        div[data-testid="stElementContainer"] div[style*="border"],
+        .stElementContainer [data-testid="stVerticalBlock"] {{
             background-color: rgba(25, 25, 25, 0.90) !important;
             padding: 25px !important;
             border-radius: 12px !important;
@@ -57,7 +60,6 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: none !important;
         }}
         
-        /* Getallen in de statistiekenboxen ook perfect helder wit maken */
         div[data-testid="stMetricValue"] div {{
             color: white !important;
             font-weight: bold !important;
@@ -227,15 +229,16 @@ for r in stat_rijen:
 st.write("")
 st.subheader("📊 Actuele Status")
 
-# We openen een native streamlit container die via de CSS (.stat-box) exact dezelfde styling krijgt als de rest van de formulieren
-with st.container(border=True):
-    stat_col1, stat_col2, stat_col3 = st.columns(3)
-    with stat_col1:
-        st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
-    with stat_col2:
-        st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
-    with stat_col3:
-        st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
+# Hier gebruiken we HTML/CSS via een div-container om exact dezelfde donkere box-look te garanderen
+st.markdown('<div class="div[data-testid=''"stVerticalBlockBorderContainer"'']">', unsafe_allow_html=True)
+stat_col1, stat_col2, stat_col3 = st.columns(3)
+with stat_col1:
+    st.metric(label="Voorraad Aantal", value=f"{totaal_autos} stuks")
+with stat_col2:
+    st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
+with stat_col3:
+    st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
+st.markdown('</div>', unsafe_allow_html=True)
 st.write("---")
 
 # --- TOEVOEGEN FORMULIER ---
