@@ -240,5 +240,5 @@ if actie_id > 0:
         except Exception:
             standaard_datum = datetime.today().date()
             
-        edit_apk = st.sidebar.date_input("Pas APK Datum aan", value=standard_datum)
+        edit_apk = st.sidebar.date_input("Pas APK Datum aan", value=standaard_datum)
         edit_trans = st.sidebar.selectbox("Pas Transmissie aan", options=["Handgeschakeld", "Automaat"], index=["Handgeschakeld", "Automaat"].index(trans_huidig) if trans_huidig in ["Handgeschakeld", "Automaat"] else 0)
