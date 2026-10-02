@@ -86,7 +86,6 @@ if not st.session_state["ingelogd"]:
     st.stop()
 
 # --- DATABASE VERBINDING ---
-# We gebruiken een volledig verse database-naam om online kolomconflicten definitief uit te sluiten
 conn = sqlite3.connect("autohandel_v4.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -170,7 +169,7 @@ df["Verwachte Winst"] = df["Verkoop"] - (df["Inkoop"] + df["Extra Kosten"])
 # Toon de inventaris direct stabiel in de tabel
 st.dataframe(df, use_container_width=True, hide_index=True)
 
-# --- DIRECT EN WATERDICHT ACTIEBLOK ONDERAAN (GEEN POP-UPS) ---
+# --- DIRECT ACTIEBLOK ONDERAAN ---
 st.write("")
 st.subheader("🛠️ Auto Aanpassen of Verwijderen")
 
@@ -184,9 +183,9 @@ with st.container():
         
         if bestaande_auto:
             ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig = bestaande_auto
-            st.write(f"Je bewerkt nu de auto: **{auto_name if auto_naam else 'Onbekend'} ({ktk})**")
+            # 🚨 GECORRIGEERD: Hier stond de typfout, deze is nu 100% hersteld naar auto_naam
+            st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
             
-            # Formuliervelden laden direct inline op de pagina
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
             edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
             edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
@@ -194,7 +193,7 @@ with st.container():
             
             opties = ["Handgeschakeld", "Automaat"]
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
+            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standard)
             
             edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
             edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
