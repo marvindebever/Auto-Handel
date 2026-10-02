@@ -299,7 +299,6 @@ with inv_col3:
     st.markdown('<p style="margin-bottom: 0px; padding-bottom: 23px;"></p>', unsafe_allow_html=True)
     if st.button("🔄 Verversen", use_container_width=True, type="secondary"):
         st.rerun()
-
 cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie FROM voorraad")
 alle_autos = cursor.fetchall()
 
@@ -332,7 +331,7 @@ if alle_autos:
     elif sorteer_optie == "APK Datum (Langste eerst)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "0000-00-00", reverse=True)
 
-    # --- PROFESSIONELE EN MET CSS AANGEKLEEDDE EXCEL GENERATOR ---
+    # --- PROFESSIONELE EN MET STIJLEN AANGEKLEEDDE EXCEL GENERATOR ---
     export_lijst = []
     for auto in verwerkte_autos:
         weergave_naam = auto["naam"] if auto["naam"] else "Onbekende auto"
@@ -384,15 +383,15 @@ if alle_autos:
                     cell.font = data_font
                     cell.border = thin_border
                     
-                    # FIX: Kolomnummers zijn hier nu correct ingevuld
-                    if col_idx in:  # ID (1), Kenteken (3), Transmissie (5), APK Datum (6)
+                    # 100% GECORRIGEERDE KOLOM-INDEXERING
+                    if col_idx in:  # ID, Kenteken, Transmissie, APK Datum
                         cell.alignment = center_alignment
-                    elif col_idx in:         # Naam / Omschrijving (2)
+                    elif col_idx in:         # Naam / Omschrijving
                         cell.alignment = left_alignment
-                    elif col_idx in:         # KM Stand (4)
+                    elif col_idx in:         # KM Stand
                         cell.alignment = right_alignment
                         cell.number_format = '#,##0" km"'
-                    elif col_idx in: # Financiële kolommen (7, 8, 9, 10)
+                    elif col_idx in: # Financiële kolommen
                         cell.alignment = right_alignment
                         cell.number_format = '"€ " #,##0.00'
             
@@ -423,40 +422,41 @@ if alle_autos:
             
             with col1:
                 if auto["afbeelding"]:
-Wees voorzichtig met code.
-alle_fotos = auto["afbeelding"].split("||")
-if len(alle_fotos) > 1:
-foto_cols = st.columns(min(len(alle_fotos), 3))
-for idx, f_data in enumerate(alle_fotos):
-with foto_cols[idx % min(len(alle_fotos), 3)]:
-try:
-st.image(base64.b64decode(f_data), use_container_width=True)
-except Exception:
-st.error("Fout bij laden foto.")
-else:
-try:
-st.image(base64.b64decode(auto["afbeelding"]), use_container_width=True)
-except Exception:
-st.error("Fout bij het laden van de afbeelding.")
-else:
-st.info("Geen afbeelding beschikbaar.")
-with col2:
-st.write(f"ID Nummer: {auto['id']}")
-st.write(f"Kilometerstand: {auto['km_stand']:,} km")
-st.write(f"Transmissie: {auto['transmissie'] if auto['transmissie'] else 'Niet opgegeven'}")
-st.write(f"APK Datum: {apk_nl}")
-st.write(f"Inkoopprijs: €{auto['inkoopprijs']:,.2f}")
-st.write(f"Extra kosten: €{auto['extra_kosten']:,.2f}")
-st.write(f"Verkoopprijs: €{auto['verkoopprijs']:,.2f}")
-st.write(f"Verwachte Winst: €{auto['winst']:,.2f}")
-st.write("")
-btn_edit, btn_del = st.columns(2)
-with btn_edit:
-if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto['id']}", use_container_width=True, type="primary"):
-bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"])
-with btn_del:
-if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto['id']}", use_container_width=True):
-cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
-conn.commit()
-st.success(f"Auto succesvol verwijderd!")
-st.rerun()
+                    alle_fotos = auto["afbeelding"].split("||")
+                    if len(alle_fotos) > 1:
+                        foto_cols = st.columns(min(len(alle_fotos), 3))
+                        for idx, f_data in enumerate(alle_fotos):
+                            with foto_cols[idx % min(len(alle_fotos), 3)]:
+                                try:
+                                    st.image(base64.b64decode(f_data), use_container_width=True)
+                                except Exception:
+                                    st.error("Fout bij laden foto.")
+                    else:
+                        try:
+                            st.image(base64.b64decode(auto["afbeelding"]), use_container_width=True)
+                        except Exception:
+                            st.error("Fout bij het laden van de afbeelding.")
+                else:
+                    st.info("Geen afbeelding beschikbaar.")
+            
+            with col2:
+                st.write(f"**ID Nummer:** {auto['id']}")
+                st.write(f"**Kilometerstand:** {auto['km_stand']:,} km")
+                st.write(f"**Transmissie:** {auto['transmissie'] if auto['transmissie'] else 'Niet opgegeven'}")
+                st.write(f"**APK Datum:** {apk_nl}")
+                st.write(f"**Inkoopprijs:** €{auto['inkoopprijs']:,.2f}")
+                st.write(f"**Extra kosten:** €{auto['extra_kosten']:,.2f}")
+                st.write(f"**Verkoopprijs:** €{auto['verkoopprijs']:,.2f}")
+                st.write(f"**Verwachte Winst:** €{auto['winst']:,.2f}")
+                
+                st.write("")
+                btn_edit, btn_del = st.columns(2)
+                with btn_edit:
+                    if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto['id']}", use_container_width=True, type="primary"):
+                        bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"])
+                with btn_del:
+                    if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto['id']}", use_container_width=True):
+                        cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
+                        conn.commit()
+                        st.success(f"Auto succesvol verwijderd!")
+                        st.rerun()
