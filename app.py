@@ -276,7 +276,7 @@ if submit:
 # --- INVENTARIS SECTIE ---
 st.subheader("Huidige inventaris")
 
-# REFRESH EN SORTEERBALK INDELING (3 KOLOMMEN VERDEELD VIA INLINE ELEMENTEN)
+# REFRESH EN SORTEERBALK INDELING (3 KOLOMMEN PERFECT WATERPAS)
 inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1])
 with inv_col1:
     zoekterm = st.text_input("🔍 Zoek op kenteken of omschrijving...").upper()
@@ -285,9 +285,13 @@ with inv_col2:
         "🔀 Sorteren op",
         options=[
             "ID Nummer (Oud naar nieuw)",
+            "ID Nummer (Nieuw naar oud)",
             "Verwachte Winst (Hoog naar laag)",
+            "Verwachte Winst (Laag naar hoog)",
             "Kilometerstand (Laag naar hoog)",
-            "APK Datum (Kortste eerst)"
+            "Kilometerstand (Hoog naar laag)",
+            "APK Datum (Kortste eerst)",
+            "APK Datum (Langste eerst)"
         ]
     )
 with inv_col3:
@@ -309,15 +313,23 @@ if alle_autos:
             "afbeelding": foto_string, "naam": auto_naam, "transmissie": trans, "winst": winst
         })
 
-    # SORTEER LOGICA ACTIVATIE
+    # UITGEBREIDE SORTEER LOGICA
     if sorteer_optie == "ID Nummer (Oud naar nieuw)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["id"])
+    elif sorteer_optie == "ID Nummer (Nieuw naar oud)":
+        verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["id"], reverse=True)
     elif sorteer_optie == "Verwachte Winst (Hoog naar laag)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["winst"], reverse=True)
+    elif sorteer_optie == "Verwachte Winst (Laag naar hoog)":
+        verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["winst"])
     elif sorteer_optie == "Kilometerstand (Laag naar hoog)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["km_stand"])
+    elif sorteer_optie == "Kilometerstand (Hoog naar laag)":
+        verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["km_stand"], reverse=True)
     elif sorteer_optie == "APK Datum (Kortste eerst)":
         verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "9999-12-31")
+    elif sorteer_optie == "APK Datum (Langste eerst)":
+        verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "0000-00-00", reverse=True)
 
     for auto in verwerkte_autos:
         weergave_naam = auto["naam"] if auto["naam"] else "Onbekende auto"
@@ -364,7 +376,6 @@ if alle_autos:
                 with btn_edit:
                     if st.button("✏️ Gegevens Aanpassen", key=f"edit_inv_{auto['id']}", use_container_width=True, type="primary"):
                         bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"])
-                # UNIEKE FIX SLEUTEL: Gecorrigeerd van auto_id naar auto['id'] om de DuplicateKeyError live op te lossen!
                 with btn_del:
                     if st.button("🗑️ Auto Verwijderen", key=f"del_inv_{auto['id']}", use_container_width=True):
                         cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
