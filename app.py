@@ -90,7 +90,7 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Gecorrigeerde database check: Controleer waterdicht of 'status' al bestaat
+# Waterdichte pragma-check om fouten met dubbele statuskolommen te voorkomen
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -118,7 +118,7 @@ def haal_rdw_gegevens(kenteken_str):
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200 and len(res.json()) > 0:
-            data = res.json()[0]
+            data = res.json()[0]  # Pakt direct de voertuiggegevens uit de lijst resultaten
             
             merk = data.get("merk", "").title()
             model = data.get("handelsbenaming", "").title()
@@ -128,7 +128,7 @@ def haal_rdw_gegevens(kenteken_str):
             apk_formatted = datetime.today().date()
             if apk_verval:
                 try: 
-                    apk_formatted = datetime.strptime(apk_verval, "%Y%m%d").date()
+                    apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                 except: 
                     pass
                     
@@ -278,7 +278,8 @@ verwerkte_autos = []
 
 if alle_autos:
     for auto in alle_autos:
-        winst = auto[4] - (auto[3] + auto[6])
+        # Volledig herstelde indexen op basis van de SELECT-query
+        winst = auto[4] - (auto[3] + auto[6])  # verkoopprijs - (inkoopprijs + extra_kosten)
         verwerkte_autos.append({
             "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
             "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
