@@ -56,7 +56,7 @@ if not st.session_state["ingelogd"]:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
 
-# --- DATABASE VERBINDING (V5 ruimt alle oude cache conflicten op) ---
+# --- DATABASE VERBINDING ---
 conn = sqlite3.connect("autohandel_v5.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -70,7 +70,7 @@ cursor.execute("""
 conn.commit()
 
 cursor.execute("PRAGMA table_info(voorraad)")
-bestaande_kolommen = [k[1] for k in cursor.fetchall()]
+bestaande_kolommen = [k for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
     cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
     conn.commit()
@@ -92,7 +92,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # De 100% gegarandeerde overheidskoppeling naar de open data registers
+    # De officiële API koppeling naar het RDW open data register
     url = f"https://rdw.nl{schoon}"
     
     headers = {
@@ -105,7 +105,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if len(data) > 0:
-                voertuig = data[0]  # Pakt direct het eerste element uit de lijst
+                voertuig = data  # Selecteer direct de dictionary uit het lijstresultaat
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -194,12 +194,12 @@ if head_col2.button("🚪 Uitloggen", use_container_width=True):
 cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
 stat_rijen = cursor.fetchall()
 
-autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
-autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
+autos_in_voorraad = [r for r in stat_rijen if r != 'Verkocht']
+autos_verkocht = [r for r in stat_rijen if r == 'Verkocht']
 
-totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
-totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
-gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
+totale_voorraadwaarde = sum(r + r for r in autos_in_voorraad)
+totale_verwachte_winst = sum(r - (r + r) for r in autos_in_voorraad)
+gerealiseerde_winst = sum(r - (r + r) for r in autos_verkocht)
 
 st.write("")
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
@@ -218,7 +218,7 @@ with rdw_col2:
     klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
 
 if klik_rdw:
-    # Geforceerde aanroep naar de hernoemde v4 functie om cloud-caching volledig te negeren
+    # Roept de hernoemde functie aan uit Deel 4
     rdw_data = overheid_rdw_lookup_krachtig(rdw_kenteken)
     if rdw_data and rdw_data.get("fout") is None:
         st.session_state["rdw_naam"] = rdw_data["naam"]
@@ -274,11 +274,11 @@ verwerkte_autos = []
 
 if alle_autos:
     for auto in alle_autos:
-        winst = auto[4] - (auto[3] + auto[6])
+        winst = auto - (auto + auto)
         verwerkte_autos.append({
-            "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
-            "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
-            "status": auto[10], "winst": winst
+            "id": auto, "kenteken": auto, "km_stand": auto, "inkoopprijs": auto, "verkoopprijs": auto,
+            "apk_datum": auto, "extra_kosten": auto, "afbeelding": auto, "naam": auto, "transmissie": auto, 
+            "status": auto, "winst": winst
         })
 
     if filter_status != "Alle": verwerkte_autos = [x for x in verwerkte_autos if x["status"] == filter_status]
