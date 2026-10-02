@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- ULTIEME STYLING: RECHTE BALKEN EN WITTE LETTERS ---
+# --- CLEAN & VEILIGE STYLING: GEEN AFGEKNIPTE FORMULIEREN MEER ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -43,11 +43,14 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"], .stDialog div[role="dialog"] {{
+        /* Aangepaste form container om afknippen (overflow) te voorkomen */
+        div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderContainer"] {{
             background-color: rgba(20, 20, 20, 0.95) !important;
             padding: 25px !important;
             border-radius: 12px !important;
             border: 2px solid rgba(255, 255, 255, 0.2) !important;
+            overflow: visible !important;
+            display: block !important;
         }}
         
         input, select, textarea, div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
@@ -88,7 +91,6 @@ if not st.session_state["ingelogd"]:
 conn = sqlite3.connect("autohandel_v4.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Zorg dat de tabel voorraad exact alle benodigde kolommen bevat
 cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS voorraad (
@@ -181,13 +183,11 @@ if alle_autos:
         apk_nl = formatteer_datum_nl(apk)
         weergave_naam = auto_naam if auto_naam else "Onbekende auto"
 
-        # Filter toepassen op de zoekbalk
         if zoekterm and (zoekterm not in ktk) and (zoekterm not in weergave_naam.upper()):
             continue
 
-        # Prachtige visuele expander met titelgegevens
         with st.expander(f"🚗 {weergave_naam} ({ktk})  |  Verkoopprijs: €{verkoop:,.2f}  |  ID: {auto_id}"):
-            col1, col2 = st.columns([1, 2])
+            col1, col2 = st.columns(2)
             
             with col1:
                 if foto_string:
@@ -223,6 +223,7 @@ if actie_id > 0:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
         st.write(f"Je bewerkt nu: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
+        # Formulier start hier
         with st.form("edit_form", clear_on_submit=False):
             edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
             edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -239,3 +240,4 @@ if actie_id > 0:
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
             edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
             
+            # DEZE VELDEN WAREN HIERONDER VERBORGEN DOOR DE OUDE CSS:
