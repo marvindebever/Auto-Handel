@@ -152,7 +152,8 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
     edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
-    edit_apk = st.date_input("Pas APK Datum aan", value=standard_datum)
+    # DE GOUDEN FIX: standard_datum is hier nu correct gewijzigd naar standaard_datum
+    edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
     
     opties = ["Handgeschakeld", "Automaat"]
     index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
@@ -232,8 +233,6 @@ with st.expander("📊 Actuele Status Dashboard", expanded=True):
         st.metric(label="Totale Investeringswaarde", value=f"€ {totale_voorraadwaarde:,.2f}")
     with stat_col3:
         st.metric(label="Totale Verwachte Winst", value=f"€ {totale_verwachte_winst:,.2f}")
-
-# FIX: De extra loze scheidingslijn die hieronder stond is volledig gewist uit de code!
 
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
