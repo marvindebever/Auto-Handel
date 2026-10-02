@@ -175,7 +175,7 @@ with head_col1:
     st.write("Beheer je voorraad, pas gegevens aan en bekijk je marges.")
 with head_col2:
     st.write("")  # Uitlijning ruimte
-    if st.button("🚪 Systeem Uitloggen", use_container_width=True):
+    if st.button("🚪 Uitloggen", use_container_width=True):
         st.session_state["ingelogd"] = False
         st.rerun()
 
