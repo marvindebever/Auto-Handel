@@ -395,17 +395,15 @@ if alle_autos:
                         cell.alignment = left_alignment
                     elif col_idx == 4:
                         cell.alignment = right_alignment
-                        # Nederlandse kilometerstand-notatie voor Excel (Punt als duizendtal)
                         cell.number_format = '#.##0" km"'
                     elif col_idx == 7 or col_idx == 8 or col_idx == 9 or col_idx == 10:
                         cell.alignment = right_alignment
-                        # GOUDEN EXCEL-NOTATIE: Euroteken met punt als duizendtal en komma voor centen
                         cell.number_format = '"€ " #.##0,00'
             
-            # Automatische kolombreedte bepaling zodat er nooit meer '###' staat
+            # GOUDEN REPARATIE: col[0].column haalt nu foutloos het kolomnummer op van de eerste cel in de kolom tuple
             for col in worksheet.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col)
-                col_letter = get_column_letter(col.column)
+                col_letter = get_column_letter(col[0].column)
                 worksheet.column_dimensions[col_letter].width = max(max_len + 4, 13)
                 
         towrite.seek(0)
@@ -424,7 +422,6 @@ if alle_autos:
             continue
         apk_nl = formatteer_datum_nl(auto["apk_datum"])
 
-        # Nederlandse prijzennotatie in de balk van de expander zelf
         with st.expander(f"🚗 {weergave_naam} ({auto['kenteken']}) - Verkoopprijs: € {formatteer_euro_nl(auto['verkoopprijs'])}"):
             col1, col2 = st.columns(2)
             
@@ -448,8 +445,10 @@ if alle_autos:
                     st.info("Geen afbeelding beschikbaar.")
             
             with col2:
+                # Kilometerstand Nederlandse notatie fix voor de lijst
+                km_nl = f"{auto['km_stand']:,}".replace(",", ".")
                 st.write(f"**ID Nummer:** {auto['id']}")
-                st.write(f"**Kilometerstand:** {auto['km_stand']:,}.replace(',', '.') km".replace(',', '.'))
+                st.write(f"**Kilometerstand:** {km_nl} km")
                 st.write(f"**Transmissie:** {auto['transmissie'] if auto['transmissie'] else 'Niet opgegeven'}")
                 st.write(f"**APK Datum:** {apk_nl}")
                 st.write(f"**Inkoopprijs:** € {formatteer_euro_nl(auto['inkoopprijs'])}")
