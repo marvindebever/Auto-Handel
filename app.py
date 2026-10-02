@@ -8,7 +8,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
-# --- VEILIGE STYLING: CSS KAPT NOOIT MEER HET FORMULIER OF DE KNOPPEN AF ---
+# --- VEILIGE STYLING: KAPT NOOIT MEER ELEMENTEN AF ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -44,7 +44,6 @@ def zet_achtergrond(logo_path="logo.png"):
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         
-        /* Input styling zonder hoogte-restricties */
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input {{
             color: white !important;
             -webkit-text-fill-color: white !important;
@@ -199,7 +198,7 @@ if alle_autos:
                     st.success(f"Auto met ID {auto_id} succesvol verwijderd!")
                     st.rerun()
 
-# --- DIRECT ACTIEBLOK ONDERAAN (MET STABIEL FORMULIER) ---
+# --- DIRECT ACTIEBLOK ONDERAAN ---
 st.write("")
 st.subheader("🛠️ Auto Gegevens Aanpassen via ID")
 
@@ -212,24 +211,27 @@ if actie_id > 0:
     
     if bestaande_auto:
         ktk, km, inkoop, verkoop, apk, kosten, auto_naam, trans_huidig, foto_huidig = bestaande_auto
-        st.write(f"Je bewerkt nu de auto: **{auto_naam if auto_naam else 'Onbekend'} ({ktk})**")
         
-        # OPLOSSING: We gebruiken weer st.form, maar zonder de foute CSS-regels die de hoogte afknipten
-        with st.form("edit_form", clear_on_submit=False):
-            edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "", key="ed_naam")
-            edit_ktk = st.text_input("Pas Kenteken aan", value=ktk, key="ed_ktk")
-            edit_km = st.text_input("Pas Kilometerstand aan", value=str(km), key="ed_km")
+        # --- GOUDEN FIX: DE ZIJEBALK DIENT NU ALS VOLLEDIG SCHAALBAAR AANPASMENU ---
+        st.sidebar.markdown(f"### ✏️ Auto Aanpassen (ID: {actie_id})")
+        st.sidebar.write(f"Je bewerkt nu: **{auto_naam if auto_naam else 'Onbekend'}**")
+        
+        with st.sidebar.form("sidebar_edit_form", clear_on_submit=False):
+            edit_naam = st.sidebar.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
+            edit_ktk = st.sidebar.text_input("Pas Kenteken aan", value=ktk)
+            edit_km = st.sidebar.text_input("Pas Kilometerstand aan", value=str(km))
             
             try:
                 standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
             except Exception:
                 standaard_datum = datetime.today().date()
                 
-            edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum, key="ed_apk")
+            edit_apk = st.sidebar.date_input("Pas APK Datum aan", value=standaard_datum)
             
             opties = ["Handgeschakeld", "Automaat"]
             index_standaard = opties.index(trans_huidig) if trans_huidig in opties else 0
-            edit_trans = st.selectbox("Pas Transmissie aan", options=opties, index=index_standaard, key="ed_trans")
+            edit_trans = st.sidebar.selectbox("Pas Transmissie aan", options=opties, index=index_standaard)
             
-            edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop), key="ed_inkoop")
-            edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop), key="ed_verkoop")
+            edit_inkoop = st.sidebar.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
+            edit_verkoop = st.sidebar.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
+            edit_kosten = st.sidebar.text_input("Pas Extra kosten aan (€)", value=str(kosten))
