@@ -25,9 +25,12 @@ def init_db():
                 status TEXT DEFAULT 'In voorraad'
             )
         """)
+        # GEFIXT: Haal specifiek de kolomnamen (index 1 van de PRAGMA output) op
         cursor.execute("PRAGMA table_info(voorraad)")
-        bestaande_kolommen = [k for k in cursor.fetchall()]
-        if "status" not in [k for k in bestaande_kolommen]:
+        bestaande_kolommen = [k[1] for k in cursor.fetchall()]
+        
+        # Controleer nu veilig of 'status' al bestaat
+        if "status" not in bestaande_kolommen:
             cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
         conn.commit()
 
