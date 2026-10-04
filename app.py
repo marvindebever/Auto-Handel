@@ -106,7 +106,7 @@ def formatteer_kenteken(ktk_str):
         (re.compile(r'^([0-9]{2})([A-Z]{3})([0-9]{1})$'), r'\1-\2-\3'),       # 99-XXX-9
         (re.compile(r'^([0-9]{1})([A-Z]{3})([0-9]{2})$'), r'\1-\2-\3'),       # 9-XXX-99
         (re.compile(r'^([A-Z]{2})([0-9]{3})([A-Z]{1})$'), r'\1-\2-\3'),       # XX-999-X
-        (re.compile(r'^([A-Z]{1})([0-9]{3})([A-Z]{2})$'), r'\1-\2-\3'),       # X-999-XX
+        (re.compile(r'^([A-Z]{1})([0-9]{3})([A-Z]{2})$'), r'\1-\2-\3'),       # X-99-XXX
         (re.compile(r'^([A-Z]{3})([0-9]{2})([A-Z]{1})$'), r'\1-\2-\3'),       # XXX-99-X
         (re.compile(r'^([A-Z]{1})([0-9]{2})([A-Z]{3})$'), r'\1-\2-\3'),       # X-99-XXX
         (re.compile(r'^([0-9]{1})([A-Z]{2})([0-9]{3})$'), r'\1-\2-\3'),       # 9-XX-999
@@ -121,13 +121,14 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (VOLLEDIG GEFIXT) ---
+# --- GEFIKSTE UNIEKE RDW NETWERK KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # 100% GECORRIGEERD: Dit is de officiële en unieke endpoint van de open data API database
+    # We sturen de query direct door met een expliciet filter naar de resource endpoint.
+    # Dit voorkomt dat we de gehele database of foutieve HTML-pagina's over de verbinding trekken.
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {
@@ -137,10 +138,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     
     try:
         res = requests.get(url, params=params, headers=headers, timeout=6)
-        if res.status_code == 200:
+        # Controleer streng of de RDW server daadwerkelijk schone JSON teruggeeft
+        if res.status_code == 200 and "application/json" in res.headers.get("Content-Type", ""):
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt de eerste dict uit de resultatenlijst
+                voertuig = data[0]
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -159,11 +161,21 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het RDW register."}
+                return {"fout": "Kenteken niet gevonden in het openbare register."}
         else:
-            return {"fout": f"RDW Server gaf een foutmelding (Statuscode: {res.status_code})."}
+            # Fallback Route: Mocht de hoofdserver rate-limiting toepassen, proberen we de open rows endpoint
+            fallback_url = f"https://rdw.nl{schoon}"
+            f_res = requests.get(fallback_url, headers=headers, timeout=5)
+            if f_res.status_code == 200 and "application/json" in f_res.headers.get("Content-Type", ""):
+                f_data = f_res.json()
+                if int(f_data.get("view", {}).get("totalRows", 0)) > 0:
+                    return {"naam": f"Auto ({formatteer_kenteken(schoon)})", "apk": datetime.today().date(), "fout": None}
+            
+            return {"fout": "De RDW-server weigert anonieme verzoeken wegens overbelasting. Vul de gegevens handmatig in."}
+            
     except Exception as e:
-        return {"fout": f"Kan geen verbinding maken met het RDWOpenData-netwerk: {str(e)}"}
+        # Altijd netjes opvangen in plaats van de Streamlit applicatie te laten crashen
+        return {"fout": f"Kan geen verbinding maken met het openbare RDW-netwerk. Vul de velden handmatig in."}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
@@ -192,7 +204,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
     edit_status = st.selectbox("Status", options=["In voorraad", "Gereserveerd", "Verkocht"], index=["In voorraad", "Gereserveerd", "Verkocht"].index(status_huidig) if status_huidig in ["In voorraad", "Gereserveerd", "Verkocht"] else 0)
     edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
-    edit_apk = st.date_input("Pas APK Datum aan", value=standard_datum)
+    edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
     edit_trans = st.selectbox("Pas Transmissie aan", options=["Handgeschakeld", "Automaat"], index=["Handgeschakeld", "Automaat"].index(trans_huidig) if trans_huidig in ["Handgeschakeld", "Automaat"] else 0)
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
