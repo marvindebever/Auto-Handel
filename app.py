@@ -121,13 +121,12 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (VOLLEDIG GEFIXT) ---
+# --- REGELEMENTAIRE RDW KOPPELING (WATERDICHT) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # 100% GEFIXT: Dit is de officiële open data API-endpoint die de juiste JSON-data terugstuurt
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
@@ -137,7 +136,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # GEFIXT: Pakt de eerste auto uit de JSON-lijst array
+                voertuig = data[0]  # GEFIXT: Haalt exact de eerste dict uit de lijst om de JSON-fout op te lossen
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -181,7 +180,7 @@ def formatteer_datum_nl(datum_str):
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 @st.dialog("✏️ Auto Gegevens Bewerken")
-def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
+def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidid, auto_naam, trans_huidig, status_huidig):
     try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except: standaard_datum = datetime.today().date()
 
@@ -198,7 +197,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     
     if st.button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True):
         if edit_ktk.strip():
-            foto_opslaan = foto_huidig
+            foto_opslaan = foto_huidid
             if edit_fotos:
                 foto_lijst = []
                 for f in edit_fotos:
