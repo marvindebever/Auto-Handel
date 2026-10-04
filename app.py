@@ -8,14 +8,14 @@ import streamlit as st
 import pandas as pd
 import requests
 
-# 1. PAGE CONFIG (Moet absoluut als allereerste Streamlit code worden aangeroepen)
+# 1. PAGE CONFIG (Moet absoluut als allereerste Streamlit-code worden aangeroepen)
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
 DB_NAME = "autohandel_v5.db"
 
 # --- DATABASE INITIALISATIE ---
 def init_db():
-    """Zorgt voor een veilige database-opzet zonder data te resetten."""
+    """Zorgt voor een veilige database-opzet zonder data te resetten of te wissen."""
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -27,7 +27,7 @@ def init_db():
             )
         """)
         
-        # Controleer of de status kolom bestaat (voor oudere databases)
+        # Controleer of de status-kolom bestaat (voor oudere databases)
         cursor.execute("PRAGMA table_info(voorraad)")
         bestaande_kolommen = [k[1] for k in cursor.fetchall()]
         if "status" not in bestaande_kolommen:
@@ -87,18 +87,17 @@ if not st.session_state["ingelogd"]:
         else:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
-# --- RDW KOPPELING ---
+# --- ROBUUSTE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
-    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register."""
+    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register met fouten- en botpreventie."""
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Officiële Socrata Open Data endpoint van de RDW
-    url = "https://opendata.rdw.nl/resource/m9d7-ebf2.json"
+    url = "https://rdw.nl"
     params = {"kenteken": schoon}
     
-    # GEFIXT: Gebruik een standaard browser User-Agent om bot-blokkades te omzeilen
+    # User-Agent van een legitieme browser om blokkades te voorkomen
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json"
@@ -108,15 +107,13 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         res = requests.get(url, params=params, headers=headers, timeout=8)
         
         if res.status_code == 200:
-            # VEILIGHEIDSCHECK: Controleer of het antwoord daadwerkelijk JSON is
+            # Controleer of de server daadwerkelijk JSON stuurt in plaats van HTML
             if "application/json" not in res.headers.get("Content-Type", ""):
-                return {"fout": "RDW stuurde een onverwacht antwoord (geen dataformaat). Probeer het later opnieuw."}
+                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML in plaats van JSON)."}
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                # GEFIXT: Pakt het eerste voertuig-object uit de JSON-lijst
-                voertuig = data[0]  
-                
+                voertuig = data[0]  # Pakt de eerste auto uit de JSON-lijst
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -125,7 +122,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_formatted = datetime.today().date()
                 if apk_verval:
                     try: 
-                        # RDW datums converteren van 'YYYYMMDD' naar een Date-object
+                        # RDW datums komen binnen als 'YYYYMMDD' (bijv. 20251024)
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                     except: 
                         pass
@@ -138,21 +135,19 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
             else:
                 return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
         elif res.status_code == 403:
-            return {"fout": "Toegang geweigerd door RDW (403). De server blokkeert mogelijk tijdelijk aanvragen."}
+            return {"fout": "Toegang geweigerd (403). De RDW-server weigert de verbinding."}
         elif res.status_code == 429:
             return {"fout": "Te veel aanvragen (429). Wacht even voordat je opnieuw zoekt."}
         else:
             return {"fout": f"RDW Server fout. Statuscode: {res.status_code}."}
-            
     except requests.exceptions.Timeout:
-        return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internetverbinding."}
+        return {"fout": "De verbinding met de RDW duurde te lang (Timeout)."}
     except Exception as e:
-        return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
-
+        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
-    """Zet tekstinvoer veilig om naar een float of int, negeert vreemde tekens."""
+    """Zet tekstinvoer veilig om naar een float of int en filtert vreemde symbolen."""
     if not tekst_waarde:
         return 0 if type_getal == int else 0.0
     schoon = "".join(c for c in str(tekst_waarde) if c.isdigit() or c in ".,-").replace(",", ".")
@@ -176,10 +171,8 @@ def formatteer_euro_nl(bedrag):
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
     """Pop-up venster om een bestaand voertuig in de database aan te passen."""
-    try: 
-        standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
-    except: 
-        standaard_datum = datetime.today().date()
+    try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
+    except: standaard_datum = datetime.today().date()
 
     edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -211,7 +204,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                 foto_opslaan = "||".join(foto_lijst)
             
-            # Altijd een tijdelijke 'with' verbinding openen om database-locks te voorkomen
             with sqlite3.connect(DB_NAME) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -229,7 +221,6 @@ if head_col2.button("🚪 Uitloggen", use_container_width=True):
     st.session_state["ingelogd"] = False
     st.rerun()
 
-# Data ophalen voor de statistiekenblokken
 with sqlite3.connect(DB_NAME) as conn:
     cursor = conn.cursor()
     cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
@@ -295,13 +286,17 @@ if submit and kenteken.strip():
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (naam, kenteken.upper().replace("-", "").strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer))
         conn.commit()
         
-    # Ruim session state op na succesvol toevoegen
-    for k in ["rdw_naam", "rdw_apk", "rdw_ktk"]: 
-        st.session_state.pop(k, None)
+    # GEFIXT: Maak de invoervelden in session_state hard leeg voor een fris formulier
+    st.session_state["rdw_naam"] = ""
+    st.session_state["rdw_ktk"] = ""
+    if "rdw_apk" in st.session_state:
+        del st.session_state["rdw_apk"]
+        
     st.success("Auto succesvol toegevoegd!")
     st.rerun()
 
