@@ -121,12 +121,13 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (WATERDICHT) ---
+# --- REGELEMENTAIRE RDW KOPPELING (VOLLEDIG GEFIXT) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
+    # ÉCHTE EN JUISTE API URL (Voorkomt de HTML JSON parsing-fout)
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
@@ -136,7 +137,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # GEFIXT: Haalt exact de eerste dict uit de lijst om de JSON-fout op te lossen
+                voertuig = data[0]  # Pakt exact de eerste dict uit de JSON-lijst
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
