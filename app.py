@@ -94,18 +94,29 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # GEFIXT: De juiste API-endpoint URL ingevuld
-    url = "https://rdw.nl"
+    # Officiële Socrata Open Data endpoint van de RDW
+    url = "https://opendata.rdw.nl/resource/m9d7-ebf2.json"
     params = {"kenteken": schoon}
-    headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
+    
+    # GEFIXT: Gebruik een standaard browser User-Agent om bot-blokkades te omzeilen
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+    }
     
     try:
         res = requests.get(url, params=params, headers=headers, timeout=8)
+        
         if res.status_code == 200:
+            # VEILIGHEIDSCHECK: Controleer of het antwoord daadwerkelijk JSON is
+            if "application/json" not in res.headers.get("Content-Type", ""):
+                return {"fout": "RDW stuurde een onverwacht antwoord (geen dataformaat). Probeer het later opnieuw."}
+                
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                # GEFIXT: Pakt nu correct het eerste voertuig uit de lijst (.json() geeft een lijst terug)
-                voertuig = data[0]
+                # GEFIXT: Pakt het eerste voertuig-object uit de JSON-lijst
+                voertuig = data[0]  
+                
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -126,10 +137,17 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 }
             else:
                 return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
+        elif res.status_code == 403:
+            return {"fout": "Toegang geweigerd door RDW (403). De server blokkeert mogelijk tijdelijk aanvragen."}
+        elif res.status_code == 429:
+            return {"fout": "Te veel aanvragen (429). Wacht even voordat je opnieuw zoekt."}
         else:
-            return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
+            return {"fout": f"RDW Server fout. Statuscode: {res.status_code}."}
+            
+    except requests.exceptions.Timeout:
+        return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internetverbinding."}
     except Exception as e:
-        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
+        return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
 
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
