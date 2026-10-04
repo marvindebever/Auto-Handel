@@ -73,7 +73,6 @@ cursor.execute("""
 """)
 conn.commit()
 
-# GEFIXT: Haalt specifiek de kolomnaam op (index 1) uit de tabelinfo om OperationalErrors uit te sluiten
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -137,7 +136,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt netjes het eerste voertuig-object uit de lijst array
+                voertuig = data[0]  # Gefixt: Pakt de eerste dict uit de lijst array
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -156,7 +155,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het openbare RDW register."}
+                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
         else:
             return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
@@ -228,12 +227,13 @@ if head_col2.button("🚪 Uitloggen", use_container_width=True):
 cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
 stat_rijen = cursor.fetchall()
 
-autos_in_voorraad = [r for r in stat_rijen if r != 'Verkocht']
-autos_verkocht = [r for r in stat_rijen if r == 'Verkocht']
+autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
+autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
 
-totale_voorraadwaarde = sum(r + r for r in autos_in_voorraad)
-totale_verwachte_winst = sum(r - (r + r) for r in autos_in_voorraad)
-gerealiseerde_winst = sum(r - (r + r) for r in autos_verkocht)
+# GEFIXT: Pakt nu de exacte indexen, [1], [2] uit de database-rijen om TypeErrors uit te sluiten
+totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
+totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
+gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
 
 st.write("")
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
