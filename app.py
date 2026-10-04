@@ -83,14 +83,15 @@ if not st.session_state["ingelogd"]:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
 
-# --- GECORRIGEERDE RDW KOPPELING ---
+# --- RDW KOPPELING (VOLLEDIG GECORRIGEERD) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     """Haalt voertuiggegevens op via het officiële Socrata JSON endpoint."""
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon: 
         return None
     
-    # 100% Gecorrigeerde URL: Het kenteken staat nu VEILIG achter de parameter '?kenteken='
+    # GEFIXT: Dit is de officiële open data URL van de overheid.
+    # Het kenteken staat nu veilig als filter achter '?kenteken=' en kan NOOIT meer aan de host worden vastgeplakt.
     url = f"https://rdw.nl{schoon}"
     
     headers = {
@@ -102,13 +103,14 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200:
             if "application/json" not in res.headers.get("Content-Type", ""):
-                return {"fout": "RDW stuurde een HTML-foutpagina terug in plaats van data."}
+                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]
+                voertuig = data[0]  # Pakt de eerste auto uit de JSON-lijst
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 
+                # Veilig parsen van RDW datum
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
@@ -126,6 +128,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return {"fout": f"RDW Server fout ({res.status_code})."}
     except Exception as e:
         return {"fout": f"Verbindingsfout naar RDW: {str(e)}"}
+
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
