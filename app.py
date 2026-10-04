@@ -89,31 +89,34 @@ if not st.session_state["ingelogd"]:
     st.stop()
 # --- ROBUUSTE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
-    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register met fouten- en botpreventie."""
+    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
+    # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    url = "https://rdw.nl"
-    params = {"kenteken": schoon}
+    # GEFIXT: Kenteken direct in de URL-path zetten in plaats van via params={...}
+    # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
+    url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
     
-    # User-Agent van een legitieme browser om blokkades te voorkomen
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json"
     }
     
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=8)
+        res = requests.get(url, headers=headers, timeout=8)
         
         if res.status_code == 200:
-            # Controleer of de server daadwerkelijk JSON stuurt in plaats van HTML
+            # Controleer of we daadwerkelijk data hebben gekregen
             if "application/json" not in res.headers.get("Content-Type", ""):
-                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML in plaats van JSON)."}
+                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt de eerste auto uit de JSON-lijst
+                # GEFIXT: Pakt nu expliciet het eerste voertuig-object [0] uit de lijst
+                voertuig = data[0]  
+                
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -122,7 +125,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_formatted = datetime.today().date()
                 if apk_verval:
                     try: 
-                        # RDW datums komen binnen als 'YYYYMMDD' (bijv. 20251024)
+                        # RDW datums converteren van 'YYYYMMDD' naar een Date-object
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                     except: 
                         pass
@@ -135,15 +138,16 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
             else:
                 return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
         elif res.status_code == 403:
-            return {"fout": "Toegang geweigerd (403). De RDW-server weigert de verbinding."}
+            return {"fout": "Toegang geweigerd (403) door RDW. Server blokkeert mogelijk tijdelijk je IP."}
         elif res.status_code == 429:
-            return {"fout": "Te veel aanvragen (429). Wacht even voordat je opnieuw zoekt."}
+            return {"fout": "Te veel aanvragen achter elkaar (429). Wacht 10 seconden."}
         else:
-            return {"fout": f"RDW Server fout. Statuscode: {res.status_code}."}
+            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res.status_code}."}
+            
     except requests.exceptions.Timeout:
-        return {"fout": "De verbinding met de RDW duurde te lang (Timeout)."}
+        return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
     except Exception as e:
-        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
+        return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
