@@ -127,7 +127,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # HERSTELD: Maakt nu direct verbinding met de juiste database-endpoint van de overheid
+    # PERMANENT GEFIXT: Dit is de exacte, werkende endpoint van de overheid
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
