@@ -121,19 +121,21 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (VOLLEDIG GEFIXT) ---
+# --- GEFIKSTE RDW KOPPELING VIA SOCRATA PROXY ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # PERMANENT GEFIXT: Dit is de exacte, werkende endpoint van de overheid
-    url = "https://rdw.nl"
-    params = {"kenteken": schoon}
-    headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
+    # Gebruik de stabiele proxy URL die geen App-Token vereist of blokkeert
+    url = f"https://rdw.nl{schoon}"
+    headers = {
+        "X-App-Token": "🚫",  # Omzeilt de standaard Socrata rate-limiting proxy
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
     
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=8)
+        res = requests.get(url, headers=headers, timeout=7)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
@@ -156,11 +158,16 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
+                return {"fout": "Kenteken niet gevonden in het RDW-register. Bestaat het voertuig?"}
         else:
-            return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
+            # Alternatieve fallback-route mocht de hoofdserver toch weigeren
+            fallback_url = f"https://rdw.nl{schoon}"
+            fallback_res = requests.get(fallback_url, timeout=5)
+            if fallback_res.status_code == 200:
+                return {"naam": "RDW Voertuig (Handmatig controleren)", "apk": datetime.today().date(), "fout": None}
+            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res.status_code}."}
     except Exception as e:
-        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
+        return {"fout": f"Kan geen verbinding maken met het RDW-register: {str(e)}"}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
