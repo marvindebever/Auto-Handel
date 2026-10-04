@@ -90,6 +90,25 @@ def hernummer_database_ids():
 
 hernummer_database_ids()
 
+# --- FORMATTEER HULPFUNCTIONS (NU BOVENAAN GEPLAATST TEGEN NAMEERRORS) ---
+def naar_getal(tekst_waarde, type_getal=float):
+    if not tekst_waarde:
+        return 0 if type_getal == int else 0.0
+    schoon = "".join(c for c in str(tekst_waarde) if c.isdigit() or c in ".,-").replace(",", ".")
+    try:
+        return type_getal(float(schoon))
+    except:
+        return 0 if type_getal == int else 0.0
+
+def formatteer_datum_nl(datum_str):
+    try:
+        return datetime.strptime(datum_str, "%Y-%m-%d").strftime("%d-%m-%Y")
+    except:
+        return datum_str
+
+def formatteer_euro_nl(bedrag):
+    return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 # --- INTELLIGENTE KENTEKEN FORMATTERING ---
 def formatteer_kenteken(ktk_str):
     if not ktk_str:
@@ -106,7 +125,7 @@ def formatteer_kenteken(ktk_str):
         (re.compile(r'^([0-9]{2})([A-Z]{3})([0-9]{1})$'), r'\1-\2-\3'),       # 99-XXX-9
         (re.compile(r'^([0-9]{1})([A-Z]{3})([0-9]{2})$'), r'\1-\2-\3'),       # 9-XXX-99
         (re.compile(r'^([A-Z]{2})([0-9]{3})([A-Z]{1})$'), r'\1-\2-\3'),       # XX-999-X
-        (re.compile(r'^([A-Z]{1})([0-9]{3})([A-Z]{2})$'), r'\1-\2-\3'),       # X-99-XXX
+        (re.compile(r'^([A-Z]{1})([0-9]{3})([A-Z]{2})$'), r'\1-\2-\3'),       # X-999-XX
         (re.compile(r'^([A-Z]{3})([0-9]{2})([A-Z]{1})$'), r'\1-\2-\3'),       # XXX-99-X
         (re.compile(r'^([A-Z]{1})([0-9]{2})([A-Z]{3})$'), r'\1-\2-\3'),       # X-99-XXX
         (re.compile(r'^([0-9]{1})([A-Z]{2})([0-9]{3})$'), r'\1-\2-\3'),       # 9-XX-999
@@ -121,13 +140,12 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (PERMANENT GEFIXT) ---
+# --- REGELEMENTAIRE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # GECORRIGEERD: Maakt verbinding met de officiële API endpoint van de overheid i.p.v. de consumentenwebsite
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
@@ -137,7 +155,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Haalt de eerste auto uit de JSON-lijst array
+                voertuig = data[0]
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -156,30 +174,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het openbare RDW register."}
+                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
         else:
             return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
         return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
-
-# --- FORMATTEER HULPFUNCTIONS ---
-def naar_getal(tekst_waarde, type_getal=float):
-    if not tekst_waarde:
-        return 0 if type_getal == int else 0.0
-    schoon = "".join(c for c in str(tekst_waarde) if c.isdigit() or c in ".,-").replace(",", ".")
-    try:
-        return type_getal(float(schoon))
-    except:
-        return 0 if type_getal == int else 0.0
-
-def formatteer_datum_nl(datum_str):
-    try:
-        return datetime.strptime(datum_str, "%Y-%m-%d").strftime("%d-%m-%Y")
-    except:
-        return datum_str
-
-def formatteer_euro_nl(bedrag):
-    return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
     try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
