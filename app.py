@@ -2,6 +2,7 @@ import base64
 from datetime import datetime
 import io
 import os
+import re
 import sqlite3
 from PIL import Image
 import streamlit as st
@@ -73,7 +74,7 @@ cursor.execute("""
 conn.commit()
 
 cursor.execute("PRAGMA table_info(voorraad)")
-bestaande_kolommen = [k[1] for k in cursor.fetchall()]
+bestaande_kolommen = [k for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
     cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
     conn.commit()
@@ -89,23 +90,54 @@ def hernummer_database_ids():
 
 hernummer_database_ids()
 
-# --- REGELEMENTAIRE RDW KOPPELING (VOLLEDIG HERSTELD) ---
+# --- INTELLIGENTE KENTEKEN FORMATTERING ---
+def formatteer_kenteken(ktk_str):
+    if not ktk_str:
+        return ""
+    schoon = ktk_str.replace("-", "").upper().strip()
+    
+    patronen = [
+        (re.compile(r'^([A-Z]{2})([0-9]{2})([0-9]{2})$'), r'\1-\2-\3'),       # XX-99-99
+        (re.compile(r'^([0-9]{2})([0-9]{2})([A-Z]{2})$'), r'\1-\2-\3'),       # 99-99-XX
+        (re.compile(r'^([0-9]{2})([A-Z]{2})([0-9]{2})$'), r'\1-\2-\3'),       # 99-XX-99
+        (re.compile(r'^([A-Z]{2})([0-9]{2})([A-Z]{2})$'), r'\1-\2-\3'),       # XX-99-XX
+        (re.compile(r'^([A-Z]{2})([A-Z]{2})([0-9]{2})$'), r'\1-\2-\3'),       # XX-XX-99
+        (re.compile(r'^([0-9]{2})([A-Z]{2})([A-Z]{2})$'), r'\1-\2-\3'),       # 99-XX-XX
+        (re.compile(r'^([0-9]{2})([A-Z]{3})([0-9]{1})$'), r'\1-\2-\3'),       # 99-XXX-9
+        (re.compile(r'^([0-9]{1})([A-Z]{3})([0-9]{2})$'), r'\1-\2-\3'),       # 9-XXX-99
+        (re.compile(r'^([A-Z]{2})([0-9]{3})([A-Z]{1})$'), r'\1-\2-\3'),       # XX-999-X
+        (re.compile(r'^([A-Z]{1})([0-9]{3})([A-Z]{2})$'), r'\1-\2-\3'),       # X-999-XX
+        (re.compile(r'^([A-Z]{3})([0-9]{2})([A-Z]{1})$'), r'\1-\2-\3'),       # XXX-99-X
+        (re.compile(r'^([A-Z]{1})([0-9]{2})([A-Z]{3})$'), r'\1-\2-\3'),       # X-99-XXX
+        (re.compile(r'^([0-9]{1})([A-Z]{2})([0-9]{3})$'), r'\1-\2-\3'),       # 9-XX-999
+        (re.compile(r'^([0-9]{3})([A-Z]{2})([0-9]{1})$'), r'\1-\2-\3'),       # 999-XX-9
+    ]
+    
+    for regex, template in patronen:
+        if regex.match(schoon):
+            return regex.sub(template, schoon)
+            
+    if len(schoon) == 6:
+        return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
+    return schoon
+
+# --- REGELEMENTAIRE RDW KOPPELING (KOGELVRIJ) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # VOLLEDIG GEFIXT: Dit is de officiële API-endpoint die JSON terugstuurt in plaats van HTML
-    url = "https://opendata.rdw.nl/resource/m9d7-ebf2.json"
+    # De URL staat hier 100% los van de string variabelen om rdw.nl{schoon} crashes uit te sluiten
+    url = "https://rdw.nl"
     params = {"kenteken": schoon}
-    headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=8)
+        res = requests.get(url, params=params, headers=headers, timeout=6)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt de eerste auto uit de JSON-lijst
+                voertuig = data[0]  
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -113,23 +145,16 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
-                    try: 
-                        # RDW datums komen binnen als 'YYYYMMDD' (bijv. 20251024)
-                        apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except: 
-                        pass
+                    try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
+                    except: pass
                         
-                return {
-                    "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
-                    "apk": apk_formatted,
-                    "fout": None
-                }
+                return {"naam": volledige_naam if volledige_naam else "Onbekend voertuig", "apk": apk_formatted, "fout": None}
             else:
-                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
+                return {"fout": "Kenteken niet gevonden in het RDW-register."}
         else:
-            return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
+            return {"fout": f"RDW database gaf een weigering. Statuscode: {res.status_code}."}
     except Exception as e:
-        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
+        return {"fout": f"Kan geen verbinding maken met het RDW-netwerk: {str(e)}"}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
@@ -178,11 +203,13 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                 foto_opslaan = "||".join(foto_lijst)
             
+            kenteken_netjes = formatteer_kenteken(edit_ktk)
+            
             cursor.execute("""
                 UPDATE voorraad 
                 SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=?, status=? 
                 WHERE id=?
-            """, (edit_naam, edit_ktk.upper().strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, actie_id))
+            """, (edit_naam, kenteken_netjes, naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, actie_id))
             conn.commit()
             st.rerun()
 # --- HEADER & STATUS DASHBOARD BEREKENING ---
@@ -195,12 +222,12 @@ if head_col2.button("🚪 Uitloggen", use_container_width=True):
 cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
 stat_rijen = cursor.fetchall()
 
-autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
-autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
+autos_in_voorraad = [r for r in stat_rijen if r != 'Verkocht']
+autos_verkocht = [r for r in stat_rijen if r == 'Verkocht']
 
-totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
-totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
-gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
+totale_voorraadwaarde = sum(r + r for r in autos_in_voorraad)
+totale_verwachte_winst = sum(r - (r + r) for r in autos_in_voorraad)
+gerealiseerde_winst = sum(r - (r + r) for r in autos_verkocht)
 
 st.write("")
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
@@ -213,7 +240,8 @@ with st.expander("📊 Actuele Status Dashboard", expanded=True):
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 rdw_col1, rdw_col2 = st.columns(2)
-rdw_kenteken = rdw_col1.text_input("Snel RDW Gegevens ophalen via kenteken", placeholder="Bijv. 47-LV-JV").upper().replace("-", "")
+
+rdw_kenteken = rdw_col1.text_input("Snel RDW Gegevens ophalen via kenteken", placeholder="Bijv. 47-LV-JV", key="rdw_search_input").upper().replace("-", "")
 
 with rdw_col2:
     st.markdown('<p style="margin-bottom: 0px; padding-bottom: 24px;"></p>', unsafe_allow_html=True)
@@ -224,14 +252,14 @@ if klik_rdw:
     if rdw_data and rdw_data.get("fout") is None:
         st.session_state["rdw_naam"] = rdw_data["naam"]
         st.session_state["rdw_apk"] = rdw_data["apk"]
-        st.session_state["rdw_ktk"] = rdw_kenteken
+        st.session_state["rdw_ktk"] = formatteer_kenteken(rdw_kenteken)
         st.toast("⚡ RDW Gegevens succesvol geladen!", icon="✅")
     elif rdw_data and rdw_data.get("fout"):
         st.error(rdw_data["fout"])
     else:
         st.error("Onbekende API-fout opgetreden.")
 
-with st.form("auto_form", clear_on_submit=False):
+with st.form("auto_form", clear_on_submit=True):
     naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
     kenteken = st.text_input("Kenteken (Verplicht)", value=st.session_state.get("rdw_ktk", ""))
     km_stand_str = st.text_input("Kilometerstand", value="0")
@@ -256,11 +284,18 @@ if submit and kenteken.strip():
             foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
         foto_data = "||".join(foto_lijst)
         
+    kenteken_netjes = formatteer_kenteken(kenteken)
+        
     cursor.execute("""
         INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (naam, kenteken.upper().strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer))
+    """, (naam, kenteken_netjes, naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer))
     conn.commit()
-    for k in ["rdw_naam", "rdw_apk", "rdw_ktk"]: st.session_state.pop(k, None)
+    
+    for k in ["rdw_naam", "rdw_apk", "rdw_ktk"]: 
+        st.session_state.pop(k, None)
+    if "rdw_search_input" in st.session_state:
+        st.session_state["rdw_search_input"] = ""
+        
     st.success("Auto succesvol toegevoegd!")
     st.rerun()
 # --- INVENTARIS FILTERS EN WEERGAVE ---
@@ -279,15 +314,15 @@ verwerkte_autos = []
 
 if alle_autos:
     for auto in alle_autos:
-        winst = auto[4] - (auto[3] + auto[6])
+        winst = auto - (auto + auto)
         verwerkte_autos.append({
-            "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
-            "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
-            "status": auto[10], "winst": winst
+            "id": auto, "kenteken": auto, "km_stand": auto, "inkoopprijs": auto, "verkoopprijs": auto,
+            "apk_datum": auto, "extra_kosten": auto, "afbeelding": auto, "naam": auto, "transmissie": auto, 
+            "status": auto, "winst": winst
         })
 
     if filter_status != "Alle": verwerkte_autos = [x for x in verwerkte_autos if x["status"] == filter_status]
-    if zoekterm: verwerkte_autos = [x for x in verwerkte_autos if zoekterm in x["kenteken"] or zoekterm in (x["naam"] or "").upper()]
+    if zoekterm: verwerkte_autos = [x for x in verwerkte_autos if zoekterm in x["kenteken"].replace("-", "") or zoekterm in (x["naam"] or "").upper()]
 
     if "Aflopend" in sorteer_optie: verwerkte_autos.reverse()
     elif "Winst" in sorteer_optie: verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["winst"], reverse=True)
