@@ -31,7 +31,7 @@ def zet_achtergrond(logo_path="logo.png"):
             height: auto !important; max-height: none !important; overflow: visible !important;
         }}
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
-            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, -1px 1px 0 #000 !important;
+            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
         }}
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
             background-color: #1e1e24 !important; color: white !important; -webkit-text-fill-color: white !important;
@@ -73,8 +73,9 @@ cursor.execute("""
 """)
 conn.commit()
 
+# WATERDICHT GEFIXT: Pak specifiek de naam van elke kolom (index 1 van table_info) uit voor de controle
 cursor.execute("PRAGMA table_info(voorraad)")
-bestaande_kolommen = [k for k in cursor.fetchall()]
+bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
     cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
     conn.commit()
@@ -121,23 +122,22 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (KOGELVRIJ MET FALLBACK) ---
+# --- REGELEMENTAIRE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Route A: De officiële Socrata Open Data API
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
     
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=5)
-        if res.status_code == 200 and "application/json" in res.headers.get("Content-Type", ""):
+        res = requests.get(url, params=params, headers=headers, timeout=8)
+        if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt netjes de eerste dict uit de lijst array
+                voertuig = data[0]  # Pakt netjes de eerste dict uit de JSON-lijst array
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -145,24 +145,22 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
-                    try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except: pass
+                    try: 
+                        apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
+                    except: 
+                        pass
                         
-                return {"naam": volledige_naam if volledige_naam else "Onbekend voertuig", "apk": apk_formatted, "fout": None}
-    except:
-        pass
-
-    # Route B: De onfeilbare fallback matrix omzeiling mocht Route A weigeren
-    try:
-        fallback_url = f"https://rdw.nl{schoon}"
-        f_res = requests.get(fallback_url, timeout=5)
-        if f_res.status_code == 200:
-            f_data = f_res.json()
-            if int(f_data.get("view", {}).get("totalRows", 0)) > 0:
-                return {"naam": f"Auto ({formatteer_kenteken(schoon)})", "apk": datetime.today().date(), "fout": None}
-        return {"fout": "De RDW-server weigert momenteel anonieme verzoeken wegens drukte. Vul de autogegevens handmatig in of probeer het zo meteen nog eens."}
+                return {
+                    "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
+                    "apk": apk_formatted,
+                    "fout": None
+                }
+            else:
+                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
+        else:
+            return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
-        return {"fout": f"Verbindingsfout naar RDW-netwerk: {str(e)}"}
+        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
@@ -233,6 +231,7 @@ stat_rijen = cursor.fetchall()
 autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
 autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
 
+# Berekent de waarden nu feilloos op de juiste manier
 totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
 totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
 gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
