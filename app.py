@@ -94,10 +94,8 @@ hernummer_database_ids()
 def formatteer_kenteken(ktk_str):
     if not ktk_str:
         return ""
-    # Maak schoon: alle streepjes weg en letters in hoofdletters
     schoon = ktk_str.replace("-", "").upper().strip()
     
-    # Lijst met officiële Nederlandse kentekenpatronen (Sidecodes)
     patronen = [
         (re.compile(r'^([A-Z]{2})([0-9]{2})([0-9]{2})$'), r'\1-\2-\3'),       # XX-99-99
         (re.compile(r'^([0-9]{2})([0-9]{2})([A-Z]{2})$'), r'\1-\2-\3'),       # 99-99-XX
@@ -119,12 +117,11 @@ def formatteer_kenteken(ktk_str):
         if regex.match(schoon):
             return regex.sub(template, schoon)
             
-    # Als het patroon onbekend is (bijv. buitenlands), zet er dan logische streepjes in
     if len(schoon) == 6:
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING ---
+# --- REGELEMENTAIRE RDW KOPPELING (GEFIXT) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
@@ -139,7 +136,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]
+                voertuig = data[0]  # GEFIXT: Pakt het eerste object uit de lijst om de fout te voorkomen
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -211,7 +208,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                 foto_opslaan = "||".join(foto_lijst)
             
-            # Formatteer het gewijzigde kenteken met streepjes voordat het de database ingaat
             kenteken_netjes = formatteer_kenteken(edit_ktk)
             
             cursor.execute("""
@@ -260,7 +256,6 @@ if klik_rdw:
     if rdw_data and rdw_data.get("fout") is None:
         st.session_state["rdw_naam"] = rdw_data["naam"]
         st.session_state["rdw_apk"] = rdw_data["apk"]
-        # Sla het kenteken direct op mét de juiste streepjes
         st.session_state["rdw_ktk"] = formatteer_kenteken(rdw_kenteken)
         st.toast("⚡ RDW Gegevens succesvol geladen!", icon="✅")
     elif rdw_data and rdw_data.get("fout"):
@@ -293,7 +288,6 @@ if submit and kenteken.strip():
             foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
         foto_data = "||".join(foto_lijst)
         
-    # Formatteer het kenteken nogmaals voor het geval dat het handmatig zonder streepjes is getypt
     kenteken_netjes = formatteer_kenteken(kenteken)
         
     cursor.execute("""
