@@ -73,8 +73,9 @@ cursor.execute("""
 """)
 conn.commit()
 
+# GEFIXT: Haalt specifiek de kolomnaam op (index 1) uit de tabelinfo om OperationalErrors uit te sluiten
 cursor.execute("PRAGMA table_info(voorraad)")
-bestaande_kolommen = [k for k in cursor.fetchall()]
+bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
     cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
     conn.commit()
@@ -121,23 +122,22 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (KOGELVRIJ) ---
+# --- REGELEMENTAIRE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # De URL staat hier 100% los van de string variabelen om rdw.nl{schoon} crashes uit te sluiten
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
     
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=6)
+        res = requests.get(url, params=params, headers=headers, timeout=8)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  
+                voertuig = data[0]  # Pakt netjes het eerste voertuig-object uit de lijst array
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -145,16 +145,22 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
-                    try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except: pass
+                    try: 
+                        apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
+                    except: 
+                        pass
                         
-                return {"naam": volledige_naam if volledige_naam else "Onbekend voertuig", "apk": apk_formatted, "fout": None}
+                return {
+                    "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
+                    "apk": apk_formatted,
+                    "fout": None
+                }
             else:
-                return {"fout": "Kenteken niet gevonden in het RDW-register."}
+                return {"fout": "Kenteken niet gevonden in het openbare RDW register."}
         else:
-            return {"fout": f"RDW database gaf een weigering. Statuscode: {res.status_code}."}
+            return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
-        return {"fout": f"Kan geen verbinding maken met het RDW-netwerk: {str(e)}"}
+        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
@@ -314,11 +320,11 @@ verwerkte_autos = []
 
 if alle_autos:
     for auto in alle_autos:
-        winst = auto - (auto + auto)
+        winst = auto[4] - (auto[3] + auto[6])
         verwerkte_autos.append({
-            "id": auto, "kenteken": auto, "km_stand": auto, "inkoopprijs": auto, "verkoopprijs": auto,
-            "apk_datum": auto, "extra_kosten": auto, "afbeelding": auto, "naam": auto, "transmissie": auto, 
-            "status": auto, "winst": winst
+            "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
+            "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
+            "status": auto[10], "winst": winst
         })
 
     if filter_status != "Alle": verwerkte_autos = [x for x in verwerkte_autos if x["status"] == filter_status]
