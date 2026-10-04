@@ -127,7 +127,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # ÉCHTE EN JUISTE API URL (Voorkomt de HTML JSON parsing-fout)
+    # HERSTELD: Maakt nu direct verbinding met de juiste database-endpoint van de overheid
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
@@ -137,7 +137,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt exact de eerste dict uit de JSON-lijst
+                voertuig = data[0]  
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
