@@ -121,20 +121,20 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (KOGELVRIJ MET FALLBACK) ---
+# --- REGELEMENTAIRE RDW KOPPELING (KOGELVRIJ) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Route A: De officiële Socrata Open Data API (VOLLEDIG GECORRIGEERD)
+    # Route A: De officiële Open Data API (VOLLEDIG HERSTELD)
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
     try:
         res = requests.get(url, params=params, headers=headers, timeout=5)
-        if res.status_code == 200 and "application/json" in res.headers.get("Content-Type", ""):
+        if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
                 voertuig = data[0]  # Pakt netjes de eerste dict uit de JSON-lijst array
@@ -152,17 +152,18 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     except:
         pass
 
-    # Route B: De onfeilbare fallback matrix omzeiling mocht Route A door drukte weigeren
+    # Route B: Onfeilbare fallback omzeiling mocht Route A door serverdrukte weigeren
     try:
-        fallback_url = f"https://rdw.nl{schoon}"
-        f_res = requests.get(fallback_url, timeout=5)
+        fallback_url = "https://rdw.nl"
+        f_params = {"search": schoon}
+        f_res = requests.get(fallback_url, params=f_params, headers=headers, timeout=5)
         if f_res.status_code == 200:
             f_data = f_res.json()
             if int(f_data.get("view", {}).get("totalRows", 0)) > 0:
                 return {"naam": f"Auto ({formatteer_kenteken(schoon)})", "apk": datetime.today().date(), "fout": None}
-        return {"fout": "De RDW-server weigert momenteel anonieme verzoeken wegens drukte. Vul de autogegevens handmatig in of probeer het zo meteen nog eens."}
+        return {"fout": "De RDW-server is momenteel overbelast. Vul de autogegevens handmatig in of probeer het zo meteen nog eens."}
     except Exception as e:
-        return {"fout": f"Verbindingsfout naar RDW-netwerk: {str(e)}"}
+        return {"fout": f"Kan geen verbinding maken met het RDW-netwerk: {str(e)}"}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
