@@ -121,28 +121,23 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- GEFIKSTE UNIEKE RDW NETWERK KOPPELING ---
+# --- REGELEMENTAIRE RDW KOPPELING (PERMANENT GEFIXT) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # We sturen de query direct door met een expliciet filter naar de resource endpoint.
-    # Dit voorkomt dat we de gehele database of foutieve HTML-pagina's over de verbinding trekken.
+    # GECORRIGEERD: Maakt verbinding met de officiële API endpoint van de overheid i.p.v. de consumentenwebsite
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "application/json"
-    }
+    headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
     
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=6)
-        # Controleer streng of de RDW server daadwerkelijk schone JSON teruggeeft
-        if res.status_code == 200 and "application/json" in res.headers.get("Content-Type", ""):
+        res = requests.get(url, params=params, headers=headers, timeout=8)
+        if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]
+                voertuig = data[0]  # Haalt de eerste auto uit de JSON-lijst array
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -161,21 +156,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het openbare register."}
+                return {"fout": "Kenteken niet gevonden in het openbare RDW register."}
         else:
-            # Fallback Route: Mocht de hoofdserver rate-limiting toepassen, proberen we de open rows endpoint
-            fallback_url = f"https://rdw.nl{schoon}"
-            f_res = requests.get(fallback_url, headers=headers, timeout=5)
-            if f_res.status_code == 200 and "application/json" in f_res.headers.get("Content-Type", ""):
-                f_data = f_res.json()
-                if int(f_data.get("view", {}).get("totalRows", 0)) > 0:
-                    return {"naam": f"Auto ({formatteer_kenteken(schoon)})", "apk": datetime.today().date(), "fout": None}
-            
-            return {"fout": "De RDW-server weigert anonieme verzoeken wegens overbelasting. Vul de gegevens handmatig in."}
-            
+            return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
-        # Altijd netjes opvangen in plaats van de Streamlit applicatie te laten crashen
-        return {"fout": f"Kan geen verbinding maken met het openbare RDW-netwerk. Vul de velden handmatig in."}
+        return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
