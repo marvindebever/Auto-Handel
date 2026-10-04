@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 from datetime import datetime
 import io
 import os
@@ -8,12 +8,9 @@ import streamlit as st
 import pandas as pd
 import requests
 
-# 1. PAGE CONFIG (Moet absoluut als allereerste Streamlit-code worden aangeroepen)
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
-
 DB_NAME = "autohandel_v5.db"
 
-# --- DATABASE INITIALISATIE ---
 def init_db():
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
@@ -27,13 +24,11 @@ def init_db():
         """)
         cursor.execute("PRAGMA table_info(voorraad)")
         bestaande_kolommen = [k[1] for k in cursor.fetchall()]
-        
         if "status" not in bestaande_kolommen:
             cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
         conn.commit()
 
 init_db()
-
 # --- STYLING & ACHTERGROND ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
@@ -54,7 +49,7 @@ def zet_achtergrond(logo_path="logo.png"):
             height: auto !important; max-height: none !important; overflow: visible !important;
         }}
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
-            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, -1px 1px 0 #000 !important;
         }}
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
             background-color: #1e1e24 !important; color: white !important; -webkit-text-fill-color: white !important;
@@ -66,6 +61,7 @@ def zet_achtergrond(logo_path="logo.png"):
         st.markdown(css, unsafe_allow_html=True)
 
 zet_achtergrond("logo.png")
+
 # --- BEVEILIGING ---
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
@@ -82,50 +78,67 @@ if not st.session_state["ingelogd"]:
         else:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
-
-# --- DEFINITIEF GECORRIGEERDE RDW KOPPELING ---
+# --- ROBUUSTE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
-    """Haalt voertuiggegevens op via het officiële Socrata JSON endpoint."""
+    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
+    # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
     schoon = kenteken_str.replace("-", "").upper().strip()
-    if not schoon: 
+    if not schoon:
         return None
     
-    # 100% GEFIXT: Het kenteken staat nu als veilige parameter achter '?kenteken='
-    url = f"https://rdw.nl{schoon}"
+    # GEFIXT: Kenteken direct in de URL-path zetten in plaats van via params={...}
+    # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
+    url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json"
     }
     
     try:
         res = requests.get(url, headers=headers, timeout=8)
+        
         if res.status_code == 200:
+            # Controleer of we daadwerkelijk data hebben gekregen
             if "application/json" not in res.headers.get("Content-Type", ""):
-                return {"fout": "RDW stuurde een HTML-foutpagina terug in plaats van data."}
+                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
+                
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]
+                # GEFIXT: Pakt nu expliciet het eerste voertuig-object [0] uit de lijst
+                voertuig = data[0]  
+                
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
+                volledige_naam = f"{merk} {model}".strip()
                 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
-                    try:
+                    try: 
+                        # RDW datums converteren van 'YYYYMMDD' naar een Date-object
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except:
+                    except: 
                         pass
-                
+                        
                 return {
-                    "naam": f"{merk} {model}".strip(),
+                    "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
                     "apk": apk_formatted,
                     "fout": None
                 }
-            return {"fout": "Kenteken niet gevonden in het RDW-register."}
-        return {"fout": f"RDW Server fout ({res.status_code})."}
+            else:
+                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
+        elif res.status_code == 403:
+            return {"fout": "Toegang geweigerd (403) door RDW. Server blokkeert mogelijk tijdelijk je IP."}
+        elif res.status_code == 429:
+            return {"fout": "Te veel aanvragen achter elkaar (429). Wacht 10 seconden."}
+        else:
+            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res.status_code}."}
+            
+    except requests.exceptions.Timeout:
+        return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
     except Exception as e:
-        return {"fout": f"Verbindingsfout naar RDW: {str(e)}"}
+        return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
@@ -200,7 +213,6 @@ with sqlite3.connect(DB_NAME) as conn:
     cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
     stat_rijen = cursor.fetchall()
 
-# 100% Stabiele data split om index-crashes te voorkomen
 autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
 autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
 
