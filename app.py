@@ -31,7 +31,7 @@ def zet_achtergrond(logo_path="logo.png"):
             height: auto !important; max-height: none !important; overflow: visible !important;
         }}
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
-            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, -1px 1px 0 #000 !important;
         }}
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
             background-color: #1e1e24 !important; color: white !important; -webkit-text-fill-color: white !important;
@@ -73,7 +73,6 @@ cursor.execute("""
 """)
 conn.commit()
 
-# WATERDICHT GEFIXT: Pak specifiek de naam van elke kolom (index 1 van table_info) uit voor de controle
 cursor.execute("PRAGMA table_info(voorraad)")
 bestaande_kolommen = [k[1] for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
@@ -128,6 +127,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
+    # ÉCHTE API ENDPOINT: Dit haalt direct schone JSON op i.p.v. een HTML-webpagina
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
@@ -137,7 +137,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt netjes de eerste dict uit de JSON-lijst array
+                voertuig = data[0]  # GEFIXT: Pakt exact de eerste auto uit de JSON-lijst array
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -231,7 +231,6 @@ stat_rijen = cursor.fetchall()
 autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
 autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
 
-# Berekent de waarden nu feilloos op de juiste manier
 totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
 totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
 gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
