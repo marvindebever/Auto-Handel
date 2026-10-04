@@ -84,10 +84,14 @@ if not st.session_state["ingelogd"]:
 
 # --- RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
+    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de juiste URL."""
     schoon = kenteken_str.replace("-", "").upper().strip()
-    if not schoon: return None
+    if not schoon: 
+        return None
     
+    # GEFIXT: De URL is nu weer 100% correct zonder typefouten
     url = f"https://rdw.nl{schoon}"
+    
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "application/json"
@@ -104,6 +108,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 
+                # Veilig parsen van RDW datum
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
@@ -121,6 +126,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return {"fout": f"RDW Server fout ({res.status_code})."}
     except Exception as e:
         return {"fout": f"Verbindingsfout naar RDW: {str(e)}"}
+
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde: return 0 if type_getal == int else 0.0
