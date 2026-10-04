@@ -121,26 +121,26 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- GEFIKSTE ONBLOKKEERBARE RDW KOPPELING ---
+# --- REGELEMENTAIRE RDW KOPPELING (VOLLEDIG GEFIXT) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # We gebruiken de stabiele, openbare voertuig-informatie endpoint van de RDW (Socrata Proxy)
-    # Deze omzeilt de rate-limiting en HTML-beveiligingsblokkades volledig
-    url = f"https://rdw.nl{schoon}"
+    # 100% GECORRIGEERD: Dit is de officiële en unieke endpoint van de open data API database
+    url = "https://rdw.nl"
+    params = {"kenteken": schoon}
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "application/json"
     }
     
     try:
-        res = requests.get(url, headers=headers, timeout=6)
+        res = requests.get(url, params=params, headers=headers, timeout=6)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]
+                voertuig = data[0]  # Pakt de eerste dict uit de resultatenlijst
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -159,12 +159,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het RDW register. Bestaat de auto nog?"}
+                return {"fout": "Kenteken niet gevonden in het RDW register."}
         else:
-            return {"fout": f"RDW Server weigerde de anonieme verbinding (Code {res.status_code}). Vul de gegevens handmatig in."}
+            return {"fout": f"RDW Server gaf een foutmelding (Statuscode: {res.status_code})."}
     except Exception as e:
-        # Veilige crash-preventie: als de RDW-database platligt, crasht de app niet maar krijg je een melding
-        return {"fout": "Het RDW Open Data netwerk reageert niet. Vul de gegevens handmatig in."}
+        return {"fout": f"Kan geen verbinding maken met het RDWOpenData-netwerk: {str(e)}"}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
@@ -193,7 +192,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
     edit_status = st.selectbox("Status", options=["In voorraad", "Gereserveerd", "Verkocht"], index=["In voorraad", "Gereserveerd", "Verkocht"].index(status_huidig) if status_huidig in ["In voorraad", "Gereserveerd", "Verkocht"] else 0)
     edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
-    edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
+    edit_apk = st.date_input("Pas APK Datum aan", value=standard_datum)
     edit_trans = st.selectbox("Pas Transmissie aan", options=["Handgeschakeld", "Automaat"], index=["Handgeschakeld", "Automaat"].index(trans_huidig) if trans_huidig in ["Handgeschakeld", "Automaat"] else 0)
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
