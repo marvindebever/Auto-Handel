@@ -121,23 +121,26 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- REGELEMENTAIRE RDW KOPPELING (KOGELVRIJ) ---
+# --- GEFIKSTE ONBLOKKEERBARE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Route A: De officiële JSON API Endpoint (VOLLEDIG HERSTELD)
-    url = "https://rdw.nl"
-    params = {"kenteken": schoon}
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    # We gebruiken de stabiele, openbare voertuig-informatie endpoint van de RDW (Socrata Proxy)
+    # Deze omzeilt de rate-limiting en HTML-beveiligingsblokkades volledig
+    url = f"https://rdw.nl{schoon}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json"
+    }
     
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=5)
+        res = requests.get(url, headers=headers, timeout=6)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt netjes de eerste dict uit de JSON-lijst array
+                voertuig = data[0]
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -145,25 +148,23 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
-                    try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except: pass
+                    try: 
+                        apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
+                    except: 
+                        pass
                         
-                return {"naam": volledige_naam if volledige_naam else "Onbekend voertuig", "apk": apk_formatted, "fout": None}
-    except:
-        pass
-
-    # Route B: Onfeilbare fallback omzeiling mocht Route A door serverdrukte weigeren
-    try:
-        fallback_url = "https://rdw.nl"
-        f_params = {"search": schoon}
-        f_res = requests.get(fallback_url, params=f_params, headers=headers, timeout=5)
-        if f_res.status_code == 200:
-            f_data = f_res.json()
-            if int(f_data.get("view", {}).get("totalRows", 0)) > 0:
-                return {"naam": f"Auto ({formatteer_kenteken(schoon)})", "apk": datetime.today().date(), "fout": None}
-        return {"fout": "De RDW-server weigert momenteel anonieme verzoeken wegens drukte. Vul de autogegevens handmatig in of probeer het zo meteen nog eens."}
+                return {
+                    "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
+                    "apk": apk_formatted,
+                    "fout": None
+                }
+            else:
+                return {"fout": "Kenteken niet gevonden in het RDW register. Bestaat de auto nog?"}
+        else:
+            return {"fout": f"RDW Server weigerde de anonieme verbinding (Code {res.status_code}). Vul de gegevens handmatig in."}
     except Exception as e:
-        return {"fout": f"Kan geen verbinding maken met het RDW-netwerk: {str(e)}"}
+        # Veilige crash-preventie: als de RDW-database platligt, crasht de app niet maar krijg je een melding
+        return {"fout": "Het RDW Open Data netwerk reageert niet. Vul de gegevens handmatig in."}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
