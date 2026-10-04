@@ -95,7 +95,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # De officiële en correcte Socrata Open Data endpoint van de RDW
+    # ÉCHTE API-ENDPOINT: Dit haalt direct JSON-data op in plaats van een HTML-webpagina
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
@@ -105,7 +105,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt de eerste dict uit de JSON-array
+                voertuig = data[0]  # Pakt de eerste auto uit de JSON-lijst
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
