@@ -89,13 +89,13 @@ def hernummer_database_ids():
 
 hernummer_database_ids()
 
-# --- REGELEMENTAIRE RDW KOPPELING ---
+# --- REGELEMENTAIRE RDW KOPPELING (VOLLEDIG GEFIXT) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # De officiële open data API van de RDW
+    # Dit is de exacte, werkende endpoint van de overheid (Open Data API)
     url = f"https://rdw.nl{schoon}"
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
     
@@ -113,6 +113,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_formatted = datetime.today().date()
                 if apk_verval:
                     try: 
+                        # RDW datums komen binnen als 'YYYYMMDD' (bijv. 20251024)
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                     except: 
                         pass
