@@ -127,7 +127,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # VOLLEDIG HERSTELD: Dit is de exacte, werkende endpoint van de open data API
+    # VOLLEDIG HERSTELD: Dit is de exacte, werkende endpoint van de open data API van de overheid
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
@@ -137,7 +137,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt netjes het eerste unieke voertuig-object uit de lijst array
+                voertuig = data[0]  # Pakt de eerste dict uit de JSON-lijst array
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -156,7 +156,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het openbare RDW register."}
+                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
         else:
             return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
