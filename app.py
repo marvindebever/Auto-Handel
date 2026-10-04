@@ -31,7 +31,7 @@ def zet_achtergrond(logo_path="logo.png"):
             height: auto !important; max-height: none !important; overflow: visible !important;
         }}
         h1, h2, h3, p, span, label, li, td, th, div, .streamlit-expanderHeader p, .streamlit-expanderHeader span, [data-testid="stMarkdownContainer"] p {{
-            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+            color: white !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, -1px 1px 0 #000 !important;
         }}
         div[data-baseweb="input"] input, div[data-testid="stTextInput"] input, select {{
             background-color: #1e1e24 !important; color: white !important; -webkit-text-fill-color: white !important;
@@ -74,7 +74,7 @@ cursor.execute("""
 conn.commit()
 
 cursor.execute("PRAGMA table_info(voorraad)")
-bestaande_kolommen = [k[1] for k in cursor.fetchall()]
+bestaande_kolommen = [k for k in cursor.fetchall()]
 if "status" not in bestaande_kolommen:
     cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
     conn.commit()
@@ -121,25 +121,23 @@ def formatteer_kenteken(ktk_str):
         return f"{schoon[:2]}-{schoon[2:4]}-{schoon[4:]}"
     return schoon
 
-# --- GEFIKSTE RDW KOPPELING VIA SOCRATA PROXY ---
+# --- GEFIKSTE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Gebruik de stabiele proxy URL die geen App-Token vereist of blokkeert
-    url = f"https://rdw.nl{schoon}"
-    headers = {
-        "X-App-Token": "🚫",  # Omzeilt de standaard Socrata rate-limiting proxy
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+    # 100% WATERDICHT: De URL staat nu volledig los van de variabelen
+    url = "https://rdw.nl"
+    params = {"kenteken": schoon}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
     try:
-        res = requests.get(url, headers=headers, timeout=7)
+        res = requests.get(url, params=params, headers=headers, timeout=8)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  
+                voertuig = data[0]
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -158,16 +156,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "fout": None
                 }
             else:
-                return {"fout": "Kenteken niet gevonden in het RDW-register. Bestaat het voertuig?"}
+                return {"fout": "Kenteken niet gevonden in het RDW register."}
         else:
-            # Alternatieve fallback-route mocht de hoofdserver toch weigeren
-            fallback_url = f"https://rdw.nl{schoon}"
-            fallback_res = requests.get(fallback_url, timeout=5)
-            if fallback_res.status_code == 200:
-                return {"naam": "RDW Voertuig (Handmatig controleren)", "apk": datetime.today().date(), "fout": None}
-            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res.status_code}."}
+            return {"fout": f"RDW Server foutmelding. Statuscode: {res.status_code}."}
     except Exception as e:
-        return {"fout": f"Kan geen verbinding maken met het RDW-register: {str(e)}"}
+        return {"fout": f"Kan geen verbinding maken met het RDW register: {str(e)}"}
 
 # --- FORMATTEER HULPFUNCTIONS ---
 def naar_getal(tekst_waarde, type_getal=float):
@@ -235,12 +228,12 @@ if head_col2.button("🚪 Uitloggen", use_container_width=True):
 cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
 stat_rijen = cursor.fetchall()
 
-autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
-autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
+autos_in_voorraad = [r for r in stat_rijen if r != 'Verkocht']
+autos_verkocht = [r for r in stat_rijen if r == 'Verkocht']
 
-totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
-totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
-gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
+totale_voorraadwaarde = sum(r + r for r in autos_in_voorraad)
+totale_verwachte_winst = sum(r - (r + r) for r in autos_in_voorraad)
+gerealiseerde_winst = sum(r - (r + r) for r in autos_verkocht)
 
 st.write("")
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
@@ -321,11 +314,11 @@ verwerkte_autos = []
 
 if alle_autos:
     for auto in alle_autos:
-        winst = auto[4] - (auto[3] + auto[6])
+        winst = auto - (auto + auto)
         verwerkte_autos.append({
-            "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
-            "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
-            "status": auto[10], "winst": winst
+            "id": auto, "kenteken": auto, "km_stand": auto, "inkoopprijs": auto, "verkoopprijs": auto,
+            "apk_datum": auto, "extra_kosten": auto, "afbeelding": auto, "naam": auto, "transmissie": auto, 
+            "status": auto, "winst": winst
         })
 
     if filter_status != "Alle": verwerkte_autos = [x for x in verwerkte_autos if x["status"] == filter_status]
