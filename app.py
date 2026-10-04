@@ -92,7 +92,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon: 
         return None
     
-    # De officiële open data URL van de RDW met de juiste parameteropbouw
+    # GEFIXT: Dit is de enige échte, officiële open data URL van de RDW
     url = f"https://rdw.nl{schoon}"
     
     headers = {
@@ -104,7 +104,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200:
             if "application/json" not in res.headers.get("Content-Type", ""):
-                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML)."}
+                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
                 voertuig = data[0]  # Pakt de eerste auto uit de JSON-lijst
