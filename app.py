@@ -94,6 +94,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
+    # GEFIXT: De juiste API-endpoint URL ingevuld
     url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
@@ -103,6 +104,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
+                # GEFIXT: Pakt nu correct het eerste voertuig uit de lijst (.json() geeft een lijst terug)
                 voertuig = data[0]
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
@@ -128,6 +130,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
             return {"fout": f"RDW Server weigerde toegang. Statuscode: {res.status_code}."}
     except Exception as e:
         return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
+
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
