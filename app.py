@@ -95,8 +95,8 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # ÉCHTE API-ENDPOINT: Dit haalt direct JSON-data op in plaats van een HTML-webpagina
-    url = "https://rdw.nl"
+    # VOLLEDIG GEFIXT: Dit is de officiële API-endpoint die JSON terugstuurt in plaats van HTML
+    url = "https://opendata.rdw.nl/resource/m9d7-ebf2.json"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
     
