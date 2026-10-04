@@ -8,9 +8,36 @@ import streamlit as st
 import pandas as pd
 import requests
 
-# Set page config direct als eerste Streamlit aanroep
+# 1. PAGE CONFIG (Moet absoluut als allereerste Streamlit code worden aangeroepen)
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
+DB_NAME = "autohandel_v5.db"
+
+# --- DATABASE INITIALISATIE ---
+def init_db():
+    """Zorgt voor een veilige database-opzet zonder data te resetten."""
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS voorraad (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kenteken TEXT, km_stand INTEGER, inkoopprijs REAL, verkoopprijs REAL,
+                apk_datum TEXT, extra_kosten REAL, afbeelding TEXT, naam TEXT, transmissie TEXT,
+                status TEXT DEFAULT 'In voorraad'
+            )
+        """)
+        
+        # Controleer of de status kolom bestaat (voor oudere databases)
+        cursor.execute("PRAGMA table_info(voorraad)")
+        bestaande_kolommen = [k[1] for k in cursor.fetchall()]
+        if "status" not in bestaande_kolommen:
+            cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
+        conn.commit()
+
+# Start de database op een veilige manier op
+init_db()
+
+# --- STYLING & ACHTERGROND ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
         with open(logo_path, "rb") as f:
@@ -43,6 +70,7 @@ def zet_achtergrond(logo_path="logo.png"):
 
 zet_achtergrond("logo.png")
 
+# --- BEVEILIGING ---
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
 
@@ -51,6 +79,7 @@ if not st.session_state["ingelogd"]:
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     if st.button("Inloggen", type="primary"):
+        # Tip: overweeg st.secrets["PASSWORD"] te gebruiken als je dit online zet
         if wachtwoord_invoer == "DONGEN123":
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
@@ -58,45 +87,14 @@ if not st.session_state["ingelogd"]:
         else:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
-# --- DATABASE VERBINDING ---
-conn = sqlite3.connect("autohandel_v5.db", check_same_thread=False)
-cursor = conn.cursor()
-
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS voorraad (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        kenteken TEXT, km_stand INTEGER, inkoopprijs REAL, verkoopprijs REAL,
-        apk_datum TEXT, extra_kosten REAL, afbeelding TEXT, naam TEXT, transmissie TEXT,
-        status TEXT DEFAULT 'In voorraad'
-    )
-""")
-conn.commit()
-
-cursor.execute("PRAGMA table_info(voorraad)")
-bestaande_kolommen = [k[1] for k in cursor.fetchall()]
-if "status" not in bestaande_kolommen:
-    cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
-    conn.commit()
-
-def hernummer_database_ids():
-    cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad ORDER BY id ASC")
-    rijen = cursor.fetchall()
-    cursor.execute("DELETE FROM voorraad")
-    cursor.execute("DELETE FROM sqlite_sequence WHERE name='voorraad'")
-    for rij in rijen:
-        cursor.execute("INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rij)
-    conn.commit()
-
-hernummer_database_ids()
-
-# --- REGELEMENTAIRE RDW KOPPELING (VOLLEDIG HERSTELD) ---
+# --- RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
+    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register."""
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # VOLLEDIG GEFIXT: Dit is de officiële API-endpoint die JSON terugstuurt in plaats van HTML
-    url = "https://opendata.rdw.nl/resource/m9d7-ebf2.json"
+    url = "https://rdw.nl"
     params = {"kenteken": schoon}
     headers = {"User-Agent": "AutohandelApp/5.0", "Accept": "application/json"}
     
@@ -105,7 +103,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  # Pakt de eerste auto uit de JSON-lijst
+                voertuig = data[0]
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
@@ -114,7 +112,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_formatted = datetime.today().date()
                 if apk_verval:
                     try: 
-                        # RDW datums komen binnen als 'YYYYMMDD' (bijv. 20251024)
+                        # RDW datums converteren van 'YYYYMMDD' naar een Date-object
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                     except: 
                         pass
@@ -131,8 +129,9 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     except Exception as e:
         return {"fout": f"Verbindingsfout naar opendata.rdw.nl: {str(e)}"}
 
-# --- FORMATTEER HULPFUNCTIONS ---
+# --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
+    """Zet tekstinvoer veilig om naar een float of int, negeert vreemde tekens."""
     if not tekst_waarde:
         return 0 if type_getal == int else 0.0
     schoon = "".join(c for c in str(tekst_waarde) if c.isdigit() or c in ".,-").replace(",", ".")
@@ -142,24 +141,37 @@ def naar_getal(tekst_waarde, type_getal=float):
         return 0 if type_getal == int else 0.0
 
 def formatteer_datum_nl(datum_str):
+    """Zet een YYYY-MM-DD datum om naar de Nederlandse DD-MM-YYYY weergave."""
     try:
         return datetime.strptime(datum_str, "%Y-%m-%d").strftime("%d-%m-%Y")
     except:
         return datum_str
 
 def formatteer_euro_nl(bedrag):
+    """Formateert een getal naar een overzichtelijk Nederlands geldbedrag (€ 1.250,00)."""
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
-    try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
-    except: standaard_datum = datetime.today().date()
+    """Pop-up venster om een bestaand voertuig in de database aan te passen."""
+    try: 
+        standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
+    except: 
+        standaard_datum = datetime.today().date()
 
     edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
-    edit_status = st.selectbox("Status", options=["In voorraad", "Gereserveerd", "Verkocht"], index=["In voorraad", "Gereserveerd", "Verkocht"].index(status_huidig) if status_huidig in ["In voorraad", "Gereserveerd", "Verkocht"] else 0)
+    
+    status_opties = ["In voorraad", "Gereserveerd", "Verkocht"]
+    edit_status = st.selectbox("Status", options=status_opties, index=status_opties.index(status_huidig) if status_huidig in status_opties else 0)
+    
     edit_km = st.text_input("Pas Kilometerstand aan", value=str(km))
     edit_apk = st.date_input("Pas APK Datum aan", value=standaard_datum)
-    edit_trans = st.selectbox("Pas Transmissie aan", options=["Handgeschakeld", "Automaat"], index=["Handgeschakeld", "Automaat"].index(trans_huidig) if trans_huidig in ["Handgeschakeld", "Automaat"] else 0)
+    
+    trans_opties = ["Handgeschakeld", "Automaat"]
+    edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
+    
     edit_inkoop = st.text_input("Pas Inkoopprijs aan (€)", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan (€)", value=str(verkoop))
     edit_kosten = st.text_input("Pas Extra kosten aan (€)", value=str(kosten))
@@ -178,22 +190,29 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                 foto_opslaan = "||".join(foto_lijst)
             
-            cursor.execute("""
-                UPDATE voorraad 
-                SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=?, status=? 
-                WHERE id=?
-            """, (edit_naam, edit_ktk.upper().strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, actie_id))
-            conn.commit()
+            # Altijd een tijdelijke 'with' verbinding openen om database-locks te voorkomen
+            with sqlite3.connect(DB_NAME) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE voorraad 
+                    SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=?, status=? 
+                    WHERE id=?
+                """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, actie_id))
+                conn.commit()
             st.rerun()
-# --- HEADER & STATUS DASHBOARD BEREKENING ---
+
+# --- HEADER & DASHBOARD BEREKENINGEN ---
 head_col1, head_col2 = st.columns(2)
 head_col1.title("🚗 Autohandel Inventaris")
 if head_col2.button("🚪 Uitloggen", use_container_width=True):
     st.session_state["ingelogd"] = False
     st.rerun()
 
-cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
-stat_rijen = cursor.fetchall()
+# Data ophalen voor de statistiekenblokken
+with sqlite3.connect(DB_NAME) as conn:
+    cursor = conn.cursor()
+    cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
+    stat_rijen = cursor.fetchall()
 
 autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
 autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
@@ -202,14 +221,12 @@ totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
 totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
 gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
 
-st.write("")
 with st.expander("📊 Actuele Status Dashboard", expanded=True):
     stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
     stat_col1.metric(label="Huidige Voorraad", value=f"{len(autos_in_voorraad)} stuks")
     stat_col2.metric(label="Investeringswaarde", value=f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     stat_col3.metric(label="Verwachte Winst (Voorraad)", value=f"€ {formatteer_euro_nl(totale_verwachte_winst)}")
     stat_col4.metric(label="Gerealiseerde Winst (Verkocht)", value=f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-
 # --- TOEVOEGEN FORMULIER ---
 st.subheader("Nieuwe auto toevoegen")
 rdw_col1, rdw_col2 = st.columns(2)
@@ -219,7 +236,7 @@ with rdw_col2:
     st.markdown('<p style="margin-bottom: 0px; padding-bottom: 24px;"></p>', unsafe_allow_html=True)
     klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
 
-if klik_rdw:
+if klik_rdw and rdw_kenteken:
     rdw_data = overheid_rdw_lookup_krachtig(rdw_kenteken)
     if rdw_data and rdw_data.get("fout") is None:
         st.session_state["rdw_naam"] = rdw_data["naam"]
@@ -228,8 +245,6 @@ if klik_rdw:
         st.toast("⚡ RDW Gegevens succesvol geladen!", icon="✅")
     elif rdw_data and rdw_data.get("fout"):
         st.error(rdw_data["fout"])
-    else:
-        st.error("Onbekende API-fout opgetreden.")
 
 with st.form("auto_form", clear_on_submit=False):
     naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
@@ -256,13 +271,19 @@ if submit and kenteken.strip():
             foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
         foto_data = "||".join(foto_lijst)
         
-    cursor.execute("""
-        INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (naam, kenteken.upper().strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer))
-    conn.commit()
-    for k in ["rdw_naam", "rdw_apk", "rdw_ktk"]: st.session_state.pop(k, None)
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (naam, kenteken.upper().replace("-", "").strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer))
+        conn.commit()
+        
+    # Ruim session state op na succesvol toevoegen
+    for k in ["rdw_naam", "rdw_apk", "rdw_ktk"]: 
+        st.session_state.pop(k, None)
     st.success("Auto succesvol toegevoegd!")
     st.rerun()
+
 # --- INVENTARIS FILTERS EN WEERGAVE ---
 st.subheader("Huidige inventaris")
 inv_col1, inv_col2, inv_col2_5, inv_col3, inv_col4 = st.columns([2, 1.5, 1, 0.8, 1])
@@ -273,10 +294,12 @@ filter_status = inv_col2_5.selectbox("🚦 Filter Status", options=["Alle", "In 
 if inv_col3.button("🔄 Verversen", use_container_width=True): 
     st.rerun()
 
-cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad")
-alle_autos = cursor.fetchall()
-verwerkte_autos = []
+with sqlite3.connect(DB_NAME) as conn:
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad")
+    alle_autos = cursor.fetchall()
 
+verwerkte_autos = []
 if alle_autos:
     for auto in alle_autos:
         winst = auto[4] - (auto[3] + auto[6])
@@ -286,21 +309,34 @@ if alle_autos:
             "status": auto[10], "winst": winst
         })
 
-    if filter_status != "Alle": verwerkte_autos = [x for x in verwerkte_autos if x["status"] == filter_status]
-    if zoekterm: verwerkte_autos = [x for x in verwerkte_autos if zoekterm in x["kenteken"] or zoekterm in (x["naam"] or "").upper()]
+    # Toepassen van filters
+    if filter_status != "Alle": 
+        verwerkte_autos = [x for x in verwerkte_autos if x["status"] == filter_status]
+    if zoekterm: 
+        verwerkte_autos = [x for x in verwerkte_autos if zoekterm in x["kenteken"] or zoekterm in (x["naam"] or "").upper()]
 
-    if "Aflopend" in sorteer_optie: verwerkte_autos.reverse()
-    elif "Winst" in sorteer_optie: verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["winst"], reverse=True)
-    elif "Kilometerstand" in sorteer_optie: verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["km_stand"])
-    elif "APK" in sorteer_optie: verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "9999-12-31")
+    # Toepassen van sortering
+    if "Aflopend" in sorteer_optie: 
+        verwerkte_autos.reverse()
+    elif "Winst" in sorteer_optie: 
+        verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["winst"], reverse=True)
+    elif "Kilometerstand" in sorteer_optie: 
+        verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["km_stand"])
+    elif "APK" in sorteer_optie: 
+        verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["apk_datum"] if x["apk_datum"] else "9999-12-31")
 
+    # Excel Download Knop genereren
     if verwerkte_autos:
-        df = pd.DataFrame(verwerkte_autos).drop(columns=['afbeelding'])
-        towrite = io.BytesIO()
-        df.to_excel(towrite, index=False)
-        towrite.seek(0)
-        inv_col4.download_button(label="📊 Download Excel", data=towrite, file_name="inventaris.xlsx", use_container_width=True)
+        try:
+            df = pd.DataFrame(verwerkte_autos).drop(columns=['afbeelding'])
+            towrite = io.BytesIO()
+            df.to_excel(towrite, index=False, engine='openpyxl')
+            towrite.seek(0)
+            inv_col4.download_button(label="📊 Download Excel", data=towrite, file_name="inventaris.xlsx", use_container_width=True)
+        except Exception as e:
+            inv_col4.error("Excel export fout")
 
+    # Renderen van de autokaarten
     for auto in verwerkte_autos:
         weergave_naam = auto["naam"] if auto["naam"] else "Onbekende auto"
         status_icoon = "🟢" if auto["status"] == "In voorraad" else "🟡" if auto["status"] == "Gereserveerd" else "🔴"
@@ -308,9 +344,12 @@ if alle_autos:
         apk_waarschuwing = ""
         try:
             dagen = (datetime.strptime(auto["apk_datum"], "%Y-%m-%d").date() - datetime.today().date()).days
-            if 0 <= dagen <= 30: apk_waarschuwing = " ⚠️ (APK bijna verlopen!)"
-            elif dagen < 0: apk_waarschuwing = " 🚨 (APK VERLOPEN!)"
-        except: pass
+            if 0 <= dagen <= 30: 
+                apk_waarschuwing = " ⚠️ (APK bijna verlopen!)"
+            elif dagen < 0: 
+                apk_waarschuwing = " 🚨 (APK VERLOPEN!)"
+        except: 
+            pass
 
         with st.expander(f"{status_icoon} [{auto['status']}] {weergave_naam} ({auto['kenteken']}) - Prijs: € {formatteer_euro_nl(auto['verkoopprijs'])}{apk_waarschuwing}"):
             col1, col2 = st.columns(2)
@@ -320,9 +359,12 @@ if alle_autos:
                     foto_cols = st.columns(min(len(alle_fotos), 3))
                     for idx, f_data in enumerate(alle_fotos):
                         with foto_cols[idx % min(len(alle_fotos), 3)]:
-                            try: st.image(base64.b64decode(f_data), use_container_width=True)
-                            except: st.error("Fout laden foto")
-                else: st.info("Geen afbeelding beschikbaar.")
+                            try: 
+                                st.image(base64.b64decode(f_data), use_container_width=True)
+                            except: 
+                                st.error("Fout laden foto")
+                else: 
+                    st.info("Geen afbeelding beschikbaar.")
             with col2:
                 st.write(f"**Kilometerstand:** {auto['km_stand']:,} km".replace(",", "."))
                 st.write(f"**Transmissie:** {auto['transmissie'] if auto['transmissie'] else 'Niet opgegeven'}")
@@ -335,6 +377,8 @@ if alle_autos:
                 if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", use_container_width=True, type="primary"):
                     bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"], auto["status"])
                 if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", use_container_width=True):
-                    cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
-                    conn.commit()
+                    with sqlite3.connect(DB_NAME) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
+                        conn.commit()
                     st.rerun()
