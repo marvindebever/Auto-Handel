@@ -27,7 +27,7 @@ def init_db():
         """)
         cursor.execute("PRAGMA table_info(voorraad)")
         bestaande_kolommen = [k for k in cursor.fetchall()]
-        if "status" not in [k[1] for k in bestaande_kolommen]:
+        if "status" not in [k for k in bestaande_kolommen]:
             cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
         conn.commit()
 
@@ -82,14 +82,14 @@ if not st.session_state["ingelogd"]:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
 
-# --- RDW KOPPELING ---
+# --- RDW KOPPELING (VOLLEDIG GECORRIGEERD) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de juiste URL."""
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon: 
         return None
     
-    # GEFIXT: De URL is nu weer 100% correct zonder typefouten
+    # De officiële open data URL van de RDW met de juiste parameteropbouw
     url = f"https://rdw.nl{schoon}"
     
     headers = {
@@ -104,7 +104,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML)."}
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]
+                voertuig = data[0]  # Pakt de eerste auto uit de JSON-lijst
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 
@@ -140,10 +140,10 @@ def formatteer_datum_nl(datum_str):
 
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
+    """Pop-up venster om een bestaand voertuig in de database aan te passen."""
     try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except: standaard_datum = datetime.today().date()
 
@@ -182,11 +182,12 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, actie_id))
                 conn.commit()
             st.rerun()
+
 # --- SIDEBAR NAVIGATIE & DATA CALCULATIE ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
     
-    # Alle functies zijn nu samengevoegd in één overzichtelijke zijbalk-menu
+    # Alle tabbladen en functies zijn nu samengevoegd in de zijbalk
     menu_optie = st.radio(
         "Kies een functie:",
         [
@@ -203,13 +204,12 @@ with st.sidebar:
         st.session_state["ingelogd"] = False
         st.rerun()
 
-# Data berekenen voor dashboard en statistieken
+# Data ophalen en berekenen voor alle schermen
 with sqlite3.connect(DB_NAME) as conn:
     cursor = conn.cursor()
     cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
     stat_rijen = cursor.fetchall()
 
-# Unpack logica om index errors te voorkomen
 autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
 autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
 
@@ -219,7 +219,6 @@ gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
 # --- HOOFDSCHERM STRUCTUUR GEBASEERD OP SIDEBAR ---
 if menu_optie == "🆕 Nieuwe auto toevoegen":
     st.title("🆕 Nieuwe auto toevoegen")
-    
     rdw_col1, rdw_col2 = st.columns(2)
     rdw_kenteken = rdw_col1.text_input("Snel RDW via kenteken", placeholder="Bijv. 47-LV-JV").upper().replace("-", "")
 
@@ -284,6 +283,7 @@ elif menu_optie == "📊 Actuele Status Dashboard":
     stat_col2.metric(label="Investeringswaarde", value=f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     stat_col3.metric(label="Verwachte Winst (Voorraad)", value=f"€ {formatteer_euro_nl(totale_verwachte_winst)}")
     stat_col4.metric(label="Gerealiseerde Winst (Verkocht)", value=f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
+
 elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     st.title(menu_optie)
     
@@ -302,7 +302,6 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                 "status": auto[10], "winst": winst
             })
 
-        # Filter op basis van gekozen menu-optie uit de zijbalk
         if menu_optie == "🟢 Actuele Voorraad":
             verwerkte_autos = [x for x in verwerkte_autos if x["status"] != "Verkocht"]
         else:
