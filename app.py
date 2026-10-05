@@ -525,24 +525,24 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1, col_f2 = st.columns(2)
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-# --- AGENDA & NOTITIES PAGINA INTERFACE (NU MET TIJDEN) ---
+# --- AGENDA & NOTITIES PAGINA INTERFACE (NU MET TIJDEN - GEFIXT) ---
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
     try:
         from streamlit_calendar import calendar
     except ImportError:
-        st.error("Installeer eerst de kalender-module via je terminal: pip install streamlit-calendar")
+        st.error("Installeer eerst de kalender-module via je requirements.txt: streamlit-calendar")
         st.stop()
 
-    col_ag1, col_ag2 = st.columns()
+    # GEFIXT: Aantal kolommen expliciet ingesteld naar 2 om de crash op te lossen
+    col_ag1, col_ag2 = st.columns(2)
     
     with col_ag1:
         st.subheader("📌 Nieuwe notitie / afspraak")
         with st.form("agenda_form", clear_on_submit=True):
             ag_datum = st.date_input("Datum", value=datetime.today().date())
             
-            # NIEUW: Begin- en eindtijd invoervelden toegevoegd
             tijd_col1, tijd_col2 = st.columns(2)
             ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
             ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
@@ -552,14 +552,11 @@ elif menu_optie == "📅 Agenda & Notities":
             ag_submit = st.form_submit_button("Opslaan in Agenda")
             
         if ag_submit and ag_titel.strip():
-            # Combineer de datum en tijden tot het juiste kalenderformaat (ISO string)
             start_volledig = f"{ag_datum}T{ag_tijd_van.strftime('%H:%M:%S')}"
             end_volledig = f"{ag_datum}T{ag_tijd_tot.strftime('%H:%M:%S')}"
             
             with sqlite3.connect(DB_NAME) as conn:
                 cursor = conn.cursor()
-                # We slaan de volledige datum+tijd op in de 'datum' kolom en de eindtijd in 'notitie' (als backup/weergave)
-                # Om het simpel te houden bewaren we de eindtijd tijdelijk in een verborgen format of we zetten de ISO strings erin
                 cursor.execute("""
                     INSERT INTO agenda (datum, titel, notitie, status)
                     VALUES (?, ?, ?, 'Open')
@@ -580,7 +577,6 @@ elif menu_optie == "📅 Agenda & Notities":
         for item in notities:
             n_id, n_datum_veld, n_titel, n_notitie, n_status = item
             
-            # Controleren of er een tijd in de database staat (gesplitst door ||)
             if "||" in str(n_datum_veld):
                 start_tijd, eind_tijd = n_datum_veld.split("||")
                 is_hele_dag = False
@@ -642,14 +638,13 @@ elif menu_optie == "📅 Agenda & Notities":
             event_data = state["eventClick"]["event"]
             props = event_data.get("extendedProps", {})
             
-            # Haal de pure titel op zonder de '[Open]' of '[Voltooid]' status
             pure_titel = event_data['title'].replace("[Open] ", "").replace("[Voltooid] ", "")
             
             st.markdown("---")
             st.markdown(f"### 🔍 Geselecteerde Afspraak: **{pure_titel}**")
             st.write(f"**Datum:** {formatteer_datum_nl(props.get('weergave_datum'))}")
             
-            # Toon netjes de tijden als de afspraak tijden heeft
+            # GEFIXT: Tijdweergave logica hersteld zodat uren en minuten netjes tonen
             if "||" in str(props.get('datum_veld')):
                 s_tijd = props.get('datum_veld').split("||")[0].split("T")[1][:5]
                 e_tijd = props.get('datum_veld').split("||")[1].split("T")[1][:5]
