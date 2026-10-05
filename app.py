@@ -278,10 +278,11 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 # --- SIDEBAR NAVIGATIE, DATA CALCULATIE & BACKUP ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
-        menu_optie = st.radio(
+    menu_optie = st.radio(
         "Kies een functie:",
         ["🆕 Nieuwe auto toevoegen", "📊 Actuele Status Dashboard", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📅 Agenda & Notities", "💰 Financieel Overzicht"]
     )
+
     
     st.markdown("---")
     st.subheader("💾 Backup & Herstel")
