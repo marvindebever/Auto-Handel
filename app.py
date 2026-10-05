@@ -155,6 +155,41 @@ def formatteer_datum_nl(datum_str):
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+# --- DATA IMPORT & EXPORT FUNCTIES VOOR BACKUP ---
+def exporteer_database_naar_json():
+    """Haalt alle data uit de SQLite database en zet het om naar een downloadbare JSON-tekst."""
+    with sqlite3.connect(DB_NAME) as conn:
+        conn.row_factory = sqlite3.Row  # Zorgt ervoor dat we kolommen op naam kunnen uitlezen
+        cursor = conn.cursor()
+        cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad")
+        rijen = cursor.fetchall()
+        # Zet de database rijen om naar een lijst met nette dictionaries
+        data_lijst = [dict(rij) for rrij in rijen]
+        
+    import json
+    return json.dumps(data_lijst, indent=4)
+
+def importeer_json_naar_database(json_data):
+    """Wist de huidige tabel en voegt alle voertuigen uit het JSON-bestand opnieuw toe."""
+    import json
+    try:
+        voertuigen = json.loads(json_data)
+        with sqlite3.connect(DB_NAME) as conn:
+            cursor = conn.cursor()
+            # Maak de huidige voorraad leeg om dubbele invoer te voorkomen
+            cursor.execute("DELETE FROM voorraad")
+            # Voeg elk voertuig netjes toe
+            for v in voertuigen:
+                cursor.execute("""
+                    INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (v.get("kenteken"), v.get("km_stand"), v.get("inkoopprijs"), v.get("verkoopprijs"), v.get("apk_datum"), v.get("extra_kosten"), v.get("afbeelding"), v.get("naam"), v.get("transmissie"), v.get("status")))
+            conn.commit()
+        return True
+    except Exception as e:
+        st.sidebar.error(f"Import mislukt: {str(e)}")
+        return False
+
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
@@ -197,13 +232,40 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 conn.commit()
             st.rerun()
 
-# --- SIDEBAR NAVIGATIE & DATA CALCULATIE ---
+# --- SIDEBAR NAVIGATIE, DATA CALCULATIE & BACKUP ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
     menu_optie = st.radio(
         "Kies een functie:",
         ["🆕 Nieuwe auto toevoegen", "📊 Actuele Status Dashboard", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "💰 Financieel Overzicht"]
     )
+    
+    st.markdown("---")
+    st.subheader("💾 Backup & Herstel")
+    
+    # 1. EXPORT KNOP
+    try:
+        json_string = exporteer_database_naar_json()
+        st.download_button(
+            label="📤 Exporteer Data (Backup)",
+            data=json_string,
+            file_name=f"autohandel_backup_{datetime.today().strftime('%Y-%m-%d')}.json",
+            mime="application/json",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error("Export mislukt")
+
+    # 2. IMPORT INVOERVELD
+    geimporteerd_bestand = st.file_uploader("📥 Importeer Data (Herstel)", type=["json"])
+    if geimporteerd_bestand is not None:
+        # Lees het geüploade bestand uit
+        json_data = geimporteerd_bestand.getvalue().decode("utf-8")
+        if st.button("🔄 Herstel database nu", type="primary", use_container_width=True):
+            if importeer_json_naar_database(json_data):
+                st.toast("⚡ Database succesvol hersteld!", icon="✅")
+                st.rerun()
+
     st.markdown("---")
     if st.button("🚪 Uitloggen", use_container_width=True):
         st.session_state["ingelogd"] = False
