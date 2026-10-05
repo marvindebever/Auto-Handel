@@ -81,14 +81,11 @@ if not st.session_state["ingelogd"]:
 # --- ROBUUSTE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
-    # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # GEFIXT: Kenteken direct in de URL-path zetten in plaats van via params={...}
-    # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
-    url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    url = f"https://rdw.nl{schoon}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -99,13 +96,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         res = requests.get(url, headers=headers, timeout=8)
         
         if res.status_code == 200:
-            # Controleer of we daadwerkelijk data hebben gekregen
             if "application/json" not in res.headers.get("Content-Type", ""):
                 return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                # GEFIXT: Pakt nu expliciet het eerste voertuig-object [0] uit de lijst
                 voertuig = data[0]  
                 
                 merk = voertuig.get("merk", "").title()
@@ -116,7 +111,6 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_formatted = datetime.today().date()
                 if apk_verval:
                     try: 
-                        # RDW datums converteren van 'YYYYMMDD' naar een Date-object
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                     except: 
                         pass
@@ -153,6 +147,7 @@ def formatteer_datum_nl(datum_str):
 
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
@@ -222,11 +217,13 @@ gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
 # --- INTERFACE STRUCTUUR ---
 if menu_optie == "🆕 Nieuwe auto toevoegen":
     st.title("🆕 Nieuwe auto toevoegen")
-    rdw_col1, rdw_col2 = st.columns(2)
+    
+    # GEFIXT: vertical_alignment toegevoegd zodat het invoerveld en de knop onderaan gelijk uitlijnen
+    rdw_col1, rdw_col2 = st.columns(2, vertical_alignment="bottom")
     rdw_kenteken = rdw_col1.text_input("Snel RDW via kenteken", placeholder="Bijv. 47-LV-JV").upper().replace("-", "")
 
     with rdw_col2:
-        st.markdown('<p style="padding-bottom: 24px;"></p>', unsafe_allow_html=True)
+        # GEFIXT: De oude handmatige st.markdown padding is hier nu weg!
         klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
 
     if klik_rdw and rdw_kenteken:
@@ -286,7 +283,6 @@ elif menu_optie == "📊 Actuele Status Dashboard":
     stat_col2.metric(label="Investeringswaarde", value=f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     stat_col3.metric(label="Verwachte Winst (Voorraad)", value=f"€ {formatteer_euro_nl(totale_verwachte_winst)}")
     stat_col4.metric(label="Gerealiseerde Winst (Verkocht)", value=f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-
 elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     st.title(menu_optie)
     
@@ -311,7 +307,9 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
             verwerkte_autos = [x for x in verwerkte_autos if x["status"] == "Verkocht"]
 
         st.markdown("### 🔍 Filters & Sortering")
-        inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1])
+        
+        # GEFIXT: vertical_alignment toegevoegd voor de filterrij zodat Excel Export knop strak staat
+        inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1], vertical_alignment="bottom")
         zoekterm = inv_col1.text_input("Zoek op kenteken of omschrijving...").upper()
         sorteer_optie = inv_col2.selectbox("Sorteren op", options=["ID Nummer (Oplopend)", "ID Nummer (Aflopend)", "Verwachte Winst (Hoog naar laag)", "Kilometerstand (Laag naar hoog)", "APK Datum"])
         
@@ -328,7 +326,8 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
             towrite = io.BytesIO()
             df.to_excel(towrite, index=False, engine='openpyxl')
             towrite.seek(0)
-            inv_col3.markdown('<p style="padding-top:28px;"></p>', unsafe_allow_html=True)
+            
+            # GEFIXT: De handmatige st.markdown padding-top is hier nu weg!
             inv_col3.download_button(label="📊 Excel Export", data=towrite, file_name="inventaris.xlsx", use_container_width=True)
         except: pass
 
