@@ -56,8 +56,12 @@ def zet_achtergrond(logo_path="logo.png"):
             border: 1px solid rgba(255, 255, 255, 0.2) !important; text-shadow: none !important;
         }}
         div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
+        
+        /* HIER IS DE NIEUWE TRANSPARANTE ACHTERGROND VOOR HET UPLOADVAK TOEGEVOEGD */
+        [data-testid="stFileUploadDropzone"] {{ background-color: transparent !important; }}
         </style>
         """
+
         st.markdown(css, unsafe_allow_html=True)
 
 zet_achtergrond("logo.png")
