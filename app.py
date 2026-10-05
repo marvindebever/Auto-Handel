@@ -516,10 +516,10 @@ elif menu_optie == "📅 Agenda & Notities":
             st.toast("⚡ Notitie succesvol toegevoegd!", icon="✅")
             st.rerun()
 
-        with col_ag2:
+    with col_ag2:
         st.subheader("📋 Overzicht")
         
-        # NIEUW: Interactieve kalender om een specifieke dag te kiezen
+        # Interactieve kalender om een specifieke dag te kiezen
         gekozen_datum = st.date_input("📅 Filter op datum (Kalender):", value=datetime.today().date())
         
         # Filter opties voor de status en de datum
@@ -534,7 +534,7 @@ elif menu_optie == "📅 Agenda & Notities":
             st.session_state["datum_filter_actief"] = False
         
         # Als de gebruiker een nieuwe datum kiest, zetten we de filter automatisch weer aan
-        if st.cache_data.get_balog is not None or "laatste_datum" not in st.session_state or st.session_state["laatste_datum"] != gekozen_datum:
+        if "laatste_datum" not in st.session_state or st.session_state["laatste_datum"] != gekozen_datum:
             st.session_state["laatste_datum"] = gekozen_datum
             st.session_state["datum_filter_actief"] = True
 
