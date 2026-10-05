@@ -58,11 +58,11 @@ def zet_achtergrond(logo_path="logo.png"):
         }}
         div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
         
-        /* EXCLUSIEVE STYLING OM ALLÉÉN HET UPLOADVAK TRANSPARANT TE MAKEN */
+        /* HIER WORDT HET UPLOADVAK GEKLEURD IN HETZELFDE GRIJS ALS DE SIDEBAR */
         [data-testid="stSidebar"] [data-testid="stFileUploadDropzone"], 
         [data-testid="stFileUploadDropzone"] {{
-            background-color: transparent !important;
-            border: 1px dashed rgba(255, 255, 255, 0.2) !important;
+            background-color: #111114 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
         }}
         </style>
         """
