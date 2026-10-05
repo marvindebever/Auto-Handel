@@ -516,29 +516,69 @@ elif menu_optie == "📅 Agenda & Notities":
             st.toast("⚡ Notitie succesvol toegevoegd!", icon="✅")
             st.rerun()
 
-    with col_ag2:
+        with col_ag2:
         st.subheader("📋 Overzicht")
         
-        status_filter = st.radio("Filter op status:", ["Openstaande taken/afspraken", "Voltooide taken", "Alles"], horizontal=True)
+        # NIEUW: Interactieve kalender om een specifieke dag te kiezen
+        gekozen_datum = st.date_input("📅 Filter op datum (Kalender):", value=datetime.today().date())
         
+        # Filter opties voor de status en de datum
+        col_f_status, col_f_date = st.columns([2, 1])
+        status_filter = col_f_status.radio("Filter op status:", ["Openstaande taken/afspraken", "Voltooide taken", "Alles"], horizontal=True)
+        
+        # Sessie-state aanmaken voor de datumfilter-modus
+        if "datum_filter_actief" not in st.session_state:
+            st.session_state["datum_filter_actief"] = True
+            
+        if col_f_date.button("📅 Toon Alle Dagen", use_container_width=True):
+            st.session_state["datum_filter_actief"] = False
+        
+        # Als de gebruiker een nieuwe datum kiest, zetten we de filter automatisch weer aan
+        if st.cache_data.get_balog is not None or "laatste_datum" not in st.session_state or st.session_state["laatste_datum"] != gekozen_datum:
+            st.session_state["laatste_datum"] = gekozen_datum
+            st.session_state["datum_filter_actief"] = True
+
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
+            
+            # Basis query opbouwen
+            query = "SELECT id, datum, titel, notitie, status FROM agenda WHERE 1=1"
+            parameters = []
+            
+            # 1. Filteren op Status
             if status_filter == "Openstaande taken/afspraken":
-                cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda WHERE status='Open' ORDER BY datum ASC")
+                query += " AND status='Open'"
             elif status_filter == "Voltooide taken":
-                cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda WHERE status='Voltooid' ORDER BY datum DESC")
+                query += " AND status='Voltooid'"
+                
+            # 2. Filteren op de gekozen kalenderdatum (indien actief)
+            if st.session_state["datum_filter_actief"]:
+                query += " AND datum=?"
+                parameters.append(str(gekozen_datum))
+                st.caption(f"*Toont resultaten voor:* **{formatteer_datum_nl(str(gekozen_datum))}**")
             else:
-                cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda ORDER BY datum ASC")
+                st.caption("*Toont resultaten voor:* **Alle dagen**")
+                
+            # Sortering bepalen
+            if status_filter == "Voltooide taken":
+                query += " ORDER BY datum DESC"
+            else:
+                query += " ORDER BY datum ASC"
+                
+            cursor.execute(query, parameters)
             notities = cursor.fetchall()
             
         if not notities:
-            st.info("Geen notities of afspraken gevonden.")
+            st.info("Geen notities of afspraken gevonden voor deze selectie.")
         else:
             for item in notities:
                 n_id, n_datum, n_titel, n_notitie, n_status = item
                 status_kleur = "⏳" if n_status == "Open" else "✅"
                 
-                with st.expander(f"{status_kleur} [{formatteer_datum_nl(n_datum)}] - {n_titel}"):
+                # Als we alle dagen tonen, zetten we de datum ook in de titel van de expander
+                expander_titel = f"{status_kleur} [{formatteer_datum_nl(n_datum)}] - {n_titel}"
+                
+                with st.expander(expander_titel):
                     if n_notitie:
                         st.write(f"**Details:**  \n{n_notitie}")
                     else:
