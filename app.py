@@ -155,7 +155,7 @@ def formatteer_datum_nl(datum_str):
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- DATA IMPORT & EXPORT FUNCTIES VOOR BACKUP ---
+# --- DATA IMPORT & EXPORT FUNCTIES VOOR BACKUP (GEFIXT) ---
 def exporteer_database_naar_json():
     """Haalt alle data uit de SQLite database en zet het om naar een downloadbare JSON-tekst."""
     with sqlite3.connect(DB_NAME) as conn:
@@ -163,11 +163,12 @@ def exporteer_database_naar_json():
         cursor = conn.cursor()
         cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad")
         rijen = cursor.fetchall()
-        # Zet de database rijen om naar een lijst met nette dictionaries
-        data_lijst = [dict(rij) for rrij in rijen]
+        # GEFIXT: rrij is veranderd naar rij zodat de variabele correct matcht!
+        data_lijst = [dict(rij) for rij in rijen]
         
     import json
     return json.dumps(data_lijst, indent=4)
+
 
 def importeer_json_naar_database(json_data):
     """Wist de huidige tabel en voegt alle voertuigen uit het JSON-bestand opnieuw toe."""
