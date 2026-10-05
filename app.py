@@ -29,6 +29,7 @@ def init_db():
         conn.commit()
 
 init_db()
+
 # --- STYLING & ACHTERGROND ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
@@ -57,14 +58,18 @@ def zet_achtergrond(logo_path="logo.png"):
         }}
         div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
         
-        /* HIER IS DE NIEUWE TRANSPARANTE ACHTERGROND VOOR HET UPLOADVAK TOEGEVOEGD */
-        [data-testid="stFileUploadDropzone"] {{ background-color: transparent !important; }}
+        /* EXCLUSIEVE STYLING OM ALLÉÉN HET UPLOADVAK TRANSPARANT TE MAKEN */
+        [data-testid="stSidebar"] [data-testid="stFileUploadDropzone"], 
+        [data-testid="stFileUploadDropzone"] {{
+            background-color: transparent !important;
+            border: 1px dashed rgba(255, 255, 255, 0.2) !important;
+        }}
         </style>
         """
-
         st.markdown(css, unsafe_allow_html=True)
 
 zet_achtergrond("logo.png")
+
 
 # --- BEVEILIGING ---
 if "ingelogd" not in st.session_state:
