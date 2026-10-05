@@ -58,32 +58,40 @@ def zet_achtergrond(logo_path="logo.png"):
         }}
         div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
         
-        /* SCHONE INDELING VOOR DE DROPZONE */
-        .stSidebar [data-testid="stFileUploadDropzone"],
-        .stSidebar div[data-testid="stFileUploadDropzone"] > div,
-        .stSidebar .stFileUploader section {{
-            background-color: transparent !important;
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0px !important;
+        /* --- GEWELDIGE EN WATERPAS RIGGING VOOR DE IMPORT KNOP --- */
+        /* Verberg alle standaard kleine letters en de originele kleine uploadknop */
+        .stSidebar [data-testid="stFileUploadDropzone"] button,
+        .stSidebar [data-testid="stFileUploadDropzone"] section div {{
+            display: none !important;
         }}
         
-        /* MAAK DE INTERNAL UPLOAD KNOP VISUEEL SOWIESO GELIJK AAN DE EXPORT KNOP */
-        .stSidebar [data-testid="stFileUploadDropzone"] button {{
-            width: 100% !important;
-            min-width: 100% !important;
-            background-color: transparent !important;
-            color: white !important;
+        /* Vorm het volledige omringende vak om tot een knop die EXACT lijkt op de export-knop */
+        .stSidebar [data-testid="stFileUploadDropzone"] {{
+            background-color: rgba(255, 255, 255, 0.05) !important;
             border: 1px solid rgba(255, 255, 255, 0.2) !important;
             border-radius: 8px !important;
-            padding: 0.5rem 1rem !important;
-            height: auto !important;
-            font-size: 1rem !important;
+            padding: 8px 16px !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            cursor: pointer !important;
+            height: 42px !important; /* Exact dezelfde hoogte als een standaard Streamlit button */
         }}
-        .stSidebar [data-testid="stFileUploadDropzone"] button:hover {{
+        
+        /* Zet onze eigen tekst in het vak die de knop nadoet */
+        .stSidebar [data-testid="stFileUploadDropzone"]::after {{
+            content: "📥 Importeer Data (Herstel)" !important;
+            color: white !important;
+            font-size: 14px !important;
+            font-weight: normal !important;
+        }}
+        
+        /* Voeg een mooie hover-kleur toe die matcht met de rest van de app */
+        .stSidebar [data-testid="stFileUploadDropzone"]:hover {{
             border-color: rgb(255, 75, 75) !important;
-            color: rgb(255, 75, 75) !important;
+            background-color: rgba(255, 75, 75, 0.05) !important;
         }}
         </style>
         """
