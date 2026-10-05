@@ -525,7 +525,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1, col_f2 = st.columns(2)
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-# --- AGENDA & NOTITIES PAGINA INTERFACE (NU MET TIJDEN - GEFIXT) ---
+# --- AGENDA & NOTITIES PAGINA INTERFACE (ONTHOUDT SELECTIE BIJ KLIKKEN) ---
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
@@ -535,7 +535,6 @@ elif menu_optie == "📅 Agenda & Notities":
         st.error("Installeer eerst de kalender-module via je requirements.txt: streamlit-calendar")
         st.stop()
 
-    # GEFIXT: Aantal kolommen expliciet ingesteld naar 2 om de crash op te lossen
     col_ag1, col_ag2 = st.columns(2)
     
     with col_ag1:
@@ -634,47 +633,59 @@ elif menu_optie == "📅 Agenda & Notities":
         
         state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="interactieve_kalender")
         
+        # NIEUW: Sla de geselecteerde afspraak op in de session_state zodra er geklikt wordt
         if state.get("eventClick"):
-            event_data = state["eventClick"]["event"]
+            st.session_state["actieve_agenda_klik"] = state["eventClick"]["event"]
+        
+        # Toon de details zolang er een afspraak in het geheugen staat
+        if "actieve_agenda_klik" in st.session_state:
+            event_data = st.session_state["actieve_agenda_klik"]
             props = event_data.get("extendedProps", {})
-            
-            pure_titel = event_data['title'].replace("[Open] ", "").replace("[Voltooid] ", "")
-            
-            st.markdown("---")
-            st.markdown(f"### 🔍 Geselecteerde Afspraak: **{pure_titel}**")
-            st.write(f"**Datum:** {formatteer_datum_nl(props.get('weergave_datum'))}")
-            
-            # GEFIXT: Tijdweergave logica hersteld zodat uren en minuten netjes tonen
-            if "||" in str(props.get('datum_veld')):
-                s_tijd = props.get('datum_veld').split("||")[0].split("T")[1][:5]
-                e_tijd = props.get('datum_veld').split("||")[1].split("T")[1][:5]
-                st.write(f"**Tijd:** {s_tijd} tot {e_tijd} uur")
-                
-            st.write(f"**Status:** {props.get('status')}")
-            if props.get('notitie'):
-                st.write(f"**Details:** {props.get('notitie')}")
-            
-            btn_col1, btn_col2 = st.columns(2)
             n_id = event_data["id"]
             
-            if props.get("status") == "Open":
-                if btn_col1.button("✅ Vink af als voltooid", key=f"comp_{n_id}", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (n_id,))
-                        conn.commit()
-                    st.rerun()
-            else:
-                if btn_col1.button("🔄 Heropen taak", key=f"reopen_{n_id}", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (n_id,))
-                        conn.commit()
-                    st.rerun()
+            # Controleer of deze afspraak nog wel bestaat in de huidige notities (voor het geval hij net gewist is)
+            if any(str(item[0]) == str(n_id) for item in notities):
+                # Update de actuele status vanuit de database (zodat live wijzigingen direct zichtbaar zijn)
+                actuele_status = [item[4] for item in notities if str(item[0]) == str(n_id)][0]
+                
+                pure_titel = event_data['title'].replace("[Open] ", "").replace("[Voltooid] ", "")
+                
+                st.markdown("---")
+                st.markdown(f"### 🔍 Geselecteerde Afspraak: **{pure_titel}**")
+                st.write(f"**Datum:** {formatteer_datum_nl(props.get('weergave_datum'))}")
+                
+                if "||" in str(props.get('datum_veld')):
+                    s_tijd = props.get('datum_veld').split("||")[0].split("T")[1][:5]
+                    e_tijd = props.get('datum_veld').split("||")[1].split("T")[1][:5]
+                    st.write(f"**Tijd:** {s_tijd} tot {e_tijd} uur")
                     
-            if btn_col2.button("🗑️ Verwijder definitief", key=f"del_ag_{n_id}", use_container_width=True):
-                with sqlite3.connect(DB_NAME) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM agenda WHERE id=?", (n_id,))
-                    conn.commit()
-                st.rerun()
+                st.write(f"**Status:** {actuele_status}")
+                if props.get('notitie'):
+                    st.write(f"**Details:** {props.get('notitie')}")
+                
+                btn_col1, btn_col2 = st.columns(2)
+                
+                if actuele_status == "Open":
+                    if btn_col1.button("✅ Vink af als voltooid", key=f"comp_{n_id}", use_container_width=True):
+                        with sqlite3.connect(DB_NAME) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (n_id,))
+                            conn.commit()
+                        st.rerun()
+                else:
+                    if btn_col1.button("🔄 Heropen taak", key=f"reopen_{n_id}", use_container_width=True):
+                        with sqlite3.connect(DB_NAME) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (n_id,))
+                            conn.commit()
+                        st.rerun()
+                        
+                if btn_col2.button("🗑️ Verwijder definitief", key=f"del_ag_{n_id}", use_container_width=True):
+                    with sqlite3.connect(DB_NAME) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM agenda WHERE id=?", (n_id,))
+                        conn.commit()
+                    # Wis de selectie uit het geheugen aangezien de taak niet meer bestaat
+                    if "actieve_agenda_klik" in st.session_state:
+                        del st.session_state["actieve_agenda_klik"]
+                    st.rerun()
