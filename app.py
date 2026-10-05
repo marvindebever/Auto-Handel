@@ -26,7 +26,19 @@ def init_db():
         bestaande_kolommen = [k[1] for k in cursor.fetchall()]
         if "status" not in bestaande_kolommen:
             cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
+            
+        # ZET DIT ERONDER: Maakt automatisch de agenda-tabel aan
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agenda (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                datum TEXT,
+                titel TEXT,
+                notitie TEXT,
+                status TEXT DEFAULT 'Open'
+            )
+        """)
         conn.commit()
+
 
 init_db()
 
@@ -266,9 +278,9 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 # --- SIDEBAR NAVIGATIE, DATA CALCULATIE & BACKUP ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
-    menu_optie = st.radio(
+        menu_optie = st.radio(
         "Kies een functie:",
-        ["🆕 Nieuwe auto toevoegen", "📊 Actuele Status Dashboard", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "💰 Financieel Overzicht"]
+        ["🆕 Nieuwe auto toevoegen", "📊 Actuele Status Dashboard", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📅 Agenda & Notities", "💰 Financieel Overzicht"]
     )
     
     st.markdown("---")
@@ -478,3 +490,80 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1, col_f2 = st.columns(2)
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
+# --- AGENDA & NOTITIES PAGINA INTERFACE ---
+elif menu_optie == "📅 Agenda & Notities":
+    st.title("📅 Agenda & Notities")
+    
+    col_ag1, col_ag2 = st.columns(2)
+    
+    with col_ag1:
+        st.subheader("📌 Nieuwe notitie / afspraak")
+        with st.form("agenda_form", clear_on_submit=True):
+            ag_datum = st.date_input("Datum", value=datetime.today().date())
+            ag_titel = st.text_input("Titel (bijv. Proefrit Golf, APK Keuring)")
+            ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
+            ag_submit = st.form_submit_button("Opslaan in Agenda")
+            
+        if ag_submit and ag_titel.strip():
+            with sqlite3.connect(DB_NAME) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO agenda (datum, titel, notitie, status)
+                    VALUES (?, ?, ?, 'Open')
+                """, (str(ag_datum), ag_titel.strip(), ag_notitie.strip()))
+                conn.commit()
+            st.toast("⚡ Notitie succesvol toegevoegd!", icon="✅")
+            st.rerun()
+
+    with col_ag2:
+        st.subheader("📋 Overzicht")
+        
+        status_filter = st.radio("Filter op status:", ["Openstaande taken/afspraken", "Voltooide taken", "Alles"], horizontal=True)
+        
+        with sqlite3.connect(DB_NAME) as conn:
+            cursor = conn.cursor()
+            if status_filter == "Openstaande taken/afspraken":
+                cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda WHERE status='Open' ORDER BY datum ASC")
+            elif status_filter == "Voltooide taken":
+                cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda WHERE status='Voltooid' ORDER BY datum DESC")
+            else:
+                cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda ORDER BY datum ASC")
+            notities = cursor.fetchall()
+            
+        if not notities:
+            st.info("Geen notities of afspraken gevonden.")
+        else:
+            for item in notities:
+                n_id, n_datum, n_titel, n_notitie, n_status = item
+                status_kleur = "⏳" if n_status == "Open" else "✅"
+                
+                with st.expander(f"{status_kleur} [{formatteer_datum_nl(n_datum)}] - {n_titel}"):
+                    if n_notitie:
+                        st.write(f"**Details:**  \n{n_notitie}")
+                    else:
+                        st.write("*Geen aanvullende details.*")
+                    
+                    st.markdown("---")
+                    btn_col1, btn_col2 = st.columns(2)
+                    
+                    if n_status == "Open":
+                        if btn_col1.button("✅ Vink af als voltooid", key=f"comp_{n_id}", use_container_width=True):
+                            with sqlite3.connect(DB_NAME) as conn:
+                                cursor = conn.cursor()
+                                cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (n_id,))
+                                conn.commit()
+                            st.rerun()
+                    else:
+                        if btn_col1.button("🔄 Heropen taak", key=f"reopen_{n_id}", use_container_width=True):
+                            with sqlite3.connect(DB_NAME) as conn:
+                                cursor = conn.cursor()
+                                cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (n_id,))
+                                conn.commit()
+                            st.rerun()
+                            
+                    if btn_col2.button("🗑️ Verwijder definitief", key=f"del_ag_{n_id}", use_container_width=True):
+                        with sqlite3.connect(DB_NAME) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM agenda WHERE id=?", (n_id,))
+                            conn.commit()
+                        st.rerun()
