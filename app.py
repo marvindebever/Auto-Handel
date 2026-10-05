@@ -525,34 +525,45 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1, col_f2 = st.columns(2)
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-# --- AGENDA & NOTITIES PAGINA INTERFACE ---
+# --- AGENDA & NOTITIES PAGINA INTERFACE (NU MET TIJDEN) ---
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
-    # Importeer de kalender-bibliotheek (zorg dat je 'pip install streamlit-calendar' hebt gedaan)
     try:
         from streamlit_calendar import calendar
     except ImportError:
         st.error("Installeer eerst de kalender-module via je terminal: pip install streamlit-calendar")
         st.stop()
 
-    col_ag1, col_ag2 = st.columns([1, 2])
+    col_ag1, col_ag2 = st.columns()
     
     with col_ag1:
         st.subheader("📌 Nieuwe notitie / afspraak")
         with st.form("agenda_form", clear_on_submit=True):
             ag_datum = st.date_input("Datum", value=datetime.today().date())
+            
+            # NIEUW: Begin- en eindtijd invoervelden toegevoegd
+            tijd_col1, tijd_col2 = st.columns(2)
+            ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
+            ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
+            
             ag_titel = st.text_input("Titel (bijv. Proefrit Golf, APK Keuring)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
             ag_submit = st.form_submit_button("Opslaan in Agenda")
             
         if ag_submit and ag_titel.strip():
+            # Combineer de datum en tijden tot het juiste kalenderformaat (ISO string)
+            start_volledig = f"{ag_datum}T{ag_tijd_van.strftime('%H:%M:%S')}"
+            end_volledig = f"{ag_datum}T{ag_tijd_tot.strftime('%H:%M:%S')}"
+            
             with sqlite3.connect(DB_NAME) as conn:
                 cursor = conn.cursor()
+                # We slaan de volledige datum+tijd op in de 'datum' kolom en de eindtijd in 'notitie' (als backup/weergave)
+                # Om het simpel te houden bewaren we de eindtijd tijdelijk in een verborgen format of we zetten de ISO strings erin
                 cursor.execute("""
                     INSERT INTO agenda (datum, titel, notitie, status)
                     VALUES (?, ?, ?, 'Open')
-                """, (str(ag_datum), ag_titel.strip(), ag_notitie.strip()))
+                """, (f"{start_volledig}||{end_volledig}", ag_titel.strip(), ag_notitie.strip()))
                 conn.commit()
             st.toast("⚡ Notitie succesvol toegevoegd!", icon="✅")
             st.rerun()
@@ -560,36 +571,44 @@ elif menu_optie == "📅 Agenda & Notities":
     with col_ag2:
         st.subheader("📋 Interactieve Kalender")
         
-        # Haal alle afspraken op uit de database
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
             notities = cursor.fetchall()
         
-        # Zet de databasegegevens om naar het formaat dat de kalender begrijpt
         calendar_events = []
         for item in notities:
-            n_id, n_datum, n_titel, n_notitie, n_status = item
+            n_id, n_datum_veld, n_titel, n_notitie, n_status = item
             
-            # Bepaal de kleur op basis van open of voltooid
+            # Controleren of er een tijd in de database staat (gesplitst door ||)
+            if "||" in str(n_datum_veld):
+                start_tijd, eind_tijd = n_datum_veld.split("||")
+                is_hele_dag = False
+                weergave_datum = start_tijd.split("T")[0]
+            else:
+                start_tijd = n_datum_veld
+                eind_tijd = n_datum_veld
+                is_hele_dag = True
+                weergave_datum = n_datum_veld
+            
             kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
             
             calendar_events.append({
                 "id": str(n_id),
                 "title": f"[{n_status}] {n_titel}",
-                "start": n_datum,
-                "end": n_datum,
+                "start": start_tijd,
+                "end": eind_tijd,
                 "backgroundColor": kleur,
                 "borderColor": kleur,
-                "allDay": True,
+                "allDay": is_hele_dag,
                 "extendedProps": {
                     "notitie": n_notitie,
                     "status": n_status,
-                    "datum": n_datum
+                    "datum_veld": n_datum_veld,
+                    "weergave_datum": weergave_datum
                 }
             })
             
-        # Kalenderinstellingen met toegevoegde week- en dagweergaven
         calendar_options = {
             "headerToolbar": {
                 "left": "prev,next today",
@@ -606,12 +625,10 @@ elif menu_optie == "📅 Agenda & Notities":
                 "day": "dag",
                 "list": "lijst"
             },
-            "slotMinTime": "07:00:00",  # De dagweergave begint netjes om 07:00
-            "slotMaxTime": "21:00:00",  # De dagweergave eindigt om 21:00
+            "slotMinTime": "07:00:00",
+            "slotMaxTime": "21:00:00",
         }
-
         
-        # Toon de interactieve kalender
         custom_css = """
             .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
             .fc .fc-toolbar-title { color: white !important; }
@@ -621,14 +638,23 @@ elif menu_optie == "📅 Agenda & Notities":
         
         state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="interactieve_kalender")
         
-        # Als er op een afspraak in de kalender wordt geklikt, tonen we de details eronder
         if state.get("eventClick"):
             event_data = state["eventClick"]["event"]
             props = event_data.get("extendedProps", {})
             
+            # Haal de pure titel op zonder de '[Open]' of '[Voltooid]' status
+            pure_titel = event_data['title'].replace("[Open] ", "").replace("[Voltooid] ", "")
+            
             st.markdown("---")
-            st.markdown(f"### 🔍 Geselecteerde Afspraak: **{event_data['title'].split('] ')[1]}**")
-            st.write(f"**Datum:** {formatteer_datum_nl(props.get('datum'))}")
+            st.markdown(f"### 🔍 Geselecteerde Afspraak: **{pure_titel}**")
+            st.write(f"**Datum:** {formatteer_datum_nl(props.get('weergave_datum'))}")
+            
+            # Toon netjes de tijden als de afspraak tijden heeft
+            if "||" in str(props.get('datum_veld')):
+                s_tijd = props.get('datum_veld').split("||")[0].split("T")[1][:5]
+                e_tijd = props.get('datum_veld').split("||")[1].split("T")[1][:5]
+                st.write(f"**Tijd:** {s_tijd} tot {e_tijd} uur")
+                
             st.write(f"**Status:** {props.get('status')}")
             if props.get('notitie'):
                 st.write(f"**Details:** {props.get('notitie')}")
