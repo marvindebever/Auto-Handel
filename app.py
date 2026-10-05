@@ -529,7 +529,14 @@ elif menu_optie == "💰 Financieel Overzicht":
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
-    col_ag1, col_ag2 = st.columns(2)
+    # Importeer de kalender-bibliotheek (zorg dat je 'pip install streamlit-calendar' hebt gedaan)
+    try:
+        from streamlit_calendar import calendar
+    except ImportError:
+        st.error("Installeer eerst de kalender-module via je terminal: pip install streamlit-calendar")
+        st.stop()
+
+    col_ag1, col_ag2 = st.columns([1, 2])
     
     with col_ag1:
         st.subheader("📌 Nieuwe notitie / afspraak")
@@ -551,94 +558,92 @@ elif menu_optie == "📅 Agenda & Notities":
             st.rerun()
 
     with col_ag2:
-        st.subheader("📋 Overzicht")
+        st.subheader("📋 Interactieve Kalender")
         
-        # Interactieve kalender om een specifieke dag te kiezen
-        gekozen_datum = st.date_input("📅 Filter op datum (Kalender):", value=datetime.today().date())
-        
-        # Filter opties voor de status en de datum
-        col_f_status, col_f_date = st.columns([2, 1])
-        status_filter = col_f_status.radio("Filter op status:", ["Openstaande taken/afspraken", "Voltooide taken", "Alles"], horizontal=True)
-        
-        # Sessie-state aanmaken voor de datumfilter-modus
-        if "datum_filter_actief" not in st.session_state:
-            st.session_state["datum_filter_actief"] = True
-            
-        if col_f_date.button("📅 Toon Alle Dagen", use_container_width=True):
-            st.session_state["datum_filter_actief"] = False
-        
-        # Als de gebruiker een nieuwe datum kiest, zetten we de filter automatisch weer aan
-        if "laatste_datum" not in st.session_state or st.session_state["laatste_datum"] != gekozen_datum:
-            st.session_state["laatste_datum"] = gekozen_datum
-            st.session_state["datum_filter_actief"] = True
-
+        # Haal alle afspraken op uit de database
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
-            
-            # Basis query opbouwen
-            query = "SELECT id, datum, titel, notitie, status FROM agenda WHERE 1=1"
-            parameters = []
-            
-            # 1. Filteren op Status
-            if status_filter == "Openstaande taken/afspraken":
-                query += " AND status='Open'"
-            elif status_filter == "Voltooide taken":
-                query += " AND status='Voltooid'"
-                
-            # 2. Filteren op de gekozen kalenderdatum (indien actief)
-            if st.session_state["datum_filter_actief"]:
-                query += " AND datum=?"
-                parameters.append(str(gekozen_datum))
-                st.caption(f"*Toont resultaten voor:* **{formatteer_datum_nl(str(gekozen_datum))}**")
-            else:
-                st.caption("*Toont resultaten voor:* **Alle dagen**")
-                
-            # Sortering bepalen
-            if status_filter == "Voltooide taken":
-                query += " ORDER BY datum DESC"
-            else:
-                query += " ORDER BY datum ASC"
-                
-            cursor.execute(query, parameters)
+            cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
             notities = cursor.fetchall()
+        
+        # Zet de databasegegevens om naar het formaat dat de kalender begrijpt
+        calendar_events = []
+        for item in notities:
+            n_id, n_datum, n_titel, n_notitie, n_status = item
             
-        if not notities:
-            st.info("Geen notities of afspraken gevonden voor deze selectie.")
-        else:
-            for item in notities:
-                n_id, n_datum, n_titel, n_notitie, n_status = item
-                status_kleur = "⏳" if n_status == "Open" else "✅"
-                
-                # Als we alle dagen tonen, zetten we de datum ook in de titel van de expander
-                expander_titel = f"{status_kleur} [{formatteer_datum_nl(n_datum)}] - {n_titel}"
-                
-                with st.expander(expander_titel):
-                    if n_notitie:
-                        st.write(f"**Details:**  \n{n_notitie}")
-                    else:
-                        st.write("*Geen aanvullende details.*")
+            # Bepaal de kleur op basis van open of voltooid
+            kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
+            
+            calendar_events.append({
+                "id": str(n_id),
+                "title": f"[{n_status}] {n_titel}",
+                "start": n_datum,
+                "end": n_datum,
+                "backgroundColor": kleur,
+                "borderColor": kleur,
+                "allDay": True,
+                "extendedProps": {
+                    "notitie": n_notitie,
+                    "status": n_status,
+                    "datum": n_datum
+                }
+            })
+            
+        # Kalenderinstellingen voor een strakke maandweergave
+        calendar_options = {
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,listMonth"
+            },
+            "initialView": "dayGridMonth",
+            "locale": "nl",
+            "selectable": True,
+        }
+        
+        # Toon de interactieve kalender
+        custom_css = """
+            .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
+            .fc .fc-toolbar-title { color: white !important; }
+            .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255,255,255,0.2) !important; }
+            .fc .fc-button-primary:hover { background-color: rgb(255, 75, 75) !important; }
+        """
+        
+        state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="interactieve_kalender")
+        
+        # Als er op een afspraak in de kalender wordt geklikt, tonen we de details eronder
+        if state.get("eventClick"):
+            event_data = state["eventClick"]["event"]
+            props = event_data.get("extendedProps", {})
+            
+            st.markdown("---")
+            st.markdown(f"### 🔍 Geselecteerde Afspraak: **{event_data['title'].split('] ')[1]}**")
+            st.write(f"**Datum:** {formatteer_datum_nl(props.get('datum'))}")
+            st.write(f"**Status:** {props.get('status')}")
+            if props.get('notitie'):
+                st.write(f"**Details:** {props.get('notitie')}")
+            
+            btn_col1, btn_col2 = st.columns(2)
+            n_id = event_data["id"]
+            
+            if props.get("status") == "Open":
+                if btn_col1.button("✅ Vink af als voltooid", key=f"comp_{n_id}", use_container_width=True):
+                    with sqlite3.connect(DB_NAME) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (n_id,))
+                        conn.commit()
+                    st.rerun()
+            else:
+                if btn_col1.button("🔄 Heropen taak", key=f"reopen_{n_id}", use_container_width=True):
+                    with sqlite3.connect(DB_NAME) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (n_id,))
+                        conn.commit()
+                    st.rerun()
                     
-                    st.markdown("---")
-                    btn_col1, btn_col2 = st.columns(2)
-                    
-                    if n_status == "Open":
-                        if btn_col1.button("✅ Vink af als voltooid", key=f"comp_{n_id}", use_container_width=True):
-                            with sqlite3.connect(DB_NAME) as conn:
-                                cursor = conn.cursor()
-                                cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (n_id,))
-                                conn.commit()
-                            st.rerun()
-                    else:
-                        if btn_col1.button("🔄 Heropen taak", key=f"reopen_{n_id}", use_container_width=True):
-                            with sqlite3.connect(DB_NAME) as conn:
-                                cursor = conn.cursor()
-                                cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (n_id,))
-                                conn.commit()
-                            st.rerun()
-                            
-                    if btn_col2.button("🗑️ Verwijder definitief", key=f"del_ag_{n_id}", use_container_width=True):
-                        with sqlite3.connect(DB_NAME) as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("DELETE FROM agenda WHERE id=?", (n_id,))
-                            conn.commit()
-                        st.rerun()
+            if btn_col2.button("🗑️ Verwijder definitief", key=f"del_ag_{n_id}", use_container_width=True):
+                with sqlite3.connect(DB_NAME) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM agenda WHERE id=?", (n_id,))
+                    conn.commit()
+                st.rerun()
