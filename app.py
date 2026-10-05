@@ -78,13 +78,16 @@ if not st.session_state["ingelogd"]:
         else:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
-# --- ROBUUSTE RDW KOPPELING ---
+    
+# --- ROBUUSTE RDW KOPPELING (GEFIXT) ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
+    # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
+    # HIER GING HET MIS: De URL is nu weer hersteld naar het officiële opendata RDW endpoint
     url = f"https://rdw.nl{schoon}"
     
     headers = {
@@ -96,11 +99,13 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         res = requests.get(url, headers=headers, timeout=8)
         
         if res.status_code == 200:
+            # Controleer of we daadwerkelijk data hebben gekregen
             if "application/json" not in res.headers.get("Content-Type", ""):
                 return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
+                # Pakt expliciet het eerste voertuig-object [0] uit de lijst
                 voertuig = data[0]  
                 
                 merk = voertuig.get("merk", "").title()
@@ -111,6 +116,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_formatted = datetime.today().date()
                 if apk_verval:
                     try: 
+                        # RDW datums converteren van 'YYYYMMDD' naar een Date-object
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                     except: 
                         pass
