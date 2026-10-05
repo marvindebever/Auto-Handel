@@ -233,13 +233,12 @@ def importeer_json_naar_database(json_data):
         st.sidebar.error(f"Import mislukt: {str(e)}")
         return False
 
-# --- DIALOGS (BEWERKEN POP-UP - GEFIXT VOOR FOTO'S) ---
+# --- DIALOGS (BEWERKEN POP-UP - NU MET WIS-FOTOKNOP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
     try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except: standaard_datum = datetime.today().date()
 
-    # Unieke sleutel voor de file uploader om verversing te overleven
     uploader_key = f"fotos_upload_{actie_id}"
 
     edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
@@ -254,14 +253,24 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_verkoop = st.text_input("Pas Verkoopprijs aan", value=str(verkoop))
     edit_kosten = st.text_input("Pas Extra kosten aan", value=str(kosten))
     
-    # De file_uploader maakt nu gebruik van een vaste key
+    # Toon de status van de huidige afbeeldingen
+    if foto_huidig:
+        st.write("🟢 Deze auto heeft momenteel opgeslagen foto's.")
+        if st.button("🗑️ Wis alle bestaande foto's", type="secondary", use_container_width=True):
+            with sqlite3.connect(DB_NAME) as conn:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE voorraad SET afbeelding='' WHERE id=?", (actie_id,))
+                conn.commit()
+            st.toast("⚡ Bestaande foto's succesvol gewist!", icon="🗑️")
+            st.rerun()
+    else:
+        st.write("⚪ Deze auto heeft momenteel geen foto's.")
+
     edit_fotos = st.file_uploader("Upload nieuwe foto's", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=uploader_key)
     
     if st.button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True):
         if edit_ktk.strip():
             foto_opslaan = foto_huidig
-            
-            # Haal de foto's veilig op uit de session_state via de unieke key
             geuploade_bestanden = st.session_state.get(uploader_key)
             
             if geuploade_bestanden:
@@ -283,7 +292,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, actie_id))
                 conn.commit()
             
-            # Ruim de opgeslagen foto's netjes op na het opslaan
             if uploader_key in st.session_state:
                 del st.session_state[uploader_key]
                 
@@ -482,17 +490,17 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                                     try: 
                                         st.markdown(
                                             f"""
-                                            <div style="width:100%; aspect-ratio: 1/1; overflow:hidden; border-radius:8px; border: 1px solid rgba(255,255,255,0.1); margin-bottom:10px;">
-                                                <img src="data:image/jpeg;base64,{f_data}" style="width:100%; height:100%; object-fit:cover;">
+                                            <div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; background-color: #121214; border: 1px solid rgba(255,255,255,0.1); margin-bottom:10px; display:flex; align-items:center; justify-content:center;">
+                                                <img src="data:image/jpeg;base64,{f_data}" style="max-width:100%; max-height:100%; object-fit:contain;">
                                             </div>
                                             """, 
                                             unsafe_allow_html=True
                                         )
                                     except: 
                                         st.error("Fout foto")
+                        else: 
+                            st.info("Geen afbeelding beschikbaar.")
 
-
-                        else: st.info("Geen afbeelding beschikbaar.")
                     with c2:
                         st.write(f"**Kilometerstand:** {auto['km_stand']:,} km".replace(",", "."))
                         st.write(f"**Transmissie:** {auto['transmissie']}")
