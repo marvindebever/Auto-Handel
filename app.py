@@ -58,7 +58,7 @@ def zet_achtergrond(logo_path="logo.png"):
         }}
         div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
         
-        /* ULTIEME PUSH OM DE KLEUR VAN HET UPLOADVAK IN DE SIDEBAR AAN TE PASSEN EN DE RAND TE VERWIJDEREN */
+        /* SCHONE INDELING VOOR DE DROPZONE */
         .stSidebar [data-testid="stFileUploadDropzone"],
         .stSidebar div[data-testid="stFileUploadDropzone"] > div,
         .stSidebar .stFileUploader section {{
@@ -66,7 +66,24 @@ def zet_achtergrond(logo_path="logo.png"):
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            padding: 10px 0px !important;
+            padding: 0px !important;
+        }}
+        
+        /* MAAK DE INTERNAL UPLOAD KNOP VISUEEL SOWIESO GELIJK AAN DE EXPORT KNOP */
+        .stSidebar [data-testid="stFileUploadDropzone"] button {{
+            width: 100% !important;
+            min-width: 100% !important;
+            background-color: transparent !important;
+            color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            border-radius: 8px !important;
+            padding: 0.5rem 1rem !important;
+            height: auto !important;
+            font-size: 1rem !important;
+        }}
+        .stSidebar [data-testid="stFileUploadDropzone"] button:hover {{
+            border-color: rgb(255, 75, 75) !important;
+            color: rgb(255, 75, 75) !important;
         }}
         </style>
         """
