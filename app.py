@@ -589,17 +589,27 @@ elif menu_optie == "📅 Agenda & Notities":
                 }
             })
             
-        # Kalenderinstellingen voor een strakke maandweergave
+        # Kalenderinstellingen met toegevoegde week- en dagweergaven
         calendar_options = {
             "headerToolbar": {
                 "left": "prev,next today",
                 "center": "title",
-                "right": "dayGridMonth,listMonth"
+                "right": "dayGridMonth,timeGridWeek,timeGridDay,listMonth"
             },
             "initialView": "dayGridMonth",
             "locale": "nl",
             "selectable": True,
+            "buttonText": {
+                "today": "vandaag",
+                "month": "maand",
+                "week": "week",
+                "day": "dag",
+                "list": "lijst"
+            },
+            "slotMinTime": "07:00:00",  # De dagweergave begint netjes om 07:00
+            "slotMaxTime": "21:00:00",  # De dagweergave eindigt om 21:00
         }
+
         
         # Toon de interactieve kalender
         custom_css = """
