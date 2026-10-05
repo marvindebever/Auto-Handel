@@ -479,8 +479,19 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                             foto_cols = st.columns(min(len(alle_fotos), 3))
                             for idx, f_data in enumerate(alle_fotos):
                                 with foto_cols[idx % min(len(alle_fotos), 3)]:
-                                    try: st.image(base64.b64decode(f_data), use_container_width=True)
-                                    except: st.error("Fout foto")
+                                    try: 
+                                        st.markdown(
+                                            f"""
+                                            <div style="width:100%; aspect-ratio: 1/1; overflow:hidden; border-radius:8px; border: 1px solid rgba(255,255,255,0.1); margin-bottom:10px;">
+                                                <img src="data:image/jpeg;base64,{f_data}" style="width:100%; height:100%; object-fit:cover;">
+                                            </div>
+                                            """, 
+                                            unsafe_allow_html=True
+                                        )
+                                    except: 
+                                        st.error("Fout foto")
+
+
                         else: st.info("Geen afbeelding beschikbaar.")
                     with c2:
                         st.write(f"**Kilometerstand:** {auto['km_stand']:,} km".replace(",", "."))
