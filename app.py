@@ -233,11 +233,14 @@ def importeer_json_naar_database(json_data):
         st.sidebar.error(f"Import mislukt: {str(e)}")
         return False
 
-# --- DIALOGS (BEWERKEN POP-UP) ---
+# --- DIALOGS (BEWERKEN POP-UP - GEFIXT VOOR FOTO'S) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig):
     try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except: standaard_datum = datetime.today().date()
+
+    # Unieke sleutel voor de file uploader om verversing te overleven
+    uploader_key = f"fotos_upload_{actie_id}"
 
     edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
     edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -250,14 +253,20 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_inkoop = st.text_input("Pas Inkoopprijs aan", value=str(inkoop))
     edit_verkoop = st.text_input("Pas Verkoopprijs aan", value=str(verkoop))
     edit_kosten = st.text_input("Pas Extra kosten aan", value=str(kosten))
-    edit_fotos = st.file_uploader("Upload nieuwe foto's", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    
+    # De file_uploader maakt nu gebruik van een vaste key
+    edit_fotos = st.file_uploader("Upload nieuwe foto's", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=uploader_key)
     
     if st.button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True):
         if edit_ktk.strip():
             foto_opslaan = foto_huidig
-            if edit_fotos:
+            
+            # Haal de foto's veilig op uit de session_state via de unieke key
+            geuploade_bestanden = st.session_state.get(uploader_key)
+            
+            if geuploade_bestanden:
                 foto_lijst = []
-                for f in edit_fotos:
+                for f in geuploade_bestanden:
                     img = Image.open(f)
                     img.thumbnail((800, 800))
                     buffer = io.BytesIO()
@@ -273,6 +282,11 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     WHERE id=?
                 """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, actie_id))
                 conn.commit()
+            
+            # Ruim de opgeslagen foto's netjes op na het opslaan
+            if uploader_key in st.session_state:
+                del st.session_state[uploader_key]
+                
             st.rerun()
 
 # --- SIDEBAR NAVIGATIE, DATA CALCULATIE & BACKUP ---
