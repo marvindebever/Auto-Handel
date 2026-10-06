@@ -525,7 +525,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1, col_f2 = st.columns(2)
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-# --- AGENDA & NOTITIES PAGINA INTERFACE (ONTHOUDT SELECTIE BIJ KLIKKEN) ---
+# --- AGENDA & NOTITIES PAGINA INTERFACE (VOLLEDIG MOBIELVRIENDELIJK) ---
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
@@ -535,7 +535,47 @@ elif menu_optie == "📅 Agenda & Notities":
         st.error("Installeer eerst de kalender-module via je requirements.txt: streamlit-calendar")
         st.stop()
 
-    col_ag1, col_ag2 = st.columns(2)
+    # --- NIEUW: EXTRA MOBIELE CSS STYLING VOOR DE KALENDER ---
+    st.markdown("""
+        <style>
+        /* Maak de knoppenbalk van de kalender responsive */
+        .fc .fc-toolbar {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            justify-content: space-between !important;
+        }
+        .fc .fc-toolbar-chunk {
+            display: flex !important;
+            align-items: center !important;
+        }
+        /* Zorg dat de titel niet door knoppen heen loopt */
+        .fc .fc-toolbar-title {
+            font-size: 1.15rem !important;
+            white-space: nowrap !important;
+        }
+        /* Knoppen compacter maken voor mobiele vingers */
+        .fc .fc-button {
+            padding: 4px 8px !important;
+            font-size: 0.85rem !important;
+        }
+        /* Zorg dat de kalenderteksten scherp en leesbaar blijven */
+        .fc .fc-daygrid-day-number {
+            font-size: 0.9rem !important;
+            font-weight: bold !important;
+        }
+        /* Zorg dat de events goed passen */
+        .fc-daygrid-event {
+            font-size: 0.75rem !important;
+            padding: 2px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # GEFIXT: Gebruik geen st.columns() zonder gewicht, en zorg dat het op mobiel onder elkaar klapt
+    # Door de layout op 'large' te zetten, schalen kolommen beter mee op mobiel
+    col_ag1, col_ag2 = st.columns([1, 1])
     
     with col_ag1:
         st.subheader("📌 Nieuwe notitie / afspraak")
@@ -570,7 +610,7 @@ elif menu_optie == "📅 Agenda & Notities":
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
-            notities = cursor.fetchall()
+            notities = conn.cursor().execute("SELECT id, datum, titel, notitie, status FROM agenda").fetchall()
         
         calendar_events = []
         for item in notities:
@@ -606,13 +646,15 @@ elif menu_optie == "📅 Agenda & Notities":
             
         calendar_options = {
             "headerToolbar": {
-                "left": "prev,next today",
+                "left": "prev,next",
                 "center": "title",
-                "right": "dayGridMonth,timeGridWeek,timeGridDay,listMonth"
+                "right": "dayGridMonth,timeGridWeek,timeGridDay"
             },
             "initialView": "dayGridMonth",
             "locale": "nl",
             "selectable": True,
+            "height": "auto",  # NIEUW: Zorgt dat de kalender niet buiten het mobiele scherm valt
+            "contentHeight": 450, # Vaste scherpe hoogte voor mobiele roosters
             "buttonText": {
                 "today": "vandaag",
                 "month": "maand",
@@ -629,25 +671,21 @@ elif menu_optie == "📅 Agenda & Notities":
             .fc .fc-toolbar-title { color: white !important; }
             .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255,255,255,0.2) !important; }
             .fc .fc-button-primary:hover { background-color: rgb(255, 75, 75) !important; }
+            .fc-theme-standard .fc-scrollgrid { border: 1px solid rgba(255,255,255,0.1) !important; }
         """
         
         state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="interactieve_kalender")
         
-        # NIEUW: Sla de geselecteerde afspraak op in de session_state zodra er geklikt wordt
         if state.get("eventClick"):
             st.session_state["actieve_agenda_klik"] = state["eventClick"]["event"]
         
-        # Toon de details zolang er een afspraak in het geheugen staat
         if "actieve_agenda_klik" in st.session_state:
             event_data = st.session_state["actieve_agenda_klik"]
             props = event_data.get("extendedProps", {})
             n_id = event_data["id"]
             
-            # Controleer of deze afspraak nog wel bestaat in de huidige notities (voor het geval hij net gewist is)
             if any(str(item[0]) == str(n_id) for item in notities):
-                # Update de actuele status vanuit de database (zodat live wijzigingen direct zichtbaar zijn)
                 actuele_status = [item[4] for item in notities if str(item[0]) == str(n_id)][0]
-                
                 pure_titel = event_data['title'].replace("[Open] ", "").replace("[Voltooid] ", "")
                 
                 st.markdown("---")
@@ -685,7 +723,6 @@ elif menu_optie == "📅 Agenda & Notities":
                         cursor = conn.cursor()
                         cursor.execute("DELETE FROM agenda WHERE id=?", (n_id,))
                         conn.commit()
-                    # Wis de selectie uit het geheugen aangezien de taak niet meer bestaat
                     if "actieve_agenda_klik" in st.session_state:
                         del st.session_state["actieve_agenda_klik"]
                     st.rerun()
