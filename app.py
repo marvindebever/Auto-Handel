@@ -630,7 +630,8 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1, col_f2 = st.columns(2)
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-# --- AGENDA & NOTITIES PAGINA INTERFACE (DIRECTE KLIK POP-UPS) ---
+
+# --- AGENDA & NOTITIES PAGINA INTERFACE (NU MET HELE DAG OPTIE) ---
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
@@ -646,24 +647,35 @@ elif menu_optie == "📅 Agenda & Notities":
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
             st.write(f"**Geselecteerde datum:** {formatteer_datum_nl(gekozen_datum_str)}")
             
+            # NIEUW: Aanvinkoptie voor een hele dag afspraak
+            hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag")
+            
+            # Als 'hele dag' NIET is aangevinkt, tonen we netjes de tijden
             tijd_col1, tijd_col2 = st.columns(2)
-            ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
-            ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
+            if not hele_dag:
+                ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
+                ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
             
             ag_titel = st.text_input("Titel (bijv. Proefrit Golf, APK Keuring)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
             ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", use_container_width=True)
             
         if ag_submit and ag_titel.strip():
-            start_volledig = f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}"
-            end_volledig = f"{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
+            if hele_dag:
+                # Bij een hele dag slaan we alleen de pure datum op zonder tijden
+                opslag_datum = str(gekozen_datum_str)
+            else:
+                # Anders combineren we de datum en gekozen tijden tot een ISO string
+                start_volledig = f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}"
+                end_volledig = f"{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
+                opslag_datum = f"{start_volledig}||{end_volledig}"
             
             with sqlite3.connect(DB_NAME) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     INSERT INTO agenda (datum, titel, notitie, status)
                     VALUES (?, ?, ?, 'Open')
-                """, (f"{start_volledig}||{end_volledig}", ag_titel.strip(), ag_notitie.strip()))
+                """, (opslag_datum, ag_titel.strip(), ag_notitie.strip()))
                 conn.commit()
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
@@ -677,12 +689,13 @@ elif menu_optie == "📅 Agenda & Notities":
         weergave_datum = start_veld.split("T")[0] if "T" in start_veld else start_veld
         st.write(f"📅 **Datum:** {formatteer_datum_nl(weergave_datum)}")
         
-        if "T" in start_veld and "T" in eind_veld:
+        # Geoptimaliseerde tijdweergave die snapt of het een hele dag is of niet
+        if "T" in str(start_veld) and "T" in str(eind_veld):
             s_tijd = start_veld.split("T")[1][:5]
             e_tijd = eind_veld.split("T")[1][:5]
             st.write(f"⏱️ **Tijd:** {s_tijd} tot {e_tijd} uur")
         else:
-            st.write("📅 **Tijd:** Hele dag")
+            st.write("📅 **Tijd:** Gehele dag")
             
         st.write(f"📊 **Status:** {status_veld}")
         if notitie_veld:
@@ -745,7 +758,7 @@ elif menu_optie == "📅 Agenda & Notities":
         </style>
     """, unsafe_allow_html=True)
 
-    # Databasegegevens ophalen (GEFIXT)
+    # Databasegegevens ophalen
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
@@ -755,6 +768,7 @@ elif menu_optie == "📅 Agenda & Notities":
     for item in notities:
         n_id, n_datum_veld, n_titel, n_notitie, n_status = item
         
+        # Bepalen of een afspraak specifiek met || is opgeslagen (met tijden) of als 'Hele dag'
         if "||" in str(n_datum_veld):
             start_tijd, eind_tijd = n_datum_veld.split("||")
             is_hele_dag = False
@@ -789,7 +803,6 @@ elif menu_optie == "📅 Agenda & Notities":
         },
         "initialView": "dayGridMonth",
         "locale": "nl",
-        # GEFIXT: selectable staat uit, zodat slepen niet meer nodig is.
         "selectable": False,
         "height": "auto",
         "contentHeight": 550,
@@ -813,7 +826,6 @@ elif menu_optie == "📅 Agenda & Notities":
     state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="agenda_volledige_breedte")
     
     # --- INTERACTIE LOGICA ---
-    # 1. Klikken op een bestaande afspraak
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
         props = ev.get("extendedProps", {})
@@ -826,7 +838,6 @@ elif menu_optie == "📅 Agenda & Notities":
             status_veld=props.get("status")
         )
         
-    # 2. GEFIXT: Reageert nu direct op een simpele klik op een dag (dateClick)
     elif state.get("dateClick"):
         puur_datum = state["dateClick"]["date"].split("T")[0]
         nieuwe_afspraak_dialog(puur_datum)
