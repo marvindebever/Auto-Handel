@@ -197,41 +197,75 @@ def formatteer_datum_nl(datum_str):
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- DATA IMPORT & EXPORT FUNCTIES VOOR BACKUP (GEFIXT) ---
+# --- DATA IMPORT & EXPORT FUNCTIES VOOR BACKUP (INCLUSIEF AGENDA) ---
 def exporteer_database_naar_json():
-    """Haalt alle data uit de SQLite database en zet het om naar een downloadbare JSON-tekst."""
+    """Haalt alle data uit zowel de voorraad- als agenda-tabel en zet het om naar één JSON-tekst."""
     with sqlite3.connect(DB_NAME) as conn:
-        conn.row_factory = sqlite3.Row  # Zorgt ervoor dat we kolommen op naam kunnen uitlezen
+        conn.row_factory = sqlite3.Row  
         cursor = conn.cursor()
+        
+        # 1. Haal alle voertuigen op
         cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad")
-        rijen = cursor.fetchall()
-        # GEFIXT: rrij is veranderd naar rij zodat de variabele correct matcht!
-        data_lijst = [dict(rij) for rij in rijen]
+        voorraad_rijen = cursor.fetchall()
+        voorraad_data = [dict(rij) for rij in voorraad_rijen]
+        
+        # 2. Haal alle agenda-afspraken op
+        cursor.execute("SELECT datum, titel, notitie, status FROM agenda")
+        agenda_rijen = cursor.fetchall()
+        agenda_data = [dict(rij) for rij in agenda_rijen]
+        
+        # Combineer beide tabellen in één hoofd-pakket
+        volledige_backup = {
+            "voorraad": voorraad_data,
+            "agenda": agenda_data
+        }
         
     import json
-    return json.dumps(data_lijst, indent=4)
+    return json.dumps(volledige_backup, indent=4)
 
 
 def importeer_json_naar_database(json_data):
-    """Wist de huidige tabel en voegt alle voertuigen uit het JSON-bestand opnieuw toe."""
+    """Wist de huidige tabellen en herstelt zowel de voorraad als de agenda volledig."""
     import json
     try:
-        voertuigen = json.loads(json_data)
+        backup_pakket = json.loads(json_data)
+        
+        # Controleer of dit een nieuwe gecombineerde backup is of een oude (alleen voorraad)
+        if isinstance(backup_pakket, dict) and ("voorraad" in backup_pakket or "agenda" in backup_pakket):
+            voertuigen = backup_pakket.get("voorraad", [])
+            afspraken = backup_pakket.get("agenda", [])
+        else:
+            # Dit zorgt ervoor dat oude backups (die alleen een lijst met auto's bevatten) ook nog gewoon werken!
+            voertuigen = backup_pakket
+            afspraken = []
+            
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
-            # Maak de huidige voorraad leeg om dubbele invoer te voorkomen
+            
+            # Wist huidige data om dubbele gegevens te voorkomen
             cursor.execute("DELETE FROM voorraad")
-            # Voeg elk voertuig netjes toe
+            cursor.execute("DELETE FROM agenda")
+            
+            # Voeg alle voertuigen opnieuw toe
             for v in voertuigen:
                 cursor.execute("""
                     INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (v.get("kenteken"), v.get("km_stand"), v.get("inkoopprijs"), v.get("verkoopprijs"), v.get("apk_datum"), v.get("extra_kosten"), v.get("afbeelding"), v.get("naam"), v.get("transmissie"), v.get("status")))
+            
+            # Voeg alle agenda-afspraken opnieuw toe
+            for a in afspraken:
+                cursor.execute("""
+                    INSERT INTO agenda (datum, titel, notitie, status)
+                    VALUES (?, ?, ?, ?)
+                """, (a.get("datum"), a.get("titel"), a.get("notitie"), a.get("status", "Open")))
+                
             conn.commit()
         return True
     except Exception as e:
         st.sidebar.error(f"Import mislukt: {str(e)}")
         return False
+
 
 # --- DIALOGS (BEWERKEN POP-UP - NU MET WIS-FOTOKNOP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
