@@ -296,7 +296,8 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 del st.session_state[uploader_key]
                 
             st.rerun()
-# --- DIALOG & PDF GENERATOR VOOR KOOPOVEREENKOMST ---
+
+# --- DIALOG & PDF GENERATOR VOOR KOOPOVEREENKOMST (GEFIXT VOOR EUROTEKEN) ---
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
 def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     st.write("Vul de gegevens van de koper in om de officiële koopovereenkomst te genereren.")
@@ -305,7 +306,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     koper_adres = st.text_input("Adres & Huisnummer Koper")
     koper_postcode = st.text_input("Postcode & Woonplaats Koper")
     koper_tel = st.text_input("Telefoonnummer Koper")
-    koper_legit = st.text_input("Legitimatie Koper (Type/Nr)")
+    koper_legit = st.text_input("Legitimatie Koper (Type/Nr)", placeholder="Bijv. Rijbewijs / Nummer")
     
     st.markdown("---")
     st.write("**Financiële Afspraken:**")
@@ -324,6 +325,8 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         html_content = f"""
         <html>
         <head>
+            <!-- AFDWINGEN UTF-8 CODERING VOOR CORRECTE WEERGAVE VAN HET EUROTEKEN EN ACCENTEN -->
+            <meta charset="UTF-8">
             <style>
                 body {{ font-family: Arial, sans-serif; color: #000; padding: 20px; line-height: 1.4; }}
                 h2 {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; }}
@@ -351,8 +354,8 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
                 <tr><td class="label">Naam:</td><td>{koper_naam}</td></tr>
                 <tr><td class="label">Adres & Huisnummer:</td><td>{koper_adres}</td></tr>
                 <tr><td class="label">Postcode & Woonplaats:</td><td>{koper_postcode}</td></tr>
-                <tr><td class="label">Telefoonnummer:</td><td>{koper_tel}</td></tr>
-                <tr><td class="label">Legitimatie (Type/Nr):</td><td>{koper_legit}</td></tr>
+                <tr><td class="label">Telefoonnummer:</td><td>{koper_tel if koper_tel else '-'}</td></tr>
+                <tr><td class="label">Legitimatie (Type/Nr):</td><td>{koper_legit if koper_legit else '-'}</td></tr>
             </table>
 
             <h3>3. Voertuiggegevens</h3>
@@ -363,22 +366,22 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
 
             <h3>4. Financiële Afspraken & Levering</h3>
             <table>
-                <tr><td class="label">Overeengekomen prijs:</td><td>€ {formatteer_euro_nl(verkoop)}</td></tr>
+                <tr><td class="label">Overeengekomen prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td></tr>
                 <tr><td class="label">Wijze van betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp;&nbsp; {bank_vink} Per bankoverschrijving</td></tr>
                 <tr><td class="label">Datum van levering:</td><td>{huidige_datum}</td></tr>
             </table>
-            <p style="font-size: 11px;">De verkoper verklaart dat het voertuig vrij is van beslagen, boetes en/of andere financiële claims tot het hierboven genoếmde tijdstip van overdracht. Eventuele boetes of belastingen na dit tijdstip komen volledig voor rekening van de koper.</p>
+            <p style="font-size: 11px;">De verkoper verklaart dat het voertuig vrij is van beslagen, boetes en/of andere financiële claims tot het hierboven genoemde tijdstip van overdracht. Eventuele boetes of belastingen na dit tijdstip komen volledig voor rekening van de koper.</p>
 
             <h3>5. Bijzondere Afspraken & Garantie-uitsluiting</h3>
             <p style="font-size: 11px;"><strong>Garantieclausule (Gekocht in de huidige staat):</strong><br>
             Het voertuig wordt door de koper gekocht in de staat waarin het zich op de datum van verkoop bevindt ('as is, where is'). Beide partijen verklaren nadrukkelijk dat er sprake is van een particuliere transactie. De verkoper verleent geen enkele vorm van garantie op mechanische, elektrische of optische onderdelen, noch op verborgen gebreken, tenzij hieronder schriftelijk anders is overengekomen.</p>
-            <p style="font-size: 11px;"><strong>Aanvullende afspraken:</strong> {bijzondere_afspraken if bijzondere_afspraken else 'Geen.'}</p>
+            <p style="font-size: 11px;"><strong>Aanvullende afspraken:</strong> {bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</p>
 
             <h3>6. Handtekening voor Akkoord</h3>
             <table style="margin-top: 20px;">
                 <tr>
-                    <td style="border: 1px solid #000; width: 50%; height: 80px;">Handtekening Verkoper:<br><br><br>Datum: {huidige_datum}</td>
-                    <td style="border: 1px solid #000; width: 50%; height: 80px;">Handtekening Koper:<br><br><br>Datum: {huidige_datum}</td>
+                    <td style="border: 1px solid #000; width: 50%; height: 80px; padding: 5px;">Handtekening Verkoper:<br><br><br>Datum: {huidige_datum}</td>
+                    <td style="border: 1px solid #000; width: 50%; height: 80px; padding: 5px;">Handtekening Koper:<br><br><br>Datum: {huidige_datum}</td>
                 </tr>
             </table>
             
@@ -389,10 +392,11 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         </html>
         """
         
-        b64 = base64.b64encode(html_content.encode()).decode()
+        b64 = base64.b64encode(html_content.encode('utf-8')).decode()
         filename = f"Koopovereenkomst_{kenteken}_{huidige_datum}.html"
         href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst (Open & Print)</a>'
         st.markdown(href, unsafe_allow_html=True)
+
 
 # --- SIDEBAR NAVIGATIE, DATA CALCULATIE & BACKUP ---
 with st.sidebar:
