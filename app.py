@@ -444,8 +444,9 @@ with st.sidebar:
     st.title("⚙️ Navigatie")
     menu_optie = st.radio(
         "Kies een functie:",
-        ["🆕 Nieuwe auto toevoegen", "📊 Actuele Status Dashboard", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📅 Agenda & Notities", "💰 Financieel Overzicht"]
+        ["🆕 Nieuwe auto toevoegen", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📅 Agenda & Notities", "📊 Actuele Status Dashboard", "💰 Financieel Overzicht"]
     )
+
 
     
     st.markdown("---")
