@@ -631,7 +631,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
 
-# --- AGENDA & NOTITIES PAGINA INTERFACE (NU MET HELE DAG OPTIE) ---
+# --- AGENDA & NOTITIES PAGINA INTERFACE (DEEL 1: POP-UPS) ---
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
@@ -647,10 +647,8 @@ elif menu_optie == "📅 Agenda & Notities":
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
             st.write(f"**Geselecteerde datum:** {formatteer_datum_nl(gekozen_datum_str)}")
             
-            # NIEUW: Aanvinkoptie voor een hele dag afspraak
             hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag")
             
-            # Als 'hele dag' NIET is aangevinkt, tonen we netjes de tijden
             tijd_col1, tijd_col2 = st.columns(2)
             if not hele_dag:
                 ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
@@ -662,10 +660,8 @@ elif menu_optie == "📅 Agenda & Notities":
             
         if ag_submit and ag_titel.strip():
             if hele_dag:
-                # Bij een hele dag slaan we alleen de pure datum op zonder tijden
                 opslag_datum = str(gekozen_datum_str)
             else:
-                # Anders combineren we de datum en gekozen tijden tot een ISO string
                 start_volledig = f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}"
                 end_volledig = f"{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
                 opslag_datum = f"{start_volledig}||{end_volledig}"
@@ -680,52 +676,107 @@ elif menu_optie == "📅 Agenda & Notities":
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
 
-    # --- POP-UP 2: AFSPRAAK BEKIJKEN & BEWERKEN ---
-    @st.dialog("🔍 Afspraak Details")
+    # --- POP-UP 2: AFSPRAAK BEKIJKEN, BEWERKEN & VERWIJDEREN ---
+    @st.dialog("🔍 Afspraak Beheren")
     def bekijk_afspraak_dialog(event_id, titel_ruw, start_veld, eind_veld, notitie_veld, status_veld):
-        pure_titel = titel_ruw.replace("[Open] ", "").replace("[Voltooid] ", "")
-        st.markdown(f"### **{pure_titel}**")
-        
-        weergave_datum = start_veld.split("T")[0] if "T" in start_veld else start_veld
-        st.write(f"📅 **Datum:** {formatteer_datum_nl(weergave_datum)}")
-        
-        # Geoptimaliseerde tijdweergave die snapt of het een hele dag is of niet
-        if "T" in str(start_veld) and "T" in str(eind_veld):
-            s_tijd = start_veld.split("T")[1][:5]
-            e_tijd = eind_veld.split("T")[1][:5]
-            st.write(f"⏱️ **Tijd:** {s_tijd} tot {e_tijd} uur")
-        else:
-            st.write("📅 **Tijd:** Gehele dag")
-            
-        st.write(f"📊 **Status:** {status_veld}")
-        if notitie_veld:
-            st.write(f"📝 **Opmerkingen:**  \n{notitie_veld}")
-            
-        st.markdown("---")
-        btn_col1, btn_col2 = st.columns(2)
-        
-        if status_veld == "Open":
-            if btn_col1.button("✅ Vink af als voltooid", key=f"dialog_done_{event_id}", type="primary", use_container_width=True):
-                with sqlite3.connect(DB_NAME) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (event_id,))
-                    conn.commit()
-                st.rerun()
-        else:
-            if btn_col1.button("🔄 Heropen afspraak", key=f"dialog_re_{event_id}", use_container_width=True):
-                with sqlite3.connect(DB_NAME) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (event_id,))
-                    conn.commit()
-                st.rerun()
-                
-        if btn_col2.button("🗑️ Verwijder definitief", key=f"dialog_del_{event_id}", type="secondary", use_container_width=True):
-            with sqlite3.connect(DB_NAME) as conn:
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM agenda WHERE id=?", (event_id,))
-                conn.commit()
-            st.rerun()
+        bewerk_modus_key = f"edit_mode_{event_id}"
+        if bewerk_modus_key not in st.session_state:
+            st.session_state[bewerk_modus_key] = False
 
+        is_voorheen_hele_dag = "T" not in str(start_veld)
+        pure_datum_huidig = start_veld.split("T")[0] if "T" in str(start_veld) else start_veld
+        
+        try: standaard_datum = datetime.strptime(pure_datum_huidig, "%Y-%m-%d").date()
+        except: standaard_datum = datetime.today().date()
+
+        try:
+            huidig_van = datetime.strptime(start_veld.split("T")[1][:5], "%H:%M").time() if "T" in str(start_veld) else datetime.strptime("10:00", "%H:%M").time()
+            huidig_tot = datetime.strptime(eind_veld.split("T")[1][:5], "%H:%M").time() if "T" in str(eind_veld) else datetime.strptime("11:00", "%H:%M").time()
+        except:
+            huidig_van = datetime.strptime("10:00", "%H:%M").time()
+            huidig_tot = datetime.strptime("11:00", "%H:%M").time()
+
+        pure_titel_origineel = titel_ruw.replace("[Open] ", "").replace("[Voltooid] ", "")
+
+        if not st.session_state[bewerk_modus_key]:
+            st.markdown(f"### **{pure_titel_origineel}**")
+            st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_huidig)}")
+            
+            if not is_voorheen_hele_dag:
+                st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
+            else:
+                st.write("📅 **Tijd:** Gehele dag")
+                
+            st.write(f"📊 **Status:** {status_veld}")
+            if notitie_veld:
+                st.write(f"📝 **Opmerkingen:**  \n{notitie_veld}")
+                
+            st.markdown("---")
+            col_b1, col_b2, col_b3 = st.columns(3)
+            
+            if status_veld == "Open":
+                if col_b1.button("✅ Voltooid", key=f"btn_done_{event_id}", type="primary", use_container_width=True):
+                    with sqlite3.connect(DB_NAME) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (event_id,))
+                        conn.commit()
+                    st.rerun()
+            else:
+                if col_b1.button("🔄 Heropenen", key=f"btn_re_{event_id}", use_container_width=True):
+                    with sqlite3.connect(DB_NAME) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (event_id,))
+                        conn.commit()
+                    st.rerun()
+            
+            if col_b2.button("✏️ Bewerken", key=f"btn_edit_act_{event_id}", use_container_width=True):
+                st.session_state[bewerk_modus_key] = True
+                st.rerun()
+                    
+            if col_b3.button("🗑️ Wissen", key=f"btn_del_{event_id}", type="secondary", use_container_width=True):
+                with sqlite3.connect(DB_NAME) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM agenda WHERE id=?", (event_id,))
+                    conn.commit()
+                st.rerun()
+
+        else:
+            st.markdown("### ✏️ Afspraak Wijzigen")
+            edit_datum = st.date_input("Pas Datum aan", value=standaard_datum, key=f"edit_dat_{event_id}")
+            edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag", value=is_voorheen_hele_dag, key=f"edit_hd_{event_id}")
+            
+            tijd_edit_col1, tijd_edit_col2 = st.columns(2)
+            if not edit_hele_dag:
+                edit_tijd_van = tijd_edit_col1.time_input("Pas Begintijd aan", value=huidig_van, key=f"edit_v_{event_id}")
+                edit_tijd_tot = tijd_edit_col2.time_input("Pas Eindtijd aan", value=huidig_tot, key=f"edit_t_{event_id}")
+            
+            edit_titel = st.text_input("Pas Titel aan", value=pure_titel_origineel, key=f"edit_ttl_{event_id}")
+            edit_notitie = st.text_area("Pas Aanvullende informatie aan", value=notitie_veld if notitie_veld else "", key=f"edit_not_{event_id}")
+            
+            st.markdown("---")
+            col_save1, col_save2 = st.columns(2)
+            
+            if col_save1.button("💾 Wijzigingen Opslaan", type="primary", use_container_width=True, key=f"btn_save_{event_id}"):
+                if edit_titel.strip():
+                    if edit_hele_dag:
+                        nieuw_datum_format = str(edit_datum)
+                    else:
+                        nieuw_datum_format = f"{edit_datum}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum}T{edit_tijd_tot.strftime('%H:%M:%S')}"
+                    
+                    with sqlite3.connect(DB_NAME) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE agenda 
+                            SET datum=?, titel=?, notitie=? 
+                            WHERE id=?
+                        """, (nieuw_datum_format, edit_titel.strip(), edit_notitie.strip(), event_id))
+                        conn.commit()
+                    st.session_state[bewerk_modus_key] = False
+                    st.rerun()
+                    
+            if col_save2.button("❌ Annuleren", use_container_width=True, key=f"btn_can_{event_id}"):
+                st.session_state[bewerk_modus_key] = False
+                st.rerun()
     # --- KALENDER EXTRA CSS STYLING VOOR MOBIEL ---
     st.markdown("""
         <style>
@@ -768,7 +819,6 @@ elif menu_optie == "📅 Agenda & Notities":
     for item in notities:
         n_id, n_datum_veld, n_titel, n_notitie, n_status = item
         
-        # Bepalen of een afspraak specifiek met || is opgeslagen (met tijden) of als 'Hele dag'
         if "||" in str(n_datum_veld):
             start_tijd, eind_tijd = n_datum_veld.split("||")
             is_hele_dag = False
