@@ -484,6 +484,14 @@ autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
 totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
 totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
 gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
+
+# NIEUW: Startbudget instellen (standaard € 10.000)
+if "startbudget" not in st.session_state:
+    st.session_state["startbudget"] = 10000.0
+
+# Berekening van het actuele liquide budget in kas
+actueel_vrij_budget = st.session_state["startbudget"] - totale_voorraadwaarde + gerealiseerde_winst
+
 # --- INTERFACE STRUCTUUR ---
 if menu_optie == "🆕 Nieuwe auto toevoegen":
     st.title("🆕 Nieuwe auto toevoegen")
@@ -547,12 +555,21 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
 elif menu_optie == "📊 Actuele Status Dashboard":
     st.title("📊 Actuele Status Dashboard")
-    st.subheader("Financiële kerncijfers van de huidige voorraad")
+    st.subheader("Financiële kerncijfers & Budgetbeheer")
+    
+    # We tonen nu 4 metrics waaronder je actuele kasgeld
     stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
     stat_col1.metric(label="Huidige Voorraad", value=f"{len(autos_in_voorraad)} stuks")
-    stat_col2.metric(label="Investeringswaarde", value=f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
-    stat_col3.metric(label="Verwachte Winst (Voorraad)", value=f"€ {formatteer_euro_nl(totale_verwachte_winst)}")
-    stat_col4.metric(label="Gerealiseerde Winst (Verkocht)", value=f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
+    stat_col2.metric(label="Investeringswaarde (Vast in auto's)", value=f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
+    
+    # Visuele waarschuwing als je budget bijna op is
+    if actueel_vrij_budget < 0:
+        stat_col3.metric(label="🚨 Besteedbaar Budget (KAS)", value=f"€ {formatteer_euro_nl(actueel_vrij_budget)}", delta="TE WEINIG BUDGET!", delta_color="inverse")
+    else:
+        stat_col3.metric(label="💰 Besteedbaar Budget (KAS)", value=f"€ {formatteer_euro_nl(actueel_vrij_budget)}")
+        
+    stat_col4.metric(label="Gerealiseerde Winst (Netto)", value=f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
+
 elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     st.title(menu_optie)
     
@@ -660,10 +677,31 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                             genereer_contract_dialog(auto["id"], auto["naam"], auto["kenteken"], auto["km_stand"], auto["verkoopprijs"], auto["apk_datum"])
 
 elif menu_optie == "💰 Financieel Overzicht":
-    st.title("💰 Financieel Overzicht")
-    col_f1, col_f2 = st.columns(2)
-    col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
-    col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
+    st.title("💰 Financieel Overzicht & Budget")
+    
+    st.markdown("### ⚙️ Budget Instellingen")
+    # Invoerveld om het budget live aan te passen
+    nieuw_budget = st.number_input("Stel je totale startbudget / werkkapitaal in (€):", value=float(st.session_state["startbudget"]), step=500.0)
+    if nieuw_budget != st.session_state["startbudget"]:
+        st.session_state["startbudget"] = nieuw_budget
+        st.rerun()
+        
+    st.markdown("---")
+    st.markdown("### 📊 Balans Overzicht")
+    
+    col_f1, col_f2, col_f3 = st.columns(3)
+    col_f1.metric("Totale Startkapitaal", f"€ {formatteer_euro_nl(st.session_state['startbudget'])}")
+    col_f2.metric("Vastgelegd in Voorraad", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
+    
+    if actueel_vrij_budget < 0:
+        col_f3.metric("Besteedbaar Cashgeld", f"€ {formatteer_euro_nl(actueel_vrij_budget)}", "Negatieve kasstroom!", delta_color="inverse")
+    else:
+        col_f3.metric("Besteedbaar Cashgeld (Ruimte voor inkoop)", f"€ {formatteer_euro_nl(actueel_vrij_budget)}")
+
+    st.markdown("---")
+    st.markdown("### 📈 Rendement")
+    st.metric("Gerealiseerde Netto Winst (Verkochte auto's)", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
+
 
 # --- AGENDA & NOTITIES PAGINA INTERFACE (DEEL 1: POP-UPS) ---
 elif menu_optie == "📅 Agenda & Notities":
