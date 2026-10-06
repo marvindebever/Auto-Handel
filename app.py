@@ -924,8 +924,30 @@ elif menu_optie == "📅 Agenda & Notities":
             status_veld=props.get("status")
         )
         
-    # 2. Reageert op een simpele klik op een dag (dateClick)
+    # 2. GEFIXT: Reageert op een simpele klik op een dag (dateClick) met waterdichte datum-correctie
     elif state.get("dateClick"):
-        # GEFIXT: We pakken nu gegarandeerd de pure datum (YYYY-MM-DD) zonder dat uren weglopen
-        puur_datum = state["dateClick"]["date"].split("T")[0]
+        ruwe_datum_str = state["dateClick"]["date"]  # Bijv. "2026-10-23T00:00:00.000Z" of "2026-10-22T22:00:00..."
+        
+        try:
+            # Als er een tijdstip bij zit, halen we de datum en tijd los van elkaar op
+            if "T" in ruwe_datum_str:
+                datum_deel, tijd_deel = ruwe_datum_str.split("T")
+                # We maken er een echt datetime-object van om mee te kunnen rekenen
+                pure_dt = datetime.strptime(datum_deel, "%Y-%m-%d")
+                
+                # Als de binnengekomen UTC-tijd in de avond ligt (bijv. 22:00 of 23:00 uur),
+                # dan betekent dit dat FullCalendar de VOLGENDE dag bedoelt in onze lokale tijd.
+                uurs_check = int(tijd_deel.split(":")[0])
+                if uurs_check >= 20:
+                    # We tellen er veilig 1 dag bij op om de lokale datum te herstellen
+                    from datetime import timedelta
+                    pure_dt = pure_dt + timedelta(days=1)
+                
+                puur_datum = pure_dt.strftime("%Y-%m-%d")
+            else:
+                puur_datum = ruwe_datum_str.split("Z")[0]
+        except:
+            # Veiligheidsklep: mocht de omzetting haperen, pak dan de standaard split
+            puur_datum = ruwe_datum_str.split("T")[0]
+            
         nieuwe_afspraak_dialog(puur_datum)
