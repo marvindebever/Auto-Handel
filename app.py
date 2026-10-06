@@ -525,7 +525,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1, col_f2 = st.columns(2)
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-# --- AGENDA & NOTITIES PAGINA INTERFACE (VOLLEDIGE KALENDER MET DIALOG POP-UPS) ---
+# --- AGENDA & NOTITIES PAGINA INTERFACE (DIRECTE KLIK POP-UPS) ---
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
@@ -569,7 +569,6 @@ elif menu_optie == "📅 Agenda & Notities":
         pure_titel = titel_ruw.replace("[Open] ", "").replace("[Voltooid] ", "")
         st.markdown(f"### **{pure_titel}**")
         
-        # Datums en tijden netjes splitsen voor de weergave
         weergave_datum = start_veld.split("T")[0] if "T" in start_veld else start_veld
         st.write(f"📅 **Datum:** {formatteer_datum_nl(weergave_datum)}")
         
@@ -641,7 +640,7 @@ elif menu_optie == "📅 Agenda & Notities":
         </style>
     """, unsafe_allow_html=True)
 
-    # Databasegegevens ophalen
+    # Databasegegevens ophalen (GEFIXT)
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
@@ -685,7 +684,8 @@ elif menu_optie == "📅 Agenda & Notities":
         },
         "initialView": "dayGridMonth",
         "locale": "nl",
-        "selectable": True,
+        # GEFIXT: selectable staat uit, zodat slepen niet meer nodig is.
+        "selectable": False,
         "height": "auto",
         "contentHeight": 550,
         "buttonText": {
@@ -705,7 +705,6 @@ elif menu_optie == "📅 Agenda & Notities":
         .fc-theme-standard .fc-scrollgrid { border: 1px solid rgba(255,255,255,0.1) !important; }
     """
     
-    # Render de kalender over de volle breedte
     state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="agenda_volledige_breedte")
     
     # --- INTERACTIE LOGICA ---
@@ -722,7 +721,7 @@ elif menu_optie == "📅 Agenda & Notities":
             status_veld=props.get("status")
         )
         
-    # 2. Klikken/selecteren van een (lege) datum om iets nieuws toe te voegen
-    elif state.get("select"):
-        sel_datum = state["select"]["start"].split("T")[0]
-        nieuwe_afspraak_dialog(sel_datum)
+    # 2. GEFIXT: Reageert nu direct op een simpele klik op een dag (dateClick)
+    elif state.get("dateClick"):
+        puur_datum = state["dateClick"]["date"].split("T")[0]
+        nieuwe_afspraak_dialog(puur_datum)
