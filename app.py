@@ -525,60 +525,15 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_f1, col_f2 = st.columns(2)
     col_f1.metric("Totale Investering (Voorraad)", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
     col_f2.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-# --- AGENDA & NOTITIES PAGINA INTERFACE (VOLLEDIG MOBIELVRIENDELIJK) ---
+# --- AGENDA & NOTITIES PAGINA INTERFACE (MOBIEL GEOPTIMALISEERD) ---
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
     
-    try:
-        from streamlit_calendar import calendar
-    except ImportError:
-        st.error("Installeer eerst de kalender-module via je requirements.txt: streamlit-calendar")
-        st.stop()
-
-    # --- NIEUW: EXTRA MOBIELE CSS STYLING VOOR DE KALENDER ---
-    st.markdown("""
-        <style>
-        /* Maak de knoppenbalk van de kalender responsive */
-        .fc .fc-toolbar {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: wrap !important;
-            gap: 6px !important;
-            justify-content: space-between !important;
-        }
-        .fc .fc-toolbar-chunk {
-            display: flex !important;
-            align-items: center !important;
-        }
-        /* Zorg dat de titel niet door knoppen heen loopt */
-        .fc .fc-toolbar-title {
-            font-size: 1.15rem !important;
-            white-space: nowrap !important;
-        }
-        /* Knoppen compacter maken voor mobiele vingers */
-        .fc .fc-button {
-            padding: 4px 8px !important;
-            font-size: 0.85rem !important;
-        }
-        /* Zorg dat de kalenderteksten scherp en leesbaar blijven */
-        .fc .fc-daygrid-day-number {
-            font-size: 0.9rem !important;
-            font-weight: bold !important;
-        }
-        /* Zorg dat de events goed passen */
-        .fc-daygrid-event {
-            font-size: 0.75rem !important;
-            padding: 2px !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # GEFIXT: Gebruik geen st.columns() zonder gewicht, en zorg dat het op mobiel onder elkaar klapt
-    # Door de layout op 'large' te zetten, schalen kolommen beter mee op mobiel
+    # We gebruiken twee flexibele kolommen die op mobiel automatisch keurig onder elkaar klappen
     col_ag1, col_ag2 = st.columns([1, 1])
     
     with col_ag1:
-        st.subheader("📌 Nieuwe notitie / afspraak")
+        st.subheader("📌 Nieuwe afspraak / notitie")
         with st.form("agenda_form", clear_on_submit=True):
             ag_datum = st.date_input("Datum", value=datetime.today().date())
             
@@ -588,7 +543,7 @@ elif menu_optie == "📅 Agenda & Notities":
             
             ag_titel = st.text_input("Titel (bijv. Proefrit Golf, APK Keuring)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
-            ag_submit = st.form_submit_button("Opslaan in Agenda")
+            ag_submit = st.form_submit_button("Opslaan in Agenda", type="primary")
             
         if ag_submit and ag_titel.strip():
             start_volledig = f"{ag_datum}T{ag_tijd_van.strftime('%H:%M:%S')}"
@@ -601,128 +556,102 @@ elif menu_optie == "📅 Agenda & Notities":
                     VALUES (?, ?, ?, 'Open')
                 """, (f"{start_volledig}||{end_volledig}", ag_titel.strip(), ag_notitie.strip()))
                 conn.commit()
-            st.toast("⚡ Notitie succesvol toegevoegd!", icon="✅")
+            st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
 
     with col_ag2:
-        st.subheader("📋 Interactieve Kalender")
+        st.subheader("📋 Jouw Planning")
         
+        # Keuzemenu voor mobiel: filteren op de gekozen dag OF alles in één handige lijst zien
+        weergave_modus = st.radio(
+            "Kies weergave:",
+            ["📅 Filter op datum", "🗂️ Toon alle openstaande taken"],
+            horizontal=True
+        )
+        
+        # Haal alle afspraken op uit de database
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
-            notities = conn.cursor().execute("SELECT id, datum, titel, notitie, status FROM agenda").fetchall()
-        
-        calendar_events = []
-        for item in notities:
+            alle_notities = cursor.fetchall()
+            
+        # Gegevens netjes structureren voor filtering
+        verwerkte_taken = []
+        for item in alle_notities:
             n_id, n_datum_veld, n_titel, n_notitie, n_status = item
             
             if "||" in str(n_datum_veld):
-                start_tijd, eind_tijd = n_datum_veld.split("||")
-                is_hele_dag = False
-                weergave_datum = start_tijd.split("T")[0]
+                start_str, eind_str = n_datum_veld.split("||")
+                pure_datum_str = start_str.split("T")[0]
+                tijd_weergave = f"⏱️ {start_str.split('T')[1][:5]} - {eind_str.split('T')[1][:5]} uur"
             else:
-                start_tijd = n_datum_veld
-                eind_tijd = n_datum_veld
-                is_hele_dag = True
-                weergave_datum = n_datum_veld
-            
-            kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
-            
-            calendar_events.append({
-                "id": str(n_id),
-                "title": f"[{n_status}] {n_titel}",
-                "start": start_tijd,
-                "end": eind_tijd,
-                "backgroundColor": kleur,
-                "borderColor": kleur,
-                "allDay": is_hele_dag,
-                "extendedProps": {
-                    "notitie": n_notitie,
-                    "status": n_status,
-                    "datum_veld": n_datum_veld,
-                    "weergave_datum": weergave_datum
-                }
+                pure_datum_str = n_datum_veld
+                tijd_weergave = "📅 Hele dag"
+                
+            verwerkte_taken.append({
+                "id": n_id,
+                "datum_str": pure_datum_str,
+                "tijd_str": tijd_weergave,
+                "titel": n_titel,
+                "notitie": n_notitie,
+                "status": n_status,
+                "ruw_veld": n_datum_veld
             })
-            
-        calendar_options = {
-            "headerToolbar": {
-                "left": "prev,next",
-                "center": "title",
-                "right": "dayGridMonth,timeGridWeek,timeGridDay"
-            },
-            "initialView": "dayGridMonth",
-            "locale": "nl",
-            "selectable": True,
-            "height": "auto",  # NIEUW: Zorgt dat de kalender niet buiten het mobiele scherm valt
-            "contentHeight": 450, # Vaste scherpe hoogte voor mobiele roosters
-            "buttonText": {
-                "today": "vandaag",
-                "month": "maand",
-                "week": "week",
-                "day": "dag",
-                "list": "lijst"
-            },
-            "slotMinTime": "07:00:00",
-            "slotMaxTime": "21:00:00",
-        }
-        
-        custom_css = """
-            .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
-            .fc .fc-toolbar-title { color: white !important; }
-            .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255,255,255,0.2) !important; }
-            .fc .fc-button-primary:hover { background-color: rgb(255, 75, 75) !important; }
-            .fc-theme-standard .fc-scrollgrid { border: 1px solid rgba(255,255,255,0.1) !important; }
-        """
-        
-        state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="interactieve_kalender")
-        
-        if state.get("eventClick"):
-            st.session_state["actieve_agenda_klik"] = state["eventClick"]["event"]
-        
-        if "actieve_agenda_klik" in st.session_state:
-            event_data = st.session_state["actieve_agenda_klik"]
-            props = event_data.get("extendedProps", {})
-            n_id = event_data["id"]
-            
-            if any(str(item[0]) == str(n_id) for item in notities):
-                actuele_status = [item[4] for item in notities if str(item[0]) == str(n_id)][0]
-                pure_titel = event_data['title'].replace("[Open] ", "").replace("[Voltooid] ", "")
+
+        # Uitvoeren van de gekozen filtermodus
+        if weergave_modus == "📅 Filter op datum":
+            gekozen_dag = st.date_input("Kies een dag om te bekijken:", value=datetime.today().date())
+            gefilterde_taken = [x for x in verwerkte_taken if x["datum_str"] == str(gekozen_dag)]
+            st.caption(f"*Resultaten voor:* **{formatteer_datum_nl(str(gekozen_dag))}**")
+        else:
+            gefilterde_taken = [x for x in verwerkte_taken if x["status"] == "Open"]
+            # Sorteren op datum zodat de oudste/eerstvolgende bovenaan staat
+            gefilterde_taken = sorted(gefilterde_taken, key=lambda x: x["datum_str"])
+            st.caption("*Alle nog openstaande taken gesorteerd op datum*")
+
+        # Selectie onthouden in session_state bij mobiele interactie
+        if "actieve_taak_id" not in st.session_state:
+            st.session_state["actieve_taak_id"] = None
+
+        if not gefilterde_taken:
+            st.info("Geen afspraken gevonden voor deze selectie.")
+        else:
+            for taak in gefilterde_taken:
+                status_kleur = "⏳" if taak["status"] == "Open" else "✅"
                 
-                st.markdown("---")
-                st.markdown(f"### 🔍 Geselecteerde Afspraak: **{pure_titel}**")
-                st.write(f"**Datum:** {formatteer_datum_nl(props.get('weergave_datum'))}")
+                # De expander titel is compact en perfect leesbaar op mobiel
+                expander_titel = f"{status_kleur} {taak['tijd_str']} | {taak['titel']}"
+                if weergave_modus == "🗂️ Toon alle openstaande taken":
+                    expander_titel = f"{status_kleur} [{formatteer_datum_nl(taak['datum_str'])}] {taak['titel']}"
                 
-                if "||" in str(props.get('datum_veld')):
-                    s_tijd = props.get('datum_veld').split("||")[0].split("T")[1][:5]
-                    e_tijd = props.get('datum_veld').split("||")[1].split("T")[1][:5]
-                    st.write(f"**Tijd:** {s_tijd} tot {e_tijd} uur")
+                with st.expander(expander_titel):
+                    st.write(taak["tijd_str"])
+                    if taak["notitie"]:
+                        st.write(f"**Omschrijving:**  \n{taak['notitie']}")
+                    else:
+                        st.write("*Geen aanvullende details.*")
                     
-                st.write(f"**Status:** {actuele_status}")
-                if props.get('notitie'):
-                    st.write(f"**Details:** {props.get('notitie')}")
-                
-                btn_col1, btn_col2 = st.columns(2)
-                
-                if actuele_status == "Open":
-                    if btn_col1.button("✅ Vink af als voltooid", key=f"comp_{n_id}", use_container_width=True):
+                    st.markdown("---")
+                    btn_col1, btn_col2 = st.columns(2)
+                    
+                    if taak["status"] == "Open":
+                        if btn_col1.button("✅ Voltooid", key=f"done_{taak['id']}", use_container_width=True):
+                            with sqlite3.connect(DB_NAME) as conn:
+                                cursor = conn.cursor()
+                                cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (taak['id'],))
+                                conn.commit()
+                            st.rerun()
+                    else:
+                        if btn_col1.button("🔄 Heropenen", key=f"re_{taak['id']}", use_container_width=True):
+                            with sqlite3.connect(DB_NAME) as conn:
+                                cursor = conn.cursor()
+                                cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (taak['id'],))
+                                conn.commit()
+                            st.rerun()
+                            
+                    if btn_col2.button("🗑️ Wissen", key=f"del_{taak['id']}", use_container_width=True):
                         with sqlite3.connect(DB_NAME) as conn:
                             cursor = conn.cursor()
-                            cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (n_id,))
+                            cursor.execute("DELETE FROM agenda WHERE id=?", (taak['id'],))
                             conn.commit()
                         st.rerun()
-                else:
-                    if btn_col1.button("🔄 Heropen taak", key=f"reopen_{n_id}", use_container_width=True):
-                        with sqlite3.connect(DB_NAME) as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (n_id,))
-                            conn.commit()
-                        st.rerun()
-                        
-                if btn_col2.button("🗑️ Verwijder definitief", key=f"del_ag_{n_id}", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM agenda WHERE id=?", (n_id,))
-                        conn.commit()
-                    if "actieve_agenda_klik" in st.session_state:
-                        del st.session_state["actieve_agenda_klik"]
-                    st.rerun()
