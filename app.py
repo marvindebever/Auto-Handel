@@ -197,9 +197,9 @@ def formatteer_datum_nl(datum_str):
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- DATA IMPORT & EXPORT FUNCTIES VOOR BACKUP (INCLUSIEF AGENDA) ---
+# --- DATA IMPORT & EXPORT FUNCTIES VOOR BACKUP (INCLUSIEF AGENDA & STARTBUDGET) ---
 def exporteer_database_naar_json():
-    """Haalt alle data uit zowel de voorraad- als agenda-tabel en zet het om naar één JSON-tekst."""
+    """Haalt alle data (voorraad, agenda en het actuele startbudget) op en zet het om naar één JSON-tekst."""
     with sqlite3.connect(DB_NAME) as conn:
         conn.row_factory = sqlite3.Row  
         cursor = conn.cursor()
@@ -214,8 +214,12 @@ def exporteer_database_naar_json():
         agenda_rijen = cursor.fetchall()
         agenda_data = [dict(rij) for rij in agenda_rijen]
         
-        # Combineer beide tabellen in één hoofd-pakket
+        # 3. Haal het actuele startbudget op uit de session_state
+        actueel_startbudget = st.session_state.get("startbudget", 10000.0)
+        
+        # Combineer alle tabellen en instellingen in één hoofd-pakket
         volledige_backup = {
+            "startbudget": actueel_startbudget,
             "voorraad": voorraad_data,
             "agenda": agenda_data
         }
@@ -225,19 +229,22 @@ def exporteer_database_naar_json():
 
 
 def importeer_json_naar_database(json_data):
-    """Wist de huidige tabellen en herstelt zowel de voorraad als de agenda volledig."""
+    """Wist de huidige tabellen en herstelt de voorraad, agenda en het startbudget volledig."""
     import json
     try:
         backup_pakket = json.loads(json_data)
         
-        # Controleer of dit een nieuwe gecombineerde backup is of een oude (alleen voorraad)
-        if isinstance(backup_pakket, dict) and ("voorraad" in backup_pakket or "agenda" in backup_pakket):
+        # Controleer de structuur van de backup en haal de data op
+        if isinstance(backup_pakket, dict):
             voertuigen = backup_pakket.get("voorraad", [])
             afspraken = backup_pakket.get("agenda", [])
+            # Herstel het startbudget als het aanwezig is, anders standaard naar 10000.0
+            st.session_state["startbudget"] = float(backup_pakket.get("startbudget", 10000.0))
         else:
-            # Dit zorgt ervoor dat oude backups (die alleen een lijst met auto's bevatten) ook nog gewoon werken!
+            # Opvangbak voor hele oude backups (alleen een lijst met auto's)
             voertuigen = backup_pakket
             afspraken = []
+            st.session_state["startbudget"] = 10000.0
             
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
