@@ -887,6 +887,7 @@ elif menu_optie == "📅 Agenda & Notities":
         },
         "initialView": "dayGridMonth",
         "locale": "nl",
+        "timeZone": "local",  # NIEUW: Dwingt de kalender om jouw lokale tijdzone te gebruiken
         "selectable": False,
         "height": "auto",
         "contentHeight": 550,
@@ -899,6 +900,7 @@ elif menu_optie == "📅 Agenda & Notities":
         "slotMinTime": "07:00:00",
         "slotMaxTime": "21:00:00",
     }
+
     
     custom_css = """
         .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
@@ -922,6 +924,8 @@ elif menu_optie == "📅 Agenda & Notities":
             status_veld=props.get("status")
         )
         
+    # 2. Reageert op een simpele klik op een dag (dateClick)
     elif state.get("dateClick"):
+        # GEFIXT: We pakken nu gegarandeerd de pure datum (YYYY-MM-DD) zonder dat uren weglopen
         puur_datum = state["dateClick"]["date"].split("T")[0]
         nieuwe_afspraak_dialog(puur_datum)
