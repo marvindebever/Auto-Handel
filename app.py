@@ -128,14 +128,14 @@ if not st.session_state["ingelogd"]:
 # --- ROBUUSTE RDW KOPPELING ---
 
 def overheid_rdw_lookup_krachtig(kenteken_str):
-    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
+    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via een krachtige dataset-join."""
     # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
-    url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    # FIX: We gebruiken een Socrata API Join om de basisgegevens en brandstofgegevens (vermogen) in 1 query te mergen
+    url = f"https://rdw.nl{schoon}&$join=8ys7-d773%20AS%20b%20ON%20kenteken=b.kenteken"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -146,13 +146,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         res = requests.get(url, headers=headers, timeout=8)
         
         if res.status_code == 200:
-            # Controleer of we daadwerkelijk data hebben gekregen
             if "application/json" not in res.headers.get("Content-Type", ""):
                 return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                # Pakt expliciet het eerste voertuig-object [0] uit de lijst
                 voertuig = data[0]  
                 
                 merk = voertuig.get("merk", "").title()
@@ -163,10 +161,10 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
                 brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title() 
                 
-                # --- EXTRA LIVE RDW BRANDSTOF CHECK VOOR PK'S ---
+                # --- LIVE EXTRA CHECK VOOR PK'S ---
                 pk = 0
-                # We halen de kW-waarde direct uit dezelfde 'voertuig'-dataset van de hoofd-URL!
-                kw = naar_getal(voertuig.get("netto_maximum_vermogen", 0))
+                # Door de join zit het vermogen nu in de sleutel 'b_netto_maximum_vermogen'
+                kw = naar_getal(voertuig.get("b_netto_maximum_vermogen", 0))
                 
                 # kW omrekenen naar PK (kW * 1.362)
                 if kw > 0:
@@ -177,7 +175,6 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 apk_formatted = datetime.today().date()
                 if apk_verval:
                     try: 
-                        # RDW datums converteren van 'YYYYMMDD' naar een Date-object
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                     except Exception: 
                         pass
