@@ -134,7 +134,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return None
     
     # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
-    url = f"https://rdw.nl{schoon}"
+    url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
