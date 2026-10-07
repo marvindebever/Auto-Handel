@@ -164,14 +164,25 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 
                 # --- EXTRA LIVE RDW BRANDSTOF CHECK VOOR PK'S ---
                 pk = 0
-                # Het vermogen (in kW) zit direct in de hoofdrespons onder 'netto_maximum_vermogen'
-                kw = naar_getal(voertuig.get("netto_maximum_vermogen", 0))
-                
-                # Als kW groter is dan 0, rekenen we het om naar PK (kW * 1.362)
-                if kw > 0:
-                    pk = int(kw * 1.362)
+                try:
+                    # Gekoppeld aan het officiële openbare brandstof-register van de RDW met dezelfde headers
+                    brandstof_url = f"https://rdw.nl{schoon}"
+                    brandstof_res = requests.get(brandstof_url, headers=headers, timeout=5)
+                    if brandstof_res.status_code == 200:
+                        bf_data = brandstof_res.json()
+                        if isinstance(bf_data, list) and len(bf_data) > 0:
+                            # Haal het eerste element [0] uit de lijst om de dictionary uit te lezen
+                            brandstof_info = bf_data[0]
+                            
+                            # RDW gebruikt in dit specifieke endpoint netter_maximum_vermogen niet, maar nettomaximumvermogen
+                            kw = naar_getal(brandstof_info.get("nettomaximumvermogen", 0))
+                                
+                            # kW omrekenen naar PK (kW * 1.362)
+                            if kw > 0:
+                                pk = int(kw * 1.362)
+                except Exception:
+                    pass
                 # --- EINDE LOGICA ---
-
 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
@@ -179,7 +190,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     try: 
                         # RDW datums converteren van 'YYYYMMDD' naar een Date-object
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except: 
+                    except Exception: 
                         pass
                         
                 return {
@@ -204,7 +215,6 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
-
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
