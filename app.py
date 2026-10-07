@@ -126,6 +126,7 @@ if not st.session_state["ingelogd"]:
     st.stop()
     
 # --- ROBUUSTE RDW KOPPELING ---
+
 def overheid_rdw_lookup_krachtig(kenteken_str):
     """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
     # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
@@ -151,7 +152,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                # FIX: Pakt expliciet het eerste voertuig-object uit de lijst
+                # Pakt expliciet het eerste voertuig-object [0] uit de lijst
                 voertuig = data[0]  
                 
                 merk = voertuig.get("merk", "").title()
@@ -164,24 +165,12 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 
                 # --- EXTRA LIVE RDW BRANDSTOF CHECK VOOR PK'S ---
                 pk = 0
-                try:
-                    # Gekoppeld aan het officiële openbare brandstof-register van de RDW met dezelfde headers
-                    brandstof_url = f"https://rdw.nl{schoon}"
-                    brandstof_res = requests.get(brandstof_url, headers=headers, timeout=5)
-                    if brandstof_res.status_code == 200:
-                        bf_data = brandstof_res.json()
-                        if isinstance(bf_data, list) and len(bf_data) > 0:
-                            # FIX: Pakt expliciet de brandstof dictionary uit de lijst
-                            brandstof_info = bf_data[0]
-                            
-                            # RDW gebruikt in dit endpoint de kolomnaam 'nettomaximumvermogen'
-                            kw = naar_getal(brandstof_info.get("nettomaximumvermogen", 0))
-                                
-                            # kW omrekenen naar PK (kW * 1.362)
-                            if kw > 0:
-                                pk = int(kw * 1.362)
-                except Exception:
-                    pass
+                # We halen de kW-waarde direct uit dezelfde 'voertuig'-dataset van de hoofd-URL!
+                kw = naar_getal(voertuig.get("netto_maximum_vermogen", 0))
+                
+                # kW omrekenen naar PK (kW * 1.362)
+                if kw > 0:
+                    pk = int(kw * 1.362)
                 # --- EINDE LOGICA ---
 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
@@ -215,6 +204,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
+
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
