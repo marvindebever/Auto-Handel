@@ -127,11 +127,14 @@ if not st.session_state["ingelogd"]:
     
 # --- ROBUUSTE RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
+    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
+    # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    # DIT MOET STRIKT BEHOUDEN BLIJVEN: Omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
+    url = f"https://rdw.nl{schoon}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -147,6 +150,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
+                # Pakt expliciet het eerste voertuig-object [0] uit de lijst
                 voertuig = data[0]  
                 
                 merk = voertuig.get("merk", "").title()
@@ -157,8 +161,22 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
                 brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title() 
                 
-                kw = naar_getal(voertuig.get("netto_maximum_vermogen", 0))
-                pk = int(kw * 1.362) if kw > 0 else 0
+                # WATERDICHTE PARALLELLE CHECK: Haalt het vermogen uit de RDW brandstof-tabel
+                pk = 0
+                try:
+                    brandstof_url = f"https://rdw.nl{schoon}"
+                    brandstof_res = requests.get(brandstof_url, headers=headers, timeout=5)
+                    if brandstof_res.status_code == 200:
+                        bf_data = brandstof_res.json()
+                        if isinstance(bf_data, list) and len(bf_data) > 0:
+                            # Probeer eerst nettomsaximumvermogen, anders nominaal continu vermogen
+                            kw = naar_getal(bf_data[0].get("netto_maximum_vermogen", 0))
+                            if kw == 0:
+                                kw = naar_getal(bf_data[0].get("nominaal_continu_maximum_vermogen", 0))
+                            # kW omrekenen naar PK (kW * 1.362)
+                            pk = int(kw * 1.362) if kw > 0 else 0
+                except:
+                    pass # Mocht de brandstof-tabel haperen, valt hij veilig terug op 0 PK
                 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
