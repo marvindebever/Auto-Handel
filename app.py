@@ -133,7 +133,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # DIT MOET STRIKT BEHOUDEN BLIJVEN: Omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
+    # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
     url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
     
     headers = {
@@ -162,7 +162,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
                 brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title() 
                 
-                # --- NIEUW: EXTRA RDW BRANDSTOF CHECK VOOR PK'S ---
+                # --- EXTRA LIVE RDW BRANDSTOF CHECK VOOR PK'S ---
                 pk = 0
                 try:
                     brandstof_url = f"https://rdw.nl{schoon}"
@@ -170,15 +170,21 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     if brandstof_res.status_code == 200:
                         bf_data = brandstof_res.json()
                         if isinstance(bf_data, list) and len(bf_data) > 0:
-                            # Haal vermogen in kW op uit het eerste brandstofobject van dit kenteken
-                            kw = naar_getal(bf_data[0].get("netto_maximum_vermogen", 0))
+                            # Haal het eerste element [0] uit de lijst om de dictionary uit te lezen
+                            brandstof_info = bf_data[0]
+                            
+                            # RDW gebruikt in dit endpoint geen underscores
+                            kw = naar_getal(brandstof_info.get("nettomaximumvermogen", 0))
                             if kw == 0:
-                                kw = naar_getal(bf_data[0].get("nominaal_continu_maximum_vermogen", 0))
+                                kw = naar_getal(brandstof_info.get("netto_maximum_vermogen", 0))
+                            if kw == 0:
+                                kw = naar_getal(brandstof_info.get("nominaalcontinuvermogen", 0))
+                                
                             # kW omrekenen naar PK (kW * 1.362)
                             pk = int(kw * 1.362) if kw > 0 else 0
                 except:
                     pass
-                # --- EINDE NIEUWE VERMOGEN LOGICA ---
+                # --- EINDE LOGICA ---
 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
@@ -211,6 +217,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
+
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
