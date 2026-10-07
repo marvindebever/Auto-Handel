@@ -634,12 +634,15 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     verwerkte_autos = []
     if alle_autos:
         for auto in alle_autos:
+            # Financiële winstberekening op basis van de juiste tuple-indexen
             winst = auto[4] - (auto[3] + auto[6])
             verwerkte_autos.append({
                 "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
                 "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
-                "status": auto[10], "brandstof": auto[11], "vermogen": auto[12], "kleur": auto[13], "cataloguswaarde": auto[14], "winst": winst
+                "status": auto[10], "brandstof": auto[11] if auto[11] else "Onbekend", "vermogen": auto[12] if auto[12] else 0, 
+                "kleur": auto[13] if auto[13] else "Onbekend", "cataloguswaarde": auto[14] if auto[14] else 0.0, "winst": winst
             })
+
 
 
         if menu_optie == "🟢 Actuele Voorraad":
@@ -708,12 +711,17 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         else: 
                             st.info("Geen afbeelding beschikbaar.")
 
+
                     with c2:
                         st.write(f"**Kilometerstand:** {auto['km_stand']:,} km".replace(",", "."))
-                        st.write(f"**Transmissie:** {auto['transmissie']}")
-                        st.write(f"**APK Datum:** {formatteer_datum_nl(auto['apk_datum'])}")
-                        st.write(f"**Inkoopprijs:** € {formatteer_euro_nl(auto['inkoopprijs'])}")
-                        st.write(f"**Extra kosten:** € {formatteer_euro_nl(auto['extra_kosten'])}")
+                        
+                        # NIEUW: RDW Voertuigspecificaties op de kaart tonen
+                        st.write(f"**Brandstof:** {auto['brandstof']} | **Vermogen:** {auto['vermogen']} PK")
+                        st.write(f"**Kleur:** {auto['kleur']} | **Cataloguswaarde:** € {formatteer_euro_nl(auto['cataloguswaarde'])}")
+                        
+                        st.write(f"**Transmissie:** {auto['transmissie']} | **APK Datum:** {formatteer_datum_nl(auto['apk_datum'])}")
+                        st.markdown("---")
+                        st.write(f"**Inkoopprijs:** € {formatteer_euro_nl(auto['inkoopprijs'])} | **Extra kosten:** € {formatteer_euro_nl(auto['extra_kosten'])}")
                         st.write(f"**Marge / Winst:** € {formatteer_euro_nl(auto['winst'])}")
                         
                         b_edit, b_del = st.columns(2)
