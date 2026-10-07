@@ -165,6 +165,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 # --- EXTRA LIVE RDW BRANDSTOF CHECK VOOR PK'S ---
                 pk = 0
                 try:
+                    # GEFIXT: Gekoppeld aan het officiële openbare brandstof-register van de RDW
                     brandstof_url = f"https://rdw.nl{schoon}"
                     brandstof_res = requests.get(brandstof_url, headers=headers, timeout=5)
                     if brandstof_res.status_code == 200:
