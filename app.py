@@ -129,8 +129,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # HIER GING HET MIS: De URL is nu weer hersteld naar het officiële opendata RDW endpoint
-    # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
+    # DIT MOET STRIKT BEHOUDEN BLIJVEN: Omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
     url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
     
     headers = {
@@ -155,6 +154,15 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
                 
+                # Extra velden veilig uitlezen uit de json-respons
+                kleur = voertuig.get("eerste_kleur", "Onbekend").title()
+                cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
+                brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title() 
+                
+                # Vermogen in kW omrekenen naar PK (kW * 1.362)
+                kw = naar_getal(voertuig.get("netto_maximum_vermogen", 0))
+                pk = int(kw * 1.362) if kw > 0 else 0
+                
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
@@ -167,6 +175,10 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 return {
                     "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
                     "apk": apk_formatted,
+                    "brandstof": brandstof,
+                    "vermogen": pk,
+                    "kleur": kleur,
+                    "cataloguswaarde": cataloguswaarde,
                     "fout": None
                 }
             else:
@@ -182,6 +194,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
+
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
@@ -480,18 +493,22 @@ with st.sidebar:
         st.session_state["ingelogd"] = False
         st.rerun()
 
-# Financiële cijfers live en veilig laden
+# Financiële cijfers live en veilig laden uit de database
 with sqlite3.connect(DB_NAME) as conn:
     cursor = conn.cursor()
     cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
     stat_rijen = cursor.fetchall()
 
+# Correct filteren op basis van de tuple-indexen (0=inkoop, 1=verkoop, 2=extra_kosten, 3=status)
 autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
 autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
 
 totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
-totale_verwachte_winst = sum(r[1] - (r[0] + r[2]) for r in autos_in_voorraad)
 gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
+
+if "startbudget" not in st.session_state: 
+    st.session_state["startbudget"] = 10000.0
+actueel_vrij_budget = st.session_state["startbudget"] - totale_voorraadwaarde + gerealiseerde_winst
 
 # NIEUW: Startbudget instellen (standaard € 10.000)
 if "startbudget" not in st.session_state:
@@ -517,10 +534,15 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         if rdw_data and rdw_data.get("fout") is None:
             st.session_state["rdw_naam"] = rdw_data["naam"]
             st.session_state["rdw_apk"] = rdw_data["apk"]
+            st.session_state["rdw_brandstof"] = rdw_data["brandstof"]
+            st.session_state["rdw_vermogen"] = rdw_data["vermogen"]
+            st.session_state["rdw_kleur"] = rdw_data["kleur"]
+            st.session_state["rdw_cataloguswaarde"] = rdw_data["cataloguswaarde"]
             st.session_state["rdw_ktk"] = rdw_kenteken
             st.toast("⚡ RDW succesvol geladen!", icon="✅")
         elif rdw_data and rdw_data.get("fout"): 
             st.error(rdw_data["fout"])
+
 
     with st.form("auto_form", clear_on_submit=False):
         naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
