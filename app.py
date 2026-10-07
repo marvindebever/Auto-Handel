@@ -156,8 +156,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 voertuig = data[0]  
                 
                 merk = voertuig.get("merk", "").title()
-                handelsbenaming = voertuig.get("handelsbenaming", "").upper()
-                model = handelsbenaming.title()
+                model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
                 
                 kleur = voertuig.get("eerste_kleur", "Onbekend").title()
@@ -166,26 +165,12 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 
                 # --- EXTRA LIVE RDW BRANDSTOF CHECK VOOR PK'S ---
                 pk = 0
-                
-                # 1. Probeer eerst of de kolom onverhoopt toch aanwezig is
+                # We halen de kW-waarde direct uit dezelfde 'voertuig'-dataset van de hoofd-URL!
                 kw = naar_getal(voertuig.get("netto_maximum_vermogen", 0))
+                
+                # kW omrekenen naar PK (kW * 1.362)
                 if kw > 0:
                     pk = int(kw * 1.362)
-                
-                # 2. FIX: Aangezien m9d7-ebf2 deze kolom vaak niet bevat, passen we een model-fallback toe
-                else:
-                    # Snelcheck voor veelvoorkomende handelsbenamingen (zoals de 420I uit jouw app)
-                    if "420I" in handelsbenaming:
-                        pk = 184
-                    elif "320I" in handelsbenaming:
-                        pk = 184
-                    elif "418I" in handelsbenaming:
-                        pk = 136
-                    elif "430I" in handelsbenaming:
-                        pk = 252
-                    elif "440I" in handelsbenaming:
-                        pk = 326
-                    # Je kunt hier zelf eenvoudig extra veelvoorkomende modellen aan toevoegen!
                 # --- EINDE LOGICA ---
 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
