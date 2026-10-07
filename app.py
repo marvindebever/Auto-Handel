@@ -134,7 +134,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return None
     
     # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
-    url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    url = f"https://rdw.nl{schoon}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -151,7 +151,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                # Pakt expliciet het eerste voertuig-object [0] uit de lijst
+                # FIX: Pakt expliciet het eerste voertuig-object uit de lijst
                 voertuig = data[0]  
                 
                 merk = voertuig.get("merk", "").title()
@@ -171,10 +171,10 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     if brandstof_res.status_code == 200:
                         bf_data = brandstof_res.json()
                         if isinstance(bf_data, list) and len(bf_data) > 0:
-                            # Haal het eerste element [0] uit de lijst om de dictionary uit te lezen
+                            # FIX: Pakt expliciet de brandstof dictionary uit de lijst
                             brandstof_info = bf_data[0]
                             
-                            # RDW gebruikt in dit specifieke endpoint netter_maximum_vermogen niet, maar nettomaximumvermogen
+                            # RDW gebruikt in dit endpoint de kolomnaam 'nettomaximumvermogen'
                             kw = naar_getal(brandstof_info.get("nettomaximumvermogen", 0))
                                 
                             # kW omrekenen naar PK (kW * 1.362)
