@@ -128,30 +128,31 @@ if not st.session_state["ingelogd"]:
 # --- ROBUUSTE RDW KOPPELING ---
 
 def overheid_rdw_lookup_krachtig(kenteken_str):
-    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via een krachtige dataset-join."""
+    """Haalt voertuiggegevens op uit het openbare RDW-register en koppelt het brandstofregister voor PK's."""
     # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # FIX: We gebruiken een Socrata API Join om de basisgegevens en brandstofgegevens (vermogen) in 1 query te mergen
-    url = f"https://rdw.nl{schoon}&$join=8ys7-d773%20AS%20b%20ON%20kenteken=b.kenteken"
-    
+    # Omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json"
     }
     
+    # 1. HAAL DE BASISGEGEVENS OP (Merk, Model, Kleur, Cataloguswaarde, APK)
+    url_basis = f"https://rdw.nl{schoon}"
+    
     try:
-        res = requests.get(url, headers=headers, timeout=8)
+        res_basis = requests.get(url_basis, headers=headers, timeout=8)
         
-        if res.status_code == 200:
-            if "application/json" not in res.headers.get("Content-Type", ""):
+        if res_basis.status_code == 200:
+            if "application/json" not in res_basis.headers.get("Content-Type", ""):
                 return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
                 
-            data = res.json()
-            if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  
+            data_basis = res_basis.json()
+            if isinstance(data_basis, list) and len(data_basis) > 0:
+                voertuig = data_basis[0]  
                 
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
@@ -161,16 +162,26 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
                 brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title() 
                 
-                # --- LIVE EXTRA CHECK VOOR PK'S ---
+                # 2. HAAL HET VERMOGEN (kW) OP UIT HET BRANDSTOFREGISTER
                 pk = 0
-                # Door de join zit het vermogen nu in de sleutel 'b_netto_maximum_vermogen'
-                kw = naar_getal(voertuig.get("b_netto_maximum_vermogen", 0))
-                
-                # kW omrekenen naar PK (kW * 1.362)
-                if kw > 0:
-                    pk = int(kw * 1.362)
-                # --- EINDE LOGICA ---
+                try:
+                    url_brandstof = f"https://rdw.nl{schoon}"
+                    res_brandstof = requests.get(url_brandstof, headers=headers, timeout=5)
+                    
+                    if res_brandstof.status_code == 200 and "application/json" in res_brandstof.headers.get("Content-Type", ""):
+                        data_brandstof = res_brandstof.json()
+                        if isinstance(data_brandstof, list) and len(data_brandstof) > 0:
+                            brandstof_info = data_brandstof[0]
+                            # RDW gebruikt in dit JSON-endpoint netto_maximum_vermogen
+                            kw = naar_getal(brandstof_info.get("netto_maximum_vermogen", 0))
+                            
+                            # kW omrekenen naar PK (kW * 1.362)
+                            if kw > 0:
+                                pk = int(kw * 1.362)
+                except Exception:
+                    pass  # Voorkomt dat de app crasht als het brandstofregister een storing heeft
 
+                # APK Datum verwerken
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
@@ -190,12 +201,12 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 }
             else:
                 return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
-        elif res.status_code == 403:
+        elif res_basis.status_code == 403:
             return {"fout": "Toegang geweigerd (403) door RDW. Server blokkeert mogelijk tijdelijk je IP."}
-        elif res.status_code == 429:
+        elif res_basis.status_code == 429:
             return {"fout": "Te veel aanvragen achter elkaar (429). Wacht 10 seconden."}
         else:
-            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res.status_code}."}
+            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res_basis.status_code}."}
             
     except requests.exceptions.Timeout:
         return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
