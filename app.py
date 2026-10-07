@@ -19,25 +19,31 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 kenteken TEXT, km_stand INTEGER, inkoopprijs REAL, verkoopprijs REAL,
                 apk_datum TEXT, extra_kosten REAL, afbeelding TEXT, naam TEXT, transmissie TEXT,
-                status TEXT DEFAULT 'In voorraad'
+                status TEXT DEFAULT 'In voorraad',
+                brandstof TEXT, vermogen INTEGER, kleur TEXT, cataloguswaarde REAL
             )
         """)
         cursor.execute("PRAGMA table_info(voorraad)")
         bestaande_kolommen = [k[1] for k in cursor.fetchall()]
         if "status" not in bestaande_kolommen:
             cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
+        if "brandstof" not in bestaande_kolommen:
+            cursor.execute("ALTER TABLE voorraad ADD COLUMN brandstof TEXT")
+        if "vermogen" not in bestaande_kolommen:
+            cursor.execute("ALTER TABLE voorraad ADD COLUMN vermogen INTEGER")
+        if "kleur" not in bestaande_kolommen:
+            cursor.execute("ALTER TABLE voorraad ADD COLUMN kleur TEXT")
+        if "cataloguswaarde" not in bestaande_kolommen:
+            cursor.execute("ALTER TABLE voorraad ADD COLUMN cataloguswaarde REAL")
             
-        # ZET DIT ERONDER: Maakt automatisch de agenda-tabel aan
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agenda (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                datum TEXT,
-                titel TEXT,
-                notitie TEXT,
-                status TEXT DEFAULT 'Open'
+                datum TEXT, titel TEXT, notitie TEXT, status TEXT DEFAULT 'Open'
             )
         """)
         conn.commit()
+
 
 
 init_db()
@@ -543,17 +549,31 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         elif rdw_data and rdw_data.get("fout"): 
             st.error(rdw_data["fout"])
 
-
     with st.form("auto_form", clear_on_submit=False):
         naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
         kenteken = st.text_input("Kenteken (Verplicht)", value=st.session_state.get("rdw_ktk", ""))
-        km_stand_str = st.text_input("Kilometerstand", value="0")
-        apk_datum = st.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()))
+        
+        c_form1, c_form2 = st.columns(2)
+        km_stand_str = c_form1.text_input("Kilometerstand", value="0")
+        apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()))
+        
+        # NIEUWE INVOERVELDEN OP HET SCHERM
+        c_form3, c_form4 = st.columns(2)
+        brandstof_invoer = c_form3.text_input("Brandstof", value=st.session_state.get("rdw_brandstof", "Benzine"))
+        vermogen_invoer = c_form4.text_input("Vermogen (PK)", value=str(st.session_state.get("rdw_vermogen", 0)))
+
+        c_form5, c_form6 = st.columns(2)
+        kleur_invoer = c_form5.text_input("Kleur", value=st.session_state.get("rdw_kleur", ""))
+        cat_invoer = c_form6.text_input("Oorspronkelijke Cataloguswaarde (€)", value=str(st.session_state.get("rdw_cataloguswaarde", 0.0)))
+
         transmissie = st.selectbox("Transmissie", options=["Handgeschakeld", "Automaat"])
         status_invoer = st.selectbox("Status bij instroom", options=["In voorraad", "Gereserveerd"])
-        inkoopprijs_str = st.text_input("Inkoopprijs (€)", value="0.00")
-        verkoopprijs_str = st.text_input("Verkoopprijs (€)", value="0.00")
-        extra_kosten_str = st.text_input("Extra kosten (€)", value="0.00")
+        
+        c_form7, c_form8, c_form9 = st.columns(3)
+        inkoopprijs_str = c_form7.text_input("Inkoopprijs (€)", value="0.00")
+        verkoopprijs_str = c_form8.text_input("Verkoopprijs (€)", value="0.00")
+        extra_kosten_str = c_form9.text_input("Extra kosten (€)", value="0.00")
+        
         gevoegde_fotos = st.file_uploader("Kies foto's (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
         submit = st.form_submit_button("Voeg toe aan voorraad")
 
@@ -572,16 +592,18 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (naam, kenteken.upper().replace("-", "").strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer))
+                INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status, brandstof, vermogen, kleur, cataloguswaarde) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (naam, kenteken.upper().replace("-", "").strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer, brandstof_invoer, naar_getal(vermogen_invoer, int), kleur_invoer, naar_getal(cat_invoer)))
             conn.commit()
             
-        st.session_state["rdw_naam"] = ""
-        st.session_state["rdw_ktk"] = ""
-        if "rdw_apk" in st.session_state: del st.session_state["rdw_apk"]
+        # Sessie netjes leegmaken na succesvolle toevoeging
+        for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_vermogen", "rdw_kleur", "rdw_cataloguswaarde"]:
+            if sleutel in st.session_state: 
+                del st.session_state[sleutel]
         st.success("Auto succesvol toegevoegd!")
         st.rerun()
+
 
 elif menu_optie == "📊 Actuele Status Dashboard":
     st.title("📊 Actuele Status Dashboard")
@@ -605,7 +627,8 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status FROM voorraad")
+        # UITGEBREIDE SELECT INCLUSIEF DE NIEUWE RDW-KOLOMMEN
+        cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, vermogen, kleur, cataloguswaarde FROM voorraad")
         alle_autos = cursor.fetchall()
 
     verwerkte_autos = []
@@ -615,8 +638,9 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
             verwerkte_autos.append({
                 "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
                 "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
-                "status": auto[10], "winst": winst
+                "status": auto[10], "brandstof": auto[11], "vermogen": auto[12], "kleur": auto[13], "cataloguswaarde": auto[14], "winst": winst
             })
+
 
         if menu_optie == "🟢 Actuele Voorraad":
             verwerkte_autos = [x for x in verwerkte_autos if x["status"] != "Verkocht"]
