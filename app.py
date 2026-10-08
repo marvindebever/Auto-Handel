@@ -132,14 +132,15 @@ if not st.session_state["ingelogd"]:
 # --- ROBUUSTE RDW KOPPELING ---
 
 def overheid_rdw_lookup_krachtig(kenteken_str):
-    """Haalt voertuiggegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
-    # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
+    """Haalt voertuiggegevens én brandstofgegevens rechtstreeks op uit het openbare RDW-register."""
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
-    url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    # 1. Basisvoertuig gegevens ophalen
+    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    # 2. Brandstof gegevens ophalen (andere dataset!)
+    url_brandstof = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -147,15 +148,15 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     }
     
     try:
-        res = requests.get(url, headers=headers, timeout=8)
+        res_v = requests.get(url_voertuig, headers=headers, timeout=8)
         
-        if res.status_code == 200:
-            if "application/json" not in res.headers.get("Content-Type", ""):
+        if res_v.status_code == 200:
+            if "application/json" not in res_v.headers.get("Content-Type", ""):
                 return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
                 
-            data = res.json()
-            if isinstance(data, list) and len(data) > 0:
-                voertuig = data[0]  
+            data_v = res_v.json()
+            if isinstance(data_v, list) and len(data_v) > 0:
+                voertuig = data_v[0]  
                 
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
@@ -163,8 +164,20 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 
                 kleur = voertuig.get("eerste_kleur", "Onbekend").title()
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
-                brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title() 
                 
+                # --- GEOPTIMALISEERDE BRANDSTOF LOGICA ---
+                brandstof = "Benzine" # Standaard fallback
+                try:
+                    res_b = requests.get(url_brandstof, headers=headers, timeout=5)
+                    if res_b.status_code == 200:
+                        data_b = res_b.json()
+                        if isinstance(data_b, list) and len(data_b) > 0:
+                            # Haal de omschrijving op uit de brandstof-dataset
+                            brandstof = data_b[0].get("brandstof_omschrijving", "Benzine").title()
+                except Exception:
+                    pass # Als de brandstof-call faalt, valt hij terug op de default
+                # ----------------------------------------
+
                 # --- LIVE RDW BOUWJAAR EXTRACTION ---
                 bouwjaar = 0
                 datum_toelating = voertuig.get("datum_eerste_toelating", "")
@@ -173,7 +186,6 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                         bouwjaar = int(str(datum_toelating)[:4])
                     except:
                         pass
-                # --- EINDE LOGICA ---
 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
@@ -194,12 +206,12 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 }
             else:
                 return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
-        elif res.status_code == 403:
+        elif res_v.status_code == 403:
             return {"fout": "Toegang geweigerd (403) door RDW. Server blokkeert mogelijk tijdelijk je IP."}
-        elif res.status_code == 429:
+        elif res_v.status_code == 429:
             return {"fout": "Te veel aanvragen achter elkaar (429). Wacht 10 seconden."}
         else:
-            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res.status_code}."}
+            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res_v.status_code}."}
             
     except requests.exceptions.Timeout:
         return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
