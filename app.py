@@ -165,18 +165,19 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 kleur = voertuig.get("eerste_kleur", "Onbekend").title()
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
                 
-                # --- GEOPTIMALISEERDE BRANDSTOF LOGICA ---
+                # --- GEOPTIMALISEERDE BRANDSTOF LOGICA (GEFIXT!) ---
                 brandstof = "Benzine" # Standaard fallback
                 try:
                     res_b = requests.get(url_brandstof, headers=headers, timeout=5)
                     if res_b.status_code == 200:
                         data_b = res_b.json()
+                        # Controleer of de lijst gevuld is en pak het eerste element [0]
                         if isinstance(data_b, list) and len(data_b) > 0:
-                            # Haal de omschrijving op uit de brandstof-dataset
                             brandstof = data_b[0].get("brandstof_omschrijving", "Benzine").title()
                 except Exception:
                     pass # Als de brandstof-call faalt, valt hij terug op de default
-                # ----------------------------------------
+                # ----------------------------------------------------
+
 
                 # --- LIVE RDW BOUWJAAR EXTRACTION ---
                 bouwjaar = 0
