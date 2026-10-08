@@ -165,18 +165,24 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 kleur = voertuig.get("eerste_kleur", "Onbekend").title()
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
                 
-                # --- LIVE BRANDSTOF LOGICA (100% WATERDICHT!) ---
+                # --- LIVE BRANDSTOF LOGICA (WERKT VOOR PERSONEN- ÉN BEDRIJFSWAGENS) ---
                 brandstof = "Benzine" # Standaard fallback
                 try:
                     res_b = requests.get(url_brandstof, headers=headers, timeout=5)
                     if res_b.status_code == 200:
                         data_b = res_b.json()
-                        # data_b is een lijst, pak daarvan het eerste element [0] en gebruik daarna pas .get()
                         if isinstance(data_b, list) and len(data_b) > 0:
-                            brandstof = data_b[0].get("brandstof_omschrijving", "Benzine").title()
+                            eerste_brandstof_rij = data_b[0]
+                            
+                            # Check eerst de standaard omschrijving, daarna de technische variant voor bedrijfswagens
+                            brandstof_naam = eerste_brandstof_rij.get("brandstof_omschrijving") or eerste_brandstof_rij.get("brandstof_omschrijving_brandstof_technisch")
+                            
+                            if brandstof_naam:
+                                brandstof = brandstof_naam.title()
                 except Exception:
                     pass # Als de brandstof-call faalt, valt hij terug op de default
-                # -------------------------------------------------
+                # ---------------------------------------------------------------------
+
 
                 # --- LIVE RDW BOUWJAAR EXTRACTION ---
                 bouwjaar = 0
