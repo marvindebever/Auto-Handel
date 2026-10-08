@@ -532,7 +532,8 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         
         c_form1, c_form2 = st.columns(2)
         km_stand_str = c_form1.text_input("Kilometerstand", value="0")
-        apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()))
+        apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()), format="DD-MM-YYYY")
+
         
         c_form3, c_form4 = st.columns(2)
         brandstof_invoer = c_form3.text_input("Brandstof", value=st.session_state.get("rdw_brandstof", "Benzine"))
@@ -735,6 +736,7 @@ elif menu_optie == "📅 Agenda & Notities":
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
     def nieuwe_afspraak_dialog(gekozen_datum_str):
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
+            # Hier is formatteer_datum_nl toegepast voor de juiste NL weergave:
             st.write(f"**Geselecteerde datum:** {formatteer_datum_nl(gekozen_datum_str)}")
             hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag")
             
@@ -760,10 +762,11 @@ elif menu_optie == "📅 Agenda & Notities":
                 cursor.execute("""
                     INSERT INTO agenda (datum, titel, notitie, status)
                     VALUES (?, ?, ?, 'Open')
-                """)
+                """, (opslag_datum, ag_titel.strip(), ag_notitie.strip()))
                 conn.commit()
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
+
 
     @st.dialog("🔍 Afspraak Beheren")
     def bekijk_afspraak_dialog(event_id, titel_ruw, start_veld, eind_veld, notitie_veld, status_veld):
@@ -788,7 +791,9 @@ elif menu_optie == "📅 Agenda & Notities":
 
         if not st.session_state[bewerk_modus_key]:
             st.markdown(f"### **{pure_titel_origineel}**")
+            # Zorg dat deze regel de formatteer_datum_nl functie gebruikt:
             st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_huidig)}")
+
             
             if not is_voorheen_hele_dag:
                 st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
