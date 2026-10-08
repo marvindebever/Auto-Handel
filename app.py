@@ -20,7 +20,8 @@ def init_db():
                 kenteken TEXT, km_stand INTEGER, inkoopprijs REAL, verkoopprijs REAL,
                 apk_datum TEXT, extra_kosten REAL, afbeelding TEXT, naam TEXT, transmissie TEXT,
                 status TEXT DEFAULT 'In voorraad',
-                brandstof TEXT, vermogen INTEGER, kleur TEXT, cataloguswaarde REAL
+                brandstof TEXT, vermogen INTEGER, kleur TEXT, cataloguswaarde REAL,
+                bouwjaar INTEGER
             )
         """)
         cursor.execute("PRAGMA table_info(voorraad)")
@@ -35,6 +36,8 @@ def init_db():
             cursor.execute("ALTER TABLE voorraad ADD COLUMN kleur TEXT")
         if "cataloguswaarde" not in bestaande_kolommen:
             cursor.execute("ALTER TABLE voorraad ADD COLUMN cataloguswaarde REAL")
+        if "bouwjaar" not in bestaande_kolommen:
+            cursor.execute("ALTER TABLE voorraad ADD COLUMN bouwjaar INTEGER")
             
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agenda (
@@ -46,6 +49,7 @@ def init_db():
             )
         """)
         conn.commit()
+
 
 init_db()
 
@@ -146,13 +150,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         res = requests.get(url, headers=headers, timeout=8)
         
         if res.status_code == 200:
-            # Controleer of we daadwerkelijk data hebben gekregen
             if "application/json" not in res.headers.get("Content-Type", ""):
                 return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
                 
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                # Pakt expliciet het eerste voertuig-object [0] uit de lijst
                 voertuig = data[0]  
                 
                 merk = voertuig.get("merk", "").title()
@@ -163,21 +165,20 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
                 brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title() 
                 
-                # --- EXTRA LIVE RDW BRANDSTOF CHECK VOOR PK'S ---
-                pk = 0
-                # We halen de kW-waarde direct uit dezelfde 'voertuig'-dataset van de hoofd-URL!
-                kw = naar_getal(voertuig.get("netto_maximum_vermogen", 0))
-                
-                # kW omrekenen naar PK (kW * 1.362)
-                if kw > 0:
-                    pk = int(kw * 1.362)
+                # --- LIVE RDW BOUWJAAR EXTRACTION ---
+                bouwjaar = 0
+                datum_toelating = voertuig.get("datum_eerste_toelating", "")
+                if datum_toelating and len(str(datum_toelating)) >= 4:
+                    try:
+                        bouwjaar = int(str(datum_toelating)[:4])
+                    except:
+                        pass
                 # --- EINDE LOGICA ---
 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
                     try: 
-                        # RDW datums converteren van 'YYYYMMDD' naar een Date-object
                         apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
                     except Exception: 
                         pass
@@ -186,7 +187,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
                     "apk": apk_formatted,
                     "brandstof": brandstof,
-                    "vermogen": pk,
+                    "bouwjaar": bouwjaar,
                     "kleur": kleur,
                     "cataloguswaarde": cataloguswaarde,
                     "fout": None
@@ -226,7 +227,7 @@ def exporteer_database_naar_json():
         conn.row_factory = sqlite3.Row  
         cursor = conn.cursor()
         
-        cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, vermogen, kleur, cataloguswaarde FROM voorraad")
+        cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde FROM voorraad")
         voorraad_rijen = cursor.fetchall()
         voorraad_data = [dict(rij) for rij in voorraad_rijen]
         
@@ -243,6 +244,7 @@ def exporteer_database_naar_json():
         }
     import json
     return json.dumps(volledige_backup, indent=4)
+
 
 def importeer_json_naar_database(json_data):
     import json
@@ -264,9 +266,9 @@ def importeer_json_naar_database(json_data):
             
             for v in voertuigen:
                 cursor.execute("""
-                    INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, vermogen, kleur, cataloguswaarde)
+                    INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (v.get("kenteken"), v.get("km_stand"), v.get("inkoopprijs"), v.get("verkoopprijs"), v.get("apk_datum"), v.get("extra_kosten"), v.get("afbeelding"), v.get("naam"), v.get("transmissie"), v.get("status"), v.get("brandstof"), v.get("vermogen"), v.get("kleur"), v.get("cataloguswaarde")))
+                """, (v.get("kenteken"), v.get("km_stand"), v.get("inkoopprijs"), v.get("verkoopprijs"), v.get("apk_datum"), v.get("extra_kosten"), v.get("afbeelding"), v.get("naam"), v.get("transmissie"), v.get("status"), v.get("brandstof"), v.get("bouwjaar"), v.get("kleur"), v.get("cataloguswaarde")))
             
             for a in afspraken:
                 cursor.execute("""
@@ -279,9 +281,10 @@ def importeer_json_naar_database(json_data):
         st.sidebar.error(f"Import mislukt: {str(e)}")
         return False
 
+
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
-def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig, brandstof_h, vermogen_h, kleur_h, cat_h):
+def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig, brandstof_h, bouwjaar_h, kleur_h, cat_h):
     try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
     except: standaard_datum = datetime.today().date()
 
@@ -298,7 +301,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     
     col_e3, col_e4 = st.columns(2)
     edit_brandstof = col_e3.text_input("Pas Brandstof aan", value=str(brandstof_h if brandstof_h else "Benzine"))
-    edit_vermogen = col_e4.text_input("Pas Vermogen aan (PK)", value=str(vermogen_h if vermogen_h else 0))
+    edit_bouwjaar = col_e4.text_input("Pas Bouwjaar aan", value=str(bouwjaar_h if bouwjaar_h else 0))
     
     col_e5, col_e6 = st.columns(2)
     edit_kleur = col_e5.text_input("Pas Kleur aan", value=str(kleur_h if kleur_h else ""))
@@ -345,14 +348,15 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 cursor = conn.cursor()
                 cursor.execute("""
                     UPDATE voorraad 
-                    SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=?, status=?, brandstof=?, vermogen=?, kleur=?, cataloguswaarde=?
+                    SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=?, status=?, brandstof=?, bouwjaar=?, kleur=?, cataloguswaarde=?
                     WHERE id=?
-                """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, edit_brandstof, naar_getal(edit_vermogen, int), edit_kleur, naar_getal(edit_cat), actie_id))
+                """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, edit_brandstof, naar_getal(edit_bouwjaar, int), edit_kleur, naar_getal(edit_cat), actie_id))
                 conn.commit()
             
             if uploader_key in st.session_state:
                 del st.session_state[uploader_key]
             st.rerun()
+
 
 # --- DIALOG & PDF GENERATOR VOOR KOOPOVEREENKOMST ---
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
@@ -514,7 +518,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             st.session_state["rdw_naam"] = rdw_data["naam"]
             st.session_state["rdw_apk"] = rdw_data["apk"]
             st.session_state["rdw_brandstof"] = rdw_data["brandstof"]
-            st.session_state["rdw_vermogen"] = rdw_data["vermogen"]
+            st.session_state["rdw_bouwjaar"] = rdw_data["bouwjaar"]
             st.session_state["rdw_kleur"] = rdw_data["kleur"]
             st.session_state["rdw_cataloguswaarde"] = rdw_data["cataloguswaarde"]
             st.session_state["rdw_ktk"] = rdw_kenteken
@@ -532,7 +536,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         
         c_form3, c_form4 = st.columns(2)
         brandstof_invoer = c_form3.text_input("Brandstof", value=st.session_state.get("rdw_brandstof", "Benzine"))
-        vermogen_invoer = c_form4.text_input("Vermogen (PK)", value=str(st.session_state.get("rdw_vermogen", 0)))
+        bouwjaar_invoer = c_form4.text_input("Bouwjaar", value=str(st.session_state.get("rdw_bouwjaar", 0)))
 
         c_form5, c_form6 = st.columns(2)
         kleur_invoer = c_form5.text_input("Kleur", value=st.session_state.get("rdw_kleur", ""))
@@ -543,7 +547,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         
         c_form7, c_form8, c_form9 = st.columns(3)
         inkoopprijs_str = c_form7.text_input("Inkoopprijs (€)", value="0.00")
-        verkoopprijs_str = c_form8.text_input("Verkoopprijs (€)", value="0.00")
+        verkoopprijs_str = rdw_col1 = c_form8.text_input("Verkoopprijs (€)", value="0.00")
         extra_kosten_str = c_form9.text_input("Extra kosten (€)", value="0.00")
         gevoegde_fotos = st.file_uploader("Kies foto's (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
         submit = st.form_submit_button("Voeg toe aan voorraad")
@@ -563,15 +567,16 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status, brandstof, vermogen, kleur, cataloguswaarde) 
+                INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (naam, kenteken.upper().replace("-", "").strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer, brandstof_invoer, naar_getal(vermogen_invoer, int), kleur_invoer, naar_getal(cat_invoer)))
+            """, (naam, kenteken.upper().replace("-", "").strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer, brandstof_invoer, naar_getal(bouwjaar_invoer, int), kleur_invoer, naar_getal(cat_invoer)))
             conn.commit()
             
-        for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_vermogen", "rdw_kleur", "rdw_cataloguswaarde"]:
+        for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
             if sleutel in st.session_state: del st.session_state[sleutel]
         st.success("Auto succesvol toegevoegd!")
         st.rerun()
+
 
 elif menu_optie == "📊 Actuele Status Dashboard":
     st.title("📊 Actuele Status Dashboard")
@@ -593,7 +598,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, vermogen, kleur, cataloguswaarde FROM voorraad")
+        cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde FROM voorraad")
         alle_autos = cursor.fetchall()
 
     verwerkte_autos = []
@@ -603,7 +608,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
             verwerkte_autos.append({
                 "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
                 "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
-                "status": auto[10], "brandstof": auto[11] if auto[11] else "Onbekend", "vermogen": auto[12] if auto[12] else 0,
+                "status": auto[10], "brandstof": auto[11] if auto[11] else "Onbekend", "bouwjaar": auto[12] if auto[12] else 0,
                 "kleur": auto[13] if auto[13] else "Onbekend", "cataloguswaarde": auto[14] if auto[14] else 0.0, "winst": winst
             })
 
@@ -671,7 +676,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
 
                     with c2:
                         st.write(f"**Kilometerstand:** {auto['km_stand']:,} km".replace(",", "."))
-                        st.write(f"**Brandstof:** {auto['brandstof']} | **Vermogen:** {auto['vermogen']} PK")
+                        st.write(f"**Brandstof:** {auto['brandstof']} | **Bouwjaar:** {auto['bouwjaar'] if auto['bouwjaar'] > 0 else 'Onbekend'}")
                         st.write(f"**Kleur:** {auto['kleur']} | **Cataloguswaarde:** € {formatteer_euro_nl(auto['cataloguswaarde'])}")
                         st.write(f"**Transmissie:** {auto['transmissie']} | **APK Datum:** {formatteer_datum_nl(auto['apk_datum'])}")
                         st.markdown("---")
@@ -680,7 +685,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         
                         b_edit, b_del = st.columns(2)
                         if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", use_container_width=True):
-                            bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"], auto["status"], auto["brandstof"], auto["vermogen"], auto["kleur"], auto["cataloguswaarde"])
+                            bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"], auto["status"], auto["brandstof"], auto["bouwjaar"], auto["kleur"], auto["cataloguswaarde"])
                         if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", use_container_width=True):
                             with sqlite3.connect(DB_NAME) as conn:
                                 cursor = conn.cursor()
@@ -691,6 +696,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
                         if st.button("📄 Koopcontract / Factuur", key=f"contract_{auto['id']}", type="secondary", use_container_width=True):
                             genereer_contract_dialog(auto["id"], auto["naam"], auto["kenteken"], auto["km_stand"], auto["verkoopprijs"], auto["apk_datum"])
+
 
 elif menu_optie == "💰 Financieel Overzicht":
     st.title("💰 Financieel Overzicht & Budget")
