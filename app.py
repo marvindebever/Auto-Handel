@@ -318,8 +318,20 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     edit_apk = col_e2.date_input("Pas APK Datum aan", value=standaard_datum)
     
     col_e3, col_e4 = st.columns(2)
-    edit_brandstof = col_e3.text_input("Pas Brandstof aan", value=str(brandstof_h if brandstof_h else "Benzine"))
+    
+    # Dropdown voor het bewerkscherm
+    edit_brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
+    if brandstof_h not in edit_brandstof_opties and brandstof_h:
+        edit_brandstof_opties.append(brandstof_h)
+        
+    edit_brandstof = col_e3.selectbox(
+        "Pas Brandstof aan", 
+        options=edit_brandstof_opties, 
+        index=edit_brandstof_opties.index(brandstof_h) if brandstof_h in edit_brandstof_opties else 0
+    )
+    
     edit_bouwjaar = col_e4.text_input("Pas Bouwjaar aan", value=str(bouwjaar_h if bouwjaar_h else 0))
+
     
     col_e5, col_e6 = st.columns(2)
     edit_kleur = col_e5.text_input("Pas Kleur aan", value=str(kleur_h if kleur_h else ""))
@@ -554,8 +566,24 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
         
         c_form3, c_form4 = st.columns(2)
-        brandstof_invoer = c_form3.text_input("Brandstof", value=st.session_state.get("rdw_brandstof", "Benzine"))
+        
+        # --- GEOPTIMALISEERD NAAR DROPDOWN MENU ---
+        brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
+        rdw_brandstof = st.session_state.get("rdw_brandstof", "Benzine")
+        
+        # Zorg dat de waarde van de RDW in de lijst staat, anders netjes toevoegen
+        if rdw_brandstof not in brandstof_opties and rdw_brandstof:
+            brandstof_opties.append(rdw_brandstof)
+            
+        brandstof_invoer = c_form3.selectbox(
+            "Brandstof", 
+            options=brandstof_opties, 
+            index=brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0
+        )
+        # ------------------------------------------
+        
         bouwjaar_invoer = c_form4.text_input("Bouwjaar", value=str(st.session_state.get("rdw_bouwjaar", 0)))
+
 
         c_form5, c_form6 = st.columns(2)
         kleur_invoer = c_form5.text_input("Kleur", value=st.session_state.get("rdw_kleur", ""))
