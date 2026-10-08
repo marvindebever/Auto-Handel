@@ -140,7 +140,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     # 1. Basisvoertuig gegevens ophalen
     url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
     # 2. Brandstof gegevens ophalen (andere dataset!)
-    url_brandstof = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    url_brandstof = f"https://rdw.nl{schoon}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
