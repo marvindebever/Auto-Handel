@@ -1,0 +1,19 @@
+name: Streamlit App Wakker Houden
+
+on:
+  schedule:
+    # Dit draait elke 4 uur om de app actief te houden
+    - cron: '0 */4 * * *'
+  workflow_dispatch: # Hiermee kun je hem ook handmatig testen in GitHub
+
+jobs:
+  wake-up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Installeer Python en Wakeup Tool
+        run: |
+          pip install streamlit-wakeup
+      
+      - name: Start de Streamlit app op
+        run: |
+          streamlit-wakeup https://mt-automotive.streamlit.app/
