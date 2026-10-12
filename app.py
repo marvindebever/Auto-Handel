@@ -756,7 +756,7 @@ elif menu_optie == "📅 Agenda & Notities":
                     st.session_state[bewerk_modus_key] = False
                     st.rerun()
 
-    # --- KALENDER RENDEREN ---
+    # --- KALENDER RENDEREN EN KLIK-CORRECTIE ---
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
@@ -785,8 +785,34 @@ elif menu_optie == "📅 Agenda & Notities":
     }
     
     state = calendar(events=calendar_events, options=calendar_options, key="agenda_volledige_breedte")
+    
     if state.get("eventClick"):
-        ev = state["eventClick"]["event"]; props = ev.get("extendedProps", {})
+        ev = state["eventClick"]["event"]
+        props = ev.get("extendedProps", {})
         bekijk_afspraak_dialog(event_id=ev["id"], titel_ruw=ev["title"], start_veld=props.get("start_tijd"), eind_veld=props.get("eind_tijd"), notitie_veld=props.get("notitie"), status_veld=props.get("status"))
+        
     elif state.get("dateClick"):
-        nieuwe_afspraak_dialog(state["dateClick"]["date"].split("T")[0])
+        ruwe_datum_str = state["dateClick"]["date"]  # Bijv: "2026-10-12T00:00:00Z" of "2026-10-12"
+        puur_datum = ruwe_datum_str.split("T")[0]   # Standaard fallback
+        
+        # FIX: Tijdzone/UTC verschuiving opvangen
+        try:
+            # Als de string een 'Z' (UTC) of 'T' bevat, converteren we hem naar een echt datetime object
+            if "T" in ruwe_datum_str:
+                # Vervang de Z zodat Python's fromisoformat het begrijpt als UTC
+                schoon_datum_str = ruwe_datum_str.replace("Z", "+00:00")
+                dt_utc = datetime.fromisoformat(schoon_datum_str)
+                
+                # Sla de exacte datum op. Als het tijdstip 00:00:00 is, pakken we puur de datum
+                # en voorkomen we dat een negatieve tijdsverschuiving naar de vorige dag wijst.
+                if dt_utc.hour == 0 and dt_utc.minute == 0:
+                    puur_datum = dt_utc.strftime("%Y-%m-%d")
+                else:
+                    # Als er wél een specifieke tijd is aangeklikt (bijv. in week-view), 
+                    # kun dat hier eventueel lokaal converteren. Voor nu pakken we de veilige datum:
+                    puur_datum = dt_utc.strftime("%Y-%m-%d")
+        except Exception as e:
+            # Fallback als de ISO-conversie onverhoopt mislukt
+            puur_datum = ruwe_datum_str.split("T")[0]
+            
+        nieuwe_afspraak_dialog(puur_datum)
