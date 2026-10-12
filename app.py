@@ -662,6 +662,7 @@ elif menu_optie == "💰 Financieel Overzicht":
 
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
+    
     try:
         from streamlit_calendar import calendar
     except ImportError:
@@ -671,12 +672,14 @@ elif menu_optie == "📅 Agenda & Notities":
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
     def nieuwe_afspraak_dialog(gekozen_datum_str):
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
+            # Hier is formatteer_datum_nl toegepast voor de juiste NL weergave:
             st.write(f"**Geselecteerde datum:** {formatteer_datum_nl(gekozen_datum_str)}")
-            hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag", value=True)
+            hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag")
             
             tijd_col1, tijd_col2 = st.columns(2)
-            ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
-            ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
+            if not hele_dag:
+                ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
+                ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
             
             ag_titel = st.text_input("Titel (bijv. Proefrit Golf, APK Keuring)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
@@ -692,14 +695,19 @@ elif menu_optie == "📅 Agenda & Notities":
             
             with sqlite3.connect(DB_NAME) as conn:
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO agenda (datum, titel, notitie, status) VALUES (?, ?, ?, 'Open')", (opslag_datum, ag_titel.strip(), ag_notitie.strip()))
+                cursor.execute("""
+                    INSERT INTO agenda (datum, titel, notitie, status)
+                    VALUES (?, ?, ?, 'Open')
+                """, (opslag_datum, ag_titel.strip(), ag_notitie.strip()))
                 conn.commit()
+            st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
+
 
     @st.dialog("🔍 Afspraak Beheren")
     def bekijk_afspraak_dialog(event_id, titel_ruw, start_veld, eind_veld, notitie_veld, status_veld):
         bewerk_modus_key = f"edit_mode_{event_id}"
-        if bewerk_modus_key not in st.session_state: 
+        if bewerk_modus_key not in st.session_state:
             st.session_state[bewerk_modus_key] = False
 
         is_voorheen_hele_dag = "T" not in str(start_veld)
@@ -719,60 +727,95 @@ elif menu_optie == "📅 Agenda & Notities":
 
         if not st.session_state[bewerk_modus_key]:
             st.markdown(f"### **{pure_titel_origineel}**")
+            # Zorg dat deze regel de formatteer_datum_nl functie gebruikt:
             st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_huidig)}")
-            if not is_voorheen_hele_dag: 
-                st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
-            st.write(f"📊 **Status:** {status_veld}")
-            if notitie_veld: 
-                st.write(f"📝 **Opmerkingen:**\n{notitie_veld}")
+
             
+            if not is_voorheen_hele_dag:
+                st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
+            else:
+                st.write("📅 **Tijd:** Gehele dag")
+                
+            st.write(f"📊 **Status:** {status_veld}")
+            if notitie_veld:
+                st.write(f"📝 **Opmerkingen:**  \n{notitie_veld}")
+                
             st.markdown("---")
             col_b1, col_b2, col_b3 = st.columns(3)
+            
             if status_veld == "Open":
                 if col_b1.button("✅ Voltooid", key=f"btn_done_{event_id}", type="primary", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn: 
+                    with sqlite3.connect(DB_NAME) as conn:
                         cursor = conn.cursor()
                         cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (event_id,))
                         conn.commit()
                     st.rerun()
             else:
                 if col_b1.button("🔄 Heropenen", key=f"btn_re_{event_id}", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn: 
+                    with sqlite3.connect(DB_NAME) as conn:
                         cursor = conn.cursor()
                         cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (event_id,))
                         conn.commit()
                     st.rerun()
             
-            if col_b2.button("✏️ Bewerken", key=f"btn_edit_act_{event_id}", use_container_width=True): 
+            if col_b2.button("✏️ Bewerken", key=f"btn_edit_act_{event_id}", use_container_width=True):
                 st.session_state[bewerk_modus_key] = True
                 st.rerun()
+                    
             if col_b3.button("🗑️ Wissen", key=f"btn_del_{event_id}", type="secondary", use_container_width=True):
-                with sqlite3.connect(DB_NAME) as conn: 
+                with sqlite3.connect(DB_NAME) as conn:
                     cursor = conn.cursor()
                     cursor.execute("DELETE FROM agenda WHERE id=?", (event_id,))
                     conn.commit()
                 st.rerun()
         else:
-            with st.form(f"agenda_edit_form_{event_id}"):
-                st.markdown("### ✏️ Afspraak Wijzigen")
-                edit_datum = st.date_input("Pas Datum aan", value=standaard_datum)
-                edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag", value=is_voorheen_hele_dag)
-                edit_tijd_van = st.time_input("Pas Begintijd aan", value=huidig_van)
-                edit_tijd_tot = st.time_input("Pas Eindtijd aan", value=huidig_tot)
-                edit_titel = st.text_input("Pas Titel aan", value=pure_titel_origineel)
-                edit_notitie = st.text_area("Pas Aanvullende informatie aan", value=notitie_veld if notitie_veld else "")
-                submit_agenda_changes = st.form_submit_button("💾 Wijzigingen Opslaan", type="primary", use_container_width=True)
-                
-                if submit_agenda_changes and edit_titel.strip():
-                    nieuw_datum_format = str(edit_datum) if edit_hele_dag else f"{edit_datum}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum}T{edit_tijd_tot.strftime('%H:%M:%S')}"
-                    with sqlite3.connect(DB_NAME) as conn: 
+            st.markdown("### ✏️ Afspraak Wijzigen")
+            edit_datum = st.date_input("Pas Datum aan", value=standaard_datum, key=f"edit_dat_{event_id}")
+            edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag", value=is_voorheen_hele_dag, key=f"edit_hd_{event_id}")
+            
+            tijd_edit_col1, tijd_edit_col2 = st.columns(2)
+            if not edit_hele_dag:
+                edit_tijd_van = tijd_edit_col1.time_input("Pas Begintijd aan", value=huidig_van, key=f"edit_v_{event_id}")
+                edit_tijd_tot = tijd_edit_col2.time_input("Pas Eindtijd aan", value=huidig_tot, key=f"edit_t_{event_id}")
+            
+            edit_titel = st.text_input("Pas Titel aan", value=pure_titel_origineel, key=f"edit_ttl_{event_id}")
+            edit_notitie = st.text_area("Pas Aanvullende informatie aan", value=notitie_veld if notitie_veld else "", key=f"edit_not_{event_id}")
+            
+            st.markdown("---")
+            col_save1, col_save2 = st.columns(2)
+            
+            if col_save1.button("💾 Wijzigingen Opslaan", type="primary", use_container_width=True, key=f"btn_save_{event_id}"):
+                if edit_titel.strip():
+                    if edit_hele_dag:
+                        nieuw_datum_format = str(edit_datum)
+                    else:
+                        nieuw_datum_format = f"{edit_datum}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum}T{edit_tijd_tot.strftime('%H:%M:%S')}"
+                    
+                    with sqlite3.connect(DB_NAME) as conn:
                         cursor = conn.cursor()
-                        cursor.execute("UPDATE agenda SET datum=?, titel=?, notitie=? WHERE id=?", (nieuw_datum_format, edit_titel.strip(), edit_notitie.strip(), event_id))
+                        cursor.execute("""
+                            UPDATE agenda 
+                            SET datum=?, titel=?, notitie=? 
+                            WHERE id=?
+                        """, (nieuw_datum_format, edit_titel.strip(), edit_notitie.strip(), event_id))
                         conn.commit()
                     st.session_state[bewerk_modus_key] = False
                     st.rerun()
+                    
+            if col_save2.button("❌ Annuleren", use_container_width=True, key=f"btn_can_{event_id}"):
+                st.session_state[bewerk_modus_key] = False
+                st.rerun()
 
-    # --- KALENDER RENDEREN ---
+    st.markdown("""
+        <style>
+        .fc .fc-toolbar { display: flex !important; flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important; justify-content: space-between !important; margin-bottom: 15px !important; }
+        .fc .fc-toolbar-title { font-size: 1.3rem !important; color: white !important; }
+        .fc .fc-button { padding: 6px 10px !important; font-size: 0.9rem !important; }
+        .fc .fc-daygrid-day-number { font-size: 0.95rem !important; font-weight: bold !important; color: white !important; }
+        .fc-daygrid-event { font-size: 0.8rem !important; padding: 3px !important; border-radius: 4px !important; }
+        </style>
+    """, unsafe_allow_html=True)
+
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
@@ -785,7 +828,9 @@ elif menu_optie == "📅 Agenda & Notities":
             start_tijd, eind_tijd = n_datum_veld.split("||")
             is_hele_dag = False
         else:
-            start_tijd = n_datum_veld; eind_tijd = n_datum_veld; is_hele_dag = True
+            start_tijd = n_datum_veld
+            eind_tijd = n_datum_veld
+            is_hele_dag = True
         
         kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
         calendar_events.append({
@@ -796,20 +841,37 @@ elif menu_optie == "📅 Agenda & Notities":
         
     calendar_options = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "height": "auto", "contentHeight": 550,
-        "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
+        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "selectable": False, "height": "auto", "contentHeight": 550,
+        "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"},
+        "slotMinTime": "07:00:00", "slotMaxTime": "21:00:00"
     }
     
-    state = calendar(events=calendar_events, options=calendar_options, key="agenda_volledige_breedte")
+    custom_css = """
+        .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
+        .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255,255,255,0.2) !important; }
+        .fc .fc-button-primary:hover { background-color: rgb(255, 75, 75) !important; }
+        .fc-theme-standard .fc-scrollgrid { border: 1px solid rgba(255,255,255,0.1) !important; }
+    """
+    
+    state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="agenda_volledige_breedte")
     
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
         props = ev.get("extendedProps", {})
         bekijk_afspraak_dialog(event_id=ev["id"], titel_ruw=ev["title"], start_veld=props.get("start_tijd"), eind_veld=props.get("eind_tijd"), notitie_veld=props.get("notitie"), status_veld=props.get("status"))
-        
     elif state.get("dateClick"):
-        # VEILIGE FIX: We pakken direct de eerste 10 tekens (YYYY-MM-DD) uit de string.
-        # Hierdoor blijft de datum ALTIJD exact de dag die je op je scherm aanklikt.
         ruwe_datum_str = state["dateClick"]["date"]
-        puur_datum = str(ruwe_datum_str)[:10]
+        try:
+            if "T" in ruwe_datum_str:
+                datum_deel, tijd_deel = ruwe_datum_str.split("T")
+                pure_dt = datetime.strptime(datum_deel, "%Y-%m-%d")
+                uurs_check = int(tijd_deel.split(":")[0])
+                if uurs_check >= 20:
+                    from datetime import timedelta
+                    pure_dt = pure_dt + timedelta(days=1)
+                puur_datum = pure_dt.strftime("%Y-%m-%d")
+            else:
+                puur_datum = ruwe_datum_str.split("Z")[0]
+        except:
+            puur_datum = ruwe_datum_str.split("T")[0]
         nieuwe_afspraak_dialog(puur_datum)
