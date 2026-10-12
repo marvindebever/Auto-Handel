@@ -3,6 +3,7 @@ from datetime import datetime
 import io
 import os
 import sqlite3
+import json
 from PIL import Image
 import streamlit as st
 import pandas as pd
@@ -26,18 +27,19 @@ def init_db():
         """)
         cursor.execute("PRAGMA table_info(voorraad)")
         bestaande_kolommen = [k[1] for k in cursor.fetchall()]
-        if "status" not in bestaande_kolommen:
-            cursor.execute("ALTER TABLE voorraad ADD COLUMN status TEXT DEFAULT 'In voorraad'")
-        if "brandstof" not in bestaande_kolommen:
-            cursor.execute("ALTER TABLE voorraad ADD COLUMN brandstof TEXT")
-        if "vermogen" not in bestaande_kolommen:
-            cursor.execute("ALTER TABLE voorraad ADD COLUMN vermogen INTEGER")
-        if "kleur" not in bestaande_kolommen:
-            cursor.execute("ALTER TABLE voorraad ADD COLUMN kleur TEXT")
-        if "cataloguswaarde" not in bestaande_kolommen:
-            cursor.execute("ALTER TABLE voorraad ADD COLUMN cataloguswaarde REAL")
-        if "bouwjaar" not in bestaande_kolommen:
-            cursor.execute("ALTER TABLE voorraad ADD COLUMN bouwjaar INTEGER")
+        
+        # Dynamisch kolommen toevoegen indien ze nog niet bestaan
+        aan_te_passen = {
+            "status": "TEXT DEFAULT 'In voorraad'",
+            "brandstof": "TEXT",
+            "vermogen": "INTEGER",
+            "kleur": "TEXT",
+            "cataloguswaarde": "REAL",
+            "bouwjaar": "INTEGER"
+        }
+        for kolom, specificatie in aan_te_passen.items():
+            if kolom not in bestaande_kolommen:
+                cursor.execute(f"ALTER TABLE voorraad ADD COLUMN {kolom} {specificatie}")
             
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agenda (
@@ -50,9 +52,7 @@ def init_db():
         """)
         conn.commit()
 
-
 init_db()
-
 # --- STYLING & ACHTERGROND ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
@@ -121,7 +121,8 @@ if not st.session_state["ingelogd"]:
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     if st.button("Inloggen", type="primary"):
-        if wachtwoord_invoer == "DONGEN123":
+        veilig_wachtwoord = st.secrets.get("PASSWORD", "DONGEN123")
+        if wachtwoord_invoer == veilig_wachtwoord:
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
@@ -129,30 +130,24 @@ if not st.session_state["ingelogd"]:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
     
-# --- ROBUUSTE RDW KOPPELING ---
-
+# --- RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
-    """Haalt voertuiggegevens én brandstofgegevens rechtstreeks op uit het openbare RDW-register via de directe URI structure."""
-    # RDW eist ALTIJD hoofdletters en GEEN streepjes in de API-aanroep
+    """Haalt voertuiggegevens op uit het openbare RDW-register."""
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    # Dit omzeilt de Tyler/Socrata HTML-foutpagina's bij anonieme queries.
-    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
-    url_brandstof = f"https://rdw.nl{schoon}"
-    
+    url_voertuig = f"https://rdw.nl{schoon}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "application/json"
     }
     
     try:
         res_v = requests.get(url_voertuig, headers=headers, timeout=8)
-        
         if res_v.status_code == 200:
             if "application/json" not in res_v.headers.get("Content-Type", ""):
-                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het over een moment opnieuw."}
+                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het opnieuw."}
                 
             data_v = res_v.json()
             if isinstance(data_v, list) and len(data_v) > 0:
@@ -161,45 +156,21 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 merk = voertuig.get("merk", "").title()
                 model = voertuig.get("handelsbenaming", "").title()
                 volledige_naam = f"{merk} {model}".strip()
-                
                 kleur = voertuig.get("eerste_kleur", "Onbekend").title()
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
-                
-                # --- LIVE BRANDSTOF LOGICA (WERKT VOOR PERSONEN- ÉN BEDRIJFSWAGENS) ---
-                brandstof = "Benzine" # Standaard fallback
-                try:
-                    res_b = requests.get(url_brandstof, headers=headers, timeout=5)
-                    if res_b.status_code == 200:
-                        data_b = res_b.json()
-                        if isinstance(data_b, list) and len(data_b) > 0:
-                            eerste_brandstof_rij = data_b[0]
-                            
-                            # Check eerst de standaard omschrijving, daarna de technische variant voor bedrijfswagens
-                            brandstof_naam = eerste_brandstof_rij.get("brandstof_omschrijving") or eerste_brandstof_rij.get("brandstof_omschrijving_brandstof_technisch")
-                            
-                            if brandstof_naam:
-                                brandstof = brandstof_naam.title()
-                except Exception:
-                    pass # Als de brandstof-call faalt, valt hij terug op de default
-                # ---------------------------------------------------------------------
+                brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title()
 
-
-                # --- LIVE RDW BOUWJAAR EXTRACTION ---
                 bouwjaar = 0
                 datum_toelating = voertuig.get("datum_eerste_toelating", "")
                 if datum_toelating and len(str(datum_toelating)) >= 4:
-                    try:
-                        bouwjaar = int(str(datum_toelating)[:4])
-                    except:
-                        pass
+                    try: bouwjaar = int(str(datum_toelating)[:4])
+                    except: pass
 
                 apk_verval = voertuig.get("vervaldatum_apk", "")
                 apk_formatted = datetime.today().date()
                 if apk_verval:
-                    try: 
-                        apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except Exception: 
-                        pass
+                    try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
+                    except: pass
                         
                 return {
                     "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
@@ -213,18 +184,15 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
             else:
                 return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
         elif res_v.status_code == 403:
-            return {"fout": "Toegang geweigerd (403) door RDW. Server blokkeert mogelijk tijdelijk je IP."}
+            return {"fout": "Toegang geweigerd (403) door RDW."}
         elif res_v.status_code == 429:
             return {"fout": "Te veel aanvragen achter elkaar (429). Wacht 10 seconden."}
         else:
-            return {"fout": f"RDW Server gaf een foutmelding. Statuscode: {res_v.status_code}."}
-            
+            return {"fout": f"RDW Server foutmelding. Statuscode: {res_v.status_code}."}
     except requests.exceptions.Timeout:
-        return {"fout": "De verbinding met de RDW duurde te lang. Controleer je internet."}
+        return {"fout": "De verbinding met de RDW duurde te lang."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
-
-
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde: return 0 if type_getal == int else 0.0
@@ -246,12 +214,10 @@ def exporteer_database_naar_json():
         cursor = conn.cursor()
         
         cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde FROM voorraad")
-        voorraad_rijen = cursor.fetchall()
-        voorraad_data = [dict(rij) for rij in voorraad_rijen]
+        voorraad_data = [dict(rij) for r in cursor.fetchall()]
         
         cursor.execute("SELECT datum, titel, notitie, status FROM agenda")
-        agenda_rijen = cursor.fetchall()
-        agenda_data = [dict(rij) for rij in agenda_rijen]
+        agenda_data = [dict(rij) for rij in cursor.fetchall()]
         
         actueel_startbudget = st.session_state.get("startbudget", 10000.0)
         
@@ -260,12 +226,9 @@ def exporteer_database_naar_json():
             "voorraad": voorraad_data,
             "agenda": agenda_data
         }
-    import json
     return json.dumps(volledige_backup, indent=4)
 
-
 def importeer_json_naar_database(json_data):
-    import json
     try:
         backup_pakket = json.loads(json_data)
         if isinstance(backup_pakket, dict):
@@ -298,8 +261,6 @@ def importeer_json_naar_database(json_data):
     except Exception as e:
         st.sidebar.error(f"Import mislukt: {str(e)}")
         return False
-
-
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig, brandstof_h, bouwjaar_h, kleur_h, cat_h):
@@ -308,87 +269,63 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 
     uploader_key = f"fotos_upload_{actie_id}"
 
-    edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
-    edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
-    status_opties = ["In voorraad", "Gereserveerd", "Verkocht"]
-    edit_status = st.selectbox("Status", options=status_opties, index=status_opties.index(status_huidig) if status_huidig in status_opties else 0)
-    
-    col_e1, col_e2 = st.columns(2)
-    edit_km = col_e1.text_input("Pas Kilometerstand aan", value=str(km))
-    edit_apk = col_e2.date_input("Pas APK Datum aan", value=standaard_datum)
-    
-    col_e3, col_e4 = st.columns(2)
-    
-    # Dropdown voor het bewerkscherm
-    edit_brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
-    if brandstof_h not in edit_brandstof_opties and brandstof_h:
-        edit_brandstof_opties.append(brandstof_h)
+    with st.form(f"edit_form_{actie_id}", clear_on_submit=False):
+        edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
+        edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
+        status_opties = ["In voorraad", "Gereserveerd", "Verkocht"]
+        edit_status = st.selectbox("Status", options=status_opties, index=status_opties.index(status_huidig) if status_huidig in status_opties else 0)
         
-    edit_brandstof = col_e3.selectbox(
-        "Pas Brandstof aan", 
-        options=edit_brandstof_opties, 
-        index=edit_brandstof_opties.index(brandstof_h) if brandstof_h in edit_brandstof_opties else 0
-    )
-    
-    edit_bouwjaar = col_e4.text_input("Pas Bouwjaar aan", value=str(bouwjaar_h if bouwjaar_h else 0))
-
-    
-    col_e5, col_e6 = st.columns(2)
-    edit_kleur = col_e5.text_input("Pas Kleur aan", value=str(kleur_h if kleur_h else ""))
-    edit_cat = col_e6.text_input("Pas Cataloguswaarde aan (€)", value=str(cat_h if cat_h else 0.0))
-
-    trans_opties = ["Handgeschakeld", "Automaat"]
-    edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
-    
-    col_e7, col_e8, col_e9 = st.columns(3)
-    edit_inkoop = col_e7.text_input("Pas Inkoopprijs aan", value=str(inkoop))
-    edit_verkoop = col_e8.text_input("Pas Verkoopprijs aan", value=str(verkoop))
-    edit_kosten = col_e9.text_input("Pas Extra kosten aan", value=str(kosten))
-    
-    if foto_huidig:
-        st.write("🟢 Deze auto heeft momenteel opgeslagen foto's.")
-        if st.button("🗑️ Wis alle bestaande foto's", type="secondary", use_container_width=True):
-            with sqlite3.connect(DB_NAME) as conn:
-                cursor = conn.cursor()
-                cursor.execute("UPDATE voorraad SET afbeelding='' WHERE id=?", (actie_id,))
-                conn.commit()
-            st.toast("⚡ Bestaande foto's succesvol gewist!", icon="🗑️")
-            st.rerun()
-    else:
-        st.write("⚪ Deze auto heeft momenteel geen foto's.")
-
-    edit_fotos = st.file_uploader("Upload nieuwe foto's", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=uploader_key)
-    
-    if st.button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True):
-        if edit_ktk.strip():
-            foto_opslaan = foto_huidig
-            geuploade_bestanden = st.session_state.get(uploader_key)
+        col_e1, col_e2 = st.columns(2)
+        edit_km = col_e1.number_input("Pas Kilometerstand aan", value=int(km), step=1)
+        edit_apk = col_e2.date_input("Pas APK Datum aan", value=standaard_datum)
+        
+        col_e3, col_e4 = st.columns(2)
+        edit_brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
+        if brandstof_h not in edit_brandstof_opties and brandstof_h:
+            edit_brandstof_opties.append(brandstof_h)
             
-            if geuploade_bestanden:
-                foto_lijst = []
-                for f in geuploade_bestanden:
-                    img = Image.open(f)
-                    img.thumbnail((800, 800))
-                    buffer = io.BytesIO()
-                    img.save(buffer, format="JPEG", quality=70)
-                    foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
-                foto_opslaan = "||".join(foto_lijst)
-            
-            with sqlite3.connect(DB_NAME) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE voorraad 
-                    SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=?, status=?, brandstof=?, bouwjaar=?, kleur=?, cataloguswaarde=?
-                    WHERE id=?
-                """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), naar_getal(edit_km, int), str(edit_apk), edit_trans, naar_getal(edit_inkoop), naar_getal(edit_verkoop), naar_getal(edit_kosten), foto_opslaan, edit_status, edit_brandstof, naar_getal(edit_bouwjaar, int), edit_kleur, naar_getal(edit_cat), actie_id))
-                conn.commit()
-            
-            if uploader_key in st.session_state:
-                del st.session_state[uploader_key]
-            st.rerun()
+        edit_brandstof = col_e3.selectbox("Pas Brandstof aan", options=edit_brandstof_opties, index=edit_brandstof_opties.index(brandstof_h) if brandstof_h in edit_brandstof_opties else 0)
+        edit_bouwjaar = col_e4.number_input("Pas Bouwjaar aan", value=int(bouwjaar_h) if bouwjaar_h else 0, step=1)
+        
+        col_e5, col_e6 = st.columns(2)
+        edit_kleur = col_e5.text_input("Pas Kleur aan", value=str(kleur_h if kleur_h else ""))
+        edit_cat = col_e6.number_input("Pas Cataloguswaarde aan (€)", value=float(cat_h) if cat_h else 0.0, step=50.0)
 
+        trans_opties = ["Handgeschakeld", "Automaat"]
+        edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
+        
+        col_e7, col_e8, col_e9 = st.columns(3)
+        edit_inkoop = col_e7.number_input("Pas Inkoopprijs aan (€)", value=float(inkoop), step=50.0)
+        edit_verkoop = col_e8.number_input("Pas Verkoopprijs aan (€)", value=float(verkoop), step=50.0)
+        edit_kosten = col_e9.number_input("Pas Extra kosten aan (€)", value=float(kosten), step=10.0)
+        
+        edit_fotos = st.file_uploader("Upload nieuwe foto's", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=uploader_key)
+        submit_edit = st.form_submit_button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True)
+        
+        if submit_edit:
+            if edit_ktk.strip():
+                foto_opslaan = foto_huidig
+                if edit_fotos:
+                    foto_lijst = []
+                    for f in edit_fotos:
+                        img = Image.open(f)
+                        img.thumbnail((800, 800))
+                        buffer = io.BytesIO()
+                        img.save(buffer, format="JPEG", quality=70)
+                        foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
+                    foto_opslaan = "||".join(foto_lijst)
+                
+                with sqlite3.connect(DB_NAME) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE voorraad 
+                        SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=?, status=?, brandstof=?, bouwjaar=?, kleur=?, cataloguswaarde=?
+                        WHERE id=?
+                    """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), int(edit_km), str(edit_apk), edit_trans, float(edit_inkoop), float(edit_verkoop), float(edit_kosten), foto_opslaan, edit_status, edit_brandstof, int(edit_bouwjaar), edit_kleur, float(edit_cat), actie_id))
+                    conn.commit()
+                st.rerun()
 
-# --- DIALOG & PDF GENERATOR VOOR KOOPOVEREENKOMST ---
+# --- DIALOG KOOPOVEREENKOMST ---
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
 def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     st.write("Vul de gegevens van de koper in om de officiële koopovereenkomst te genereren.")
@@ -424,62 +361,42 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
                 table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; }}
                 td {{ padding: 4px; vertical-align: top; }}
                 .label {{ font-weight: bold; width: 180px; }}
-                .footnote {{ font-size: 8px; color: #555; text-align: center; margin-top: 30px; border-top: 1px solid #ccc; padding-top: 5px; }}
             </style>
         </head>
         <body>
             <h2>PARTICULIERE KOOPOVEREENKOMST AUTO</h2>
-            <p style="font-size: 11px; font-style: italic;">(Margevoertuig / Zonder Garantie)<br>
-            Ondergetekenden komen overeen dat de verkoper het hieronder omschreven voertuig verkoopt aan de koper tegen de overengekomen prijs. Deze verkoop geschiedt tussen twee particulieren.</p>
-            
+            <p style="font-size: 11px; font-style: italic;">(Margevoertuig / Zonder Garantie)</p>
             <h3>1. Gegevens van de Verkoper</h3>
             <table>
-                <tr><td class="label">Naam / Bedrijfsnaam:</td><td>Autohandel Dongen</td></tr>
-                <tr><td class="label">Adres & Huisnummer:</td><td>De Volger 2B</td></tr>
-                <tr><td class="label">Postcode & Woonplaats:</td><td>5051 CX Dongen</td></tr>
+                <tr><td class="label">Naam:</td><td>Autohandel Dongen</td></tr>
+                <tr><td class="label">Adres:</td><td>De Volger 2B, 5051 CX Dongen</td></tr>
             </table>
-
             <h3>2. Gegevens van de Koper</h3>
             <table>
                 <tr><td class="label">Naam:</td><td>{koper_naam}</td></tr>
-                <tr><td class="label">Adres & Huisnummer:</td><td>{koper_adres}</td></tr>
-                <tr><td class="label">Postcode & Woonplaats:</td><td>{koper_postcode}</td></tr>
-                <tr><td class="label">Telefoonnummer:</td><td>{koper_tel if koper_tel else '-'}</td></tr>
-                <tr><td class="label">Legitimatie (Type/Nr):</td><td>{koper_legit if koper_legit else '-'}</td></tr>
+                <tr><td class="label">Adres:</td><td>{koper_adres} {koper_postcode}</td></tr>
+                <tr><td class="label">Legitimatie:</td><td>{koper_legit}</td></tr>
             </table>
-
             <h3>3. Voertuiggegevens</h3>
             <table>
                 <tr><td class="label">Merk & Model:</td><td>{merk_model}</td><td class="label">Kenteken:</td><td>{kenteken}</td></tr>
-                <tr><td class="label">Tellerstand:</td><td>{km:,} km</td><td class="label">APK geldig tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
+                <tr><td class="label">Tellerstand:</td><td>{km:,} km</td><td class="label">APK tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
             </table>
-
-            <h3>4. Financiële Afspraken & Levering</h3>
+            <h3>4. Financiële Afspraken</h3>
             <table>
-                <tr><td class="label">Overeengekomen prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td></tr>
-                <tr><td class="label">Wijze van betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp;&nbsp; {bank_vink} Per bankoverschrijving</td></tr>
-                <tr><td class="label">Datum van levering:</td><td>{huidige_datum}</td></tr>
+                <tr><td class="label">Prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td></tr>
+                <tr><td class="label">Betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp; {bank_vink} Bank</td></tr>
             </table>
-
             <h3>5. Bijzondere Afspraken</h3>
-            <p style="font-size: 11px;">{bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</p>
-
-            <h3>6. Handtekening voor Akkoord</h3>
-            <table style="margin-top: 20px;">
-                <tr>
-                    <td style="border: 1px solid #000; width: 50%; height: 80px; padding: 5px;">Handtekening Verkoper:<br><br><br>Datum: {huidige_datum}</td>
-                    <td style="border: 1px solid #000; width: 50%; height: 80px; padding: 5px;">Handtekening Koper:<br><br><br>Datum: {huidige_datum}</td>
-                </tr>
-            </table>
+            <p>{bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</p>
         </body>
         </html>
         """
         b64 = base64.b64encode(html_content.encode('utf-8')).decode()
         filename = f"Koopovereenkomst_{kenteken}_{huidige_datum}.html"
-        href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst (Open & Print)</a>'
+        href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst</a>'
         st.markdown(href, unsafe_allow_html=True)
-
-# --- SIDEBAR NAVIGATIE, DATA CALCULATIE & BACKUP ---
+# --- SIDEBAR NAVIGATIE ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
     menu_optie = st.radio(
@@ -499,7 +416,7 @@ with st.sidebar:
             mime="application/json",
             use_container_width=True
         )
-    except Exception as e:
+    except:
         st.error("Export mislukt")
 
     geimporteerd_bestand = st.file_uploader("📥 Importeer Data (Herstel)", type=["json"])
@@ -515,7 +432,7 @@ with st.sidebar:
         st.session_state["ingelogd"] = False
         st.rerun()
 
-# Financiële cijfers live en veilig laden uit de database
+# --- VEILIGE BALANS BEREKENING ---
 with sqlite3.connect(DB_NAME) as conn:
     cursor = conn.cursor()
     cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
@@ -531,8 +448,6 @@ if "startbudget" not in st.session_state:
     st.session_state["startbudget"] = 10000.0
 
 actueel_vrij_budget = st.session_state["startbudget"] - totale_voorraadwaarde + gerealiseerde_winst
-
-# --- INTERFACE STRUCTUUR ---
 if menu_optie == "🆕 Nieuwe auto toevoegen":
     st.title("🆕 Nieuwe auto toevoegen")
     
@@ -561,41 +476,30 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         kenteken = st.text_input("Kenteken (Verplicht)", value=st.session_state.get("rdw_ktk", ""))
         
         c_form1, c_form2 = st.columns(2)
-        km_stand_str = c_form1.text_input("Kilometerstand", value="0")
+        km_stand_str = c_form1.number_input("Kilometerstand", value=0, step=1)
         apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()), format="DD-MM-YYYY")
-
         
         c_form3, c_form4 = st.columns(2)
-        
-        # --- GEOPTIMALISEERD NAAR DROPDOWN MENU ---
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
         rdw_brandstof = st.session_state.get("rdw_brandstof", "Benzine")
-        
-        # Zorg dat de waarde van de RDW in de lijst staat, anders netjes toevoegen
         if rdw_brandstof not in brandstof_opties and rdw_brandstof:
             brandstof_opties.append(rdw_brandstof)
             
-        brandstof_invoer = c_form3.selectbox(
-            "Brandstof", 
-            options=brandstof_opties, 
-            index=brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0
-        )
-        # ------------------------------------------
-        
-        bouwjaar_invoer = c_form4.text_input("Bouwjaar", value=str(st.session_state.get("rdw_bouwjaar", 0)))
-
+        brandstof_invoer = c_form3.selectbox("Brandstof", options=brandstof_opties, index=brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0)
+        bouwjaar_invoer = c_form4.number_input("Bouwjaar", value=int(st.session_state.get("rdw_bouwjaar", 0)), step=1)
 
         c_form5, c_form6 = st.columns(2)
         kleur_invoer = c_form5.text_input("Kleur", value=st.session_state.get("rdw_kleur", ""))
-        cat_invoer = c_form6.text_input("Oorspronkelijke Cataloguswaarde (€)", value=str(st.session_state.get("rdw_cataloguswaarde", 0.0)))
+        cat_invoer = c_form6.number_input("Oorspronkelijke Cataloguswaarde (€)", value=float(st.session_state.get("rdw_cataloguswaarde", 0.0)), step=50.0)
 
         transmissie = st.selectbox("Transmissie", options=["Handgeschakeld", "Automaat"])
         status_invoer = st.selectbox("Status bij instroom", options=["In voorraad", "Gereserveerd"])
         
         c_form7, c_form8, c_form9 = st.columns(3)
-        inkoopprijs_str = c_form7.text_input("Inkoopprijs (€)", value="0.00")
-        verkoopprijs_str = rdw_col1 = c_form8.text_input("Verkoopprijs (€)", value="0.00")
-        extra_kosten_str = c_form9.text_input("Extra kosten (€)", value="0.00")
+        inkoopprijs_val = c_form7.number_input("Inkoopprijs (€)", value=0.0, step=50.0)
+        verkoopprijs_val = c_form8.number_input("Verkoopprijs (€)", value=0.0, step=50.0)
+        extra_kosten_val = c_form9.number_input("Extra kosten (€)", value=0.0, step=10.0)
+        
         gevoegde_fotos = st.file_uploader("Kies foto's (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
         submit = st.form_submit_button("Voeg toe aan voorraad")
 
@@ -616,15 +520,13 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             cursor.execute("""
                 INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (naam, kenteken.upper().replace("-", "").strip(), naar_getal(km_stand_str, int), naar_getal(inkoopprijs_str), naar_getal(verkoopprijs_str), str(apk_datum), naar_getal(extra_kosten_str), foto_data, transmissie, status_invoer, brandstof_invoer, naar_getal(bouwjaar_invoer, int), kleur_invoer, naar_getal(cat_invoer)))
+            """, (naam, kenteken.upper().replace("-", "").strip(), int(km_stand_str), float(inkoopprijs_val), float(verkoopprijs_val), str(apk_datum), float(extra_kosten_val), foto_data, transmissie, status_invoer, brandstof_invoer, int(bouwjaar_invoer), kleur_invoer, float(cat_invoer)))
             conn.commit()
             
         for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
             if sleutel in st.session_state: del st.session_state[sleutel]
         st.success("Auto succesvol toegevoegd!")
         st.rerun()
-
-
 elif menu_optie == "📊 Actuele Status Dashboard":
     st.title("📊 Actuele Status Dashboard")
     st.subheader("Financiële kerncijfers & Budgetbeheer")
@@ -665,7 +567,6 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
             verwerkte_autos = [x for x in verwerkte_autos if x["status"] == "Verkocht"]
 
         st.markdown("### 🔍 Filters & Sortering")
-        
         inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1], vertical_alignment="bottom")
         zoekterm = inv_col1.text_input("Zoek op kenteken of omschrijving...").upper()
         sorteer_optie = inv_col2.selectbox("Sorteren op", options=["ID Nummer (Oplopend)", "ID Nummer (Aflopend)", "Verwachte Winst (Hoog naar laag)", "Kilometerstand (Laag naar hoog)", "APK Datum"])
@@ -708,18 +609,9 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                             for idx, f_data in enumerate(alle_fotos):
                                 with foto_cols[idx % min(len(alle_fotos), 3)]:
                                     try: 
-                                        st.markdown(
-                                            f"""
-                                            <div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; background-color: transparent; border: 1px solid rgba(255,255,255,0.1); margin-bottom:10px; display:flex; align-items:center; justify-content:center;">
-                                                <img src="data:image/jpeg;base64,{f_data}" style="max-width:100%; max-height:100%; object-fit:contain;">
-                                            </div>
-                                            """, 
-                                            unsafe_allow_html=True
-                                        )
-                                    except: 
-                                        st.error("Fout foto")
-                        else: 
-                            st.info("Geen afbeelding beschikbaar.")
+                                        st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="data:image/jpeg;base64,{f_data}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
+                                    except: st.error("Fout foto")
+                        else: st.info("Geen afbeelding beschikbaar.")
 
                     with c2:
                         st.write(f"**Kilometerstand:** {auto['km_stand']:,} km".replace(",", "."))
@@ -743,11 +635,8 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
                         if st.button("📄 Koopcontract / Factuur", key=f"contract_{auto['id']}", type="secondary", use_container_width=True):
                             genereer_contract_dialog(auto["id"], auto["naam"], auto["kenteken"], auto["km_stand"], auto["verkoopprijs"], auto["apk_datum"])
-
-
 elif menu_optie == "💰 Financieel Overzicht":
     st.title("💰 Financieel Overzicht & Budget")
-    
     st.markdown("### ⚙️ Budget Instellingen")
     nieuw_budget = st.number_input("Stel je totale startbudget / werkkapitaal in (€):", value=float(st.session_state["startbudget"]), step=500.0)
     if nieuw_budget != st.session_state["startbudget"]:
@@ -756,7 +645,6 @@ elif menu_optie == "💰 Financieel Overzicht":
         
     st.markdown("---")
     st.markdown("### 📊 Balans Overzicht")
-    
     col_f1, col_f2, col_f3 = st.columns(3)
     col_f1.metric("Totale Startkapitaal", f"€ {formatteer_euro_nl(st.session_state['startbudget'])}")
     col_f2.metric("Vastgelegd in Voorraad", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
@@ -772,7 +660,6 @@ elif menu_optie == "💰 Financieel Overzicht":
 
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
-    
     try:
         from streamlit_calendar import calendar
     except ImportError:
@@ -782,7 +669,6 @@ elif menu_optie == "📅 Agenda & Notities":
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
     def nieuwe_afspraak_dialog(gekozen_datum_str):
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
-            # Hier is formatteer_datum_nl toegepast voor de juiste NL weergave:
             st.write(f"**Geselecteerde datum:** {formatteer_datum_nl(gekozen_datum_str)}")
             hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag")
             
@@ -805,20 +691,14 @@ elif menu_optie == "📅 Agenda & Notities":
             
             with sqlite3.connect(DB_NAME) as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO agenda (datum, titel, notitie, status)
-                    VALUES (?, ?, ?, 'Open')
-                """, (opslag_datum, ag_titel.strip(), ag_notitie.strip()))
+                cursor.execute("INSERT INTO agenda (datum, titel, notitie, status) VALUES (?, ?, ?, 'Open')", (opslag_datum, ag_titel.strip(), ag_notitie.strip()))
                 conn.commit()
-            st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
-
 
     @st.dialog("🔍 Afspraak Beheren")
     def bekijk_afspraak_dialog(event_id, titel_ruw, start_veld, eind_veld, notitie_veld, status_veld):
         bewerk_modus_key = f"edit_mode_{event_id}"
-        if bewerk_modus_key not in st.session_state:
-            st.session_state[bewerk_modus_key] = False
+        if bewerk_modus_key not in st.session_state: st.session_state[bewerk_modus_key] = False
 
         is_voorheen_hele_dag = "T" not in str(start_veld)
         pure_datum_huidig = start_veld.split("T")[0] if "T" in str(start_veld) else start_veld
@@ -837,95 +717,44 @@ elif menu_optie == "📅 Agenda & Notities":
 
         if not st.session_state[bewerk_modus_key]:
             st.markdown(f"### **{pure_titel_origineel}**")
-            # Zorg dat deze regel de formatteer_datum_nl functie gebruikt:
             st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_huidig)}")
-
-            
-            if not is_voorheen_hele_dag:
-                st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
-            else:
-                st.write("📅 **Tijd:** Gehele dag")
-                
+            if not is_voorheen_hele_dag: st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
             st.write(f"📊 **Status:** {status_veld}")
-            if notitie_veld:
-                st.write(f"📝 **Opmerkingen:**  \n{notitie_veld}")
-                
+            if notitie_veld: st.write(f"📝 **Opmerkingen:**\n{notitie_veld}")
+            
             st.markdown("---")
             col_b1, col_b2, col_b3 = st.columns(3)
-            
             if status_veld == "Open":
                 if col_b1.button("✅ Voltooid", key=f"btn_done_{event_id}", type="primary", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (event_id,))
-                        conn.commit()
+                    with sqlite3.connect(DB_NAME) as conn: cursor = conn.cursor(); cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (event_id,)); conn.commit()
                     st.rerun()
             else:
                 if col_b1.button("🔄 Heropenen", key=f"btn_re_{event_id}", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (event_id,))
-                        conn.commit()
+                    with sqlite3.connect(DB_NAME) as conn: cursor = conn.cursor(); cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (event_id,)); conn.commit()
                     st.rerun()
             
-            if col_b2.button("✏️ Bewerken", key=f"btn_edit_act_{event_id}", use_container_width=True):
-                st.session_state[bewerk_modus_key] = True
-                st.rerun()
-                    
+            if col_b2.button("✏️ Bewerken", key=f"btn_edit_act_{event_id}", use_container_width=True): st.session_state[bewerk_modus_key] = True; st.rerun()
             if col_b3.button("🗑️ Wissen", key=f"btn_del_{event_id}", type="secondary", use_container_width=True):
-                with sqlite3.connect(DB_NAME) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM agenda WHERE id=?", (event_id,))
-                    conn.commit()
+                with sqlite3.connect(DB_NAME) as conn: cursor = conn.cursor(); cursor.execute("DELETE FROM agenda WHERE id=?", (event_id,)); conn.commit()
                 st.rerun()
         else:
-            st.markdown("### ✏️ Afspraak Wijzigen")
-            edit_datum = st.date_input("Pas Datum aan", value=standaard_datum, key=f"edit_dat_{event_id}")
-            edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag", value=is_voorheen_hele_dag, key=f"edit_hd_{event_id}")
-            
-            tijd_edit_col1, tijd_edit_col2 = st.columns(2)
-            if not edit_hele_dag:
-                edit_tijd_van = tijd_edit_col1.time_input("Pas Begintijd aan", value=huidig_van, key=f"edit_v_{event_id}")
-                edit_tijd_tot = tijd_edit_col2.time_input("Pas Eindtijd aan", value=huidig_tot, key=f"edit_t_{event_id}")
-            
-            edit_titel = st.text_input("Pas Titel aan", value=pure_titel_origineel, key=f"edit_ttl_{event_id}")
-            edit_notitie = st.text_area("Pas Aanvullende informatie aan", value=notitie_veld if notitie_veld else "", key=f"edit_not_{event_id}")
-            
-            st.markdown("---")
-            col_save1, col_save2 = st.columns(2)
-            
-            if col_save1.button("💾 Wijzigingen Opslaan", type="primary", use_container_width=True, key=f"btn_save_{event_id}"):
-                if edit_titel.strip():
-                    if edit_hele_dag:
-                        nieuw_datum_format = str(edit_datum)
-                    else:
-                        nieuw_datum_format = f"{edit_datum}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum}T{edit_tijd_tot.strftime('%H:%M:%S')}"
-                    
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            UPDATE agenda 
-                            SET datum=?, titel=?, notitie=? 
-                            WHERE id=?
-                        """, (nieuw_datum_format, edit_titel.strip(), edit_notitie.strip(), event_id))
-                        conn.commit()
+            with st.form(f"agenda_edit_form_{event_id}"):
+                st.markdown("### ✏️ Afspraak Wijzigen")
+                edit_datum = st.date_input("Pas Datum aan", value=standaard_datum)
+                edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag", value=is_voorheen_hele_dag)
+                edit_tijd_van = st.time_input("Pas Begintijd aan", value=huidig_van)
+                edit_tijd_tot = st.time_input("Pas Eindtijd aan", value=huidig_tot)
+                edit_titel = st.text_input("Pas Titel aan", value=pure_titel_origineel)
+                edit_notitie = st.text_area("Pas Aanvullende informatie aan", value=notitie_veld if notitie_veld else "")
+                submit_agenda_changes = st.form_submit_button("💾 Wijzigingen Opslaan", type="primary", use_container_width=True)
+                
+                if submit_agenda_changes and edit_titel.strip():
+                    nieuw_datum_format = str(edit_datum) if edit_hele_dag else f"{edit_datum}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum}T{edit_tijd_tot.strftime('%H:%M:%S')}"
+                    with sqlite3.connect(DB_NAME) as conn: cursor = conn.cursor(); cursor.execute("UPDATE agenda SET datum=?, titel=?, notitie=? WHERE id=?", (nieuw_datum_format, edit_titel.strip(), edit_notitie.strip(), event_id)); conn.commit()
                     st.session_state[bewerk_modus_key] = False
                     st.rerun()
-                    
-            if col_save2.button("❌ Annuleren", use_container_width=True, key=f"btn_can_{event_id}"):
-                st.session_state[bewerk_modus_key] = False
-                st.rerun()
 
-    st.markdown("""
-        <style>
-        .fc .fc-toolbar { display: flex !important; flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important; justify-content: space-between !important; margin-bottom: 15px !important; }
-        .fc .fc-toolbar-title { font-size: 1.3rem !important; color: white !important; }
-        .fc .fc-button { padding: 6px 10px !important; font-size: 0.9rem !important; }
-        .fc .fc-daygrid-day-number { font-size: 0.95rem !important; font-weight: bold !important; color: white !important; }
-        .fc-daygrid-event { font-size: 0.8rem !important; padding: 3px !important; border-radius: 4px !important; }
-        </style>
-    """, unsafe_allow_html=True)
-
+    # --- KALENDER RENDEREN ---
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
@@ -938,9 +767,7 @@ elif menu_optie == "📅 Agenda & Notities":
             start_tijd, eind_tijd = n_datum_veld.split("||")
             is_hele_dag = False
         else:
-            start_tijd = n_datum_veld
-            eind_tijd = n_datum_veld
-            is_hele_dag = True
+            start_tijd = n_datum_veld; eind_tijd = n_datum_veld; is_hele_dag = True
         
         kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
         calendar_events.append({
@@ -951,37 +778,13 @@ elif menu_optie == "📅 Agenda & Notities":
         
     calendar_options = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "selectable": False, "height": "auto", "contentHeight": 550,
-        "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"},
-        "slotMinTime": "07:00:00", "slotMaxTime": "21:00:00"
+        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "height": "auto", "contentHeight": 550,
+        "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
     
-    custom_css = """
-        .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
-        .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255,255,255,0.2) !important; }
-        .fc .fc-button-primary:hover { background-color: rgb(255, 75, 75) !important; }
-        .fc-theme-standard .fc-scrollgrid { border: 1px solid rgba(255,255,255,0.1) !important; }
-    """
-    
-    state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="agenda_volledige_breedte")
-    
+    state = calendar(events=calendar_events, options=calendar_options, key="agenda_volledige_breedte")
     if state.get("eventClick"):
-        ev = state["eventClick"]["event"]
-        props = ev.get("extendedProps", {})
+        ev = state["eventClick"]["event"]; props = ev.get("extendedProps", {})
         bekijk_afspraak_dialog(event_id=ev["id"], titel_ruw=ev["title"], start_veld=props.get("start_tijd"), eind_veld=props.get("eind_tijd"), notitie_veld=props.get("notitie"), status_veld=props.get("status"))
     elif state.get("dateClick"):
-        ruwe_datum_str = state["dateClick"]["date"]
-        try:
-            if "T" in ruwe_datum_str:
-                datum_deel, tijd_deel = ruwe_datum_str.split("T")
-                pure_dt = datetime.strptime(datum_deel, "%Y-%m-%d")
-                uurs_check = int(tijd_deel.split(":")[0])
-                if uurs_check >= 20:
-                    from datetime import timedelta
-                    pure_dt = pure_dt + timedelta(days=1)
-                puur_datum = pure_dt.strftime("%Y-%m-%d")
-            else:
-                puur_datum = ruwe_datum_str.split("Z")[0]
-        except:
-            puur_datum = ruwe_datum_str.split("T")[0]
-        nieuwe_afspraak_dialog(puur_datum)
+        nieuwe_afspraak_dialog(state["dateClick"]["date"].split("T")[0])
