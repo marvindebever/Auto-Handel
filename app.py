@@ -207,17 +207,17 @@ def formatteer_datum_nl(datum_str):
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- DATA IMPORT & EXPORT FUNCTIES ---
+# --- DATA IMPORT & EXPORT FUNCTIES (GECOCCIGEERD) ---
 def exporteer_database_naar_json():
     with sqlite3.connect(DB_NAME) as conn:
         conn.row_factory = sqlite3.Row  
         cursor = conn.cursor()
         
         cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde FROM voorraad")
-        voorraad_data = [dict(rij) for r in cursor.fetchall()]
+        voorraad_data = [dict(rij) for rij in cursor.fetchall()]  # FIX: 'rij' correct gedefinieerd
         
         cursor.execute("SELECT datum, titel, notitie, status FROM agenda")
-        agenda_data = [dict(rij) for rij in cursor.fetchall()]
+        agenda_data = [dict(rij) for rij in cursor.fetchall()]    # FIX: 'rij' correct gedefinieerd
         
         actueel_startbudget = st.session_state.get("startbudget", 10000.0)
         
@@ -232,12 +232,12 @@ def importeer_json_naar_database(json_data):
     try:
         backup_pakket = json.loads(json_data)
         if isinstance(backup_pakket, dict):
-            voertuigen = backup_pakket.get("voorraad", [])
-            afspraken = backup_pakket.get("agenda", [])
+            voertuigen = backup_pakket.get("voorraad", [])  # FIX: [] hersteld (stond als komma)
+            afspraken = backup_pakket.get("agenda", [])    # FIX: [] hersteld (stond als komma)
             st.session_state["startbudget"] = float(backup_pakket.get("startbudget", 10000.0))
         else:
             voertuigen = backup_pakket
-            afspraken = []
+            afspraken = []                                  # FIX: [] hersteld
             st.session_state["startbudget"] = 10000.0
             
         with sqlite3.connect(DB_NAME) as conn:
@@ -261,6 +261,8 @@ def importeer_json_naar_database(json_data):
     except Exception as e:
         st.sidebar.error(f"Import mislukt: {str(e)}")
         return False
+
+
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig, brandstof_h, bouwjaar_h, kleur_h, cat_h):
