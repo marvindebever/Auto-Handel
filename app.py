@@ -516,13 +516,23 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     verwerkte_autos = []
     if alle_autos:
         for auto in alle_autos:
-            winst = float(auto["verkoopprijs"] or 0) - (float(auto["inkoopprijs"] or 0) + float(auto["extra_kosten"] or 0))
+            # Prijzen veilig omzetten naar getallen voor de winstberekening
+            try: vk_prijs = float(auto["verkoopprijs"] or 0)
+            except: vk_prijs = 0.0
+            try: ik_prijs = float(auto["inkoopprijs"] or 0)
+            except: ik_prijs = 0.0
+            try: ex_kosten = float(auto["extra_kosten"] or 0)
+            except: ex_kosten = 0.0
+                
+            winst = vk_prijs - (ik_prijs + ex_kosten)
+            
             verwerkte_autos.append({
                 "id": auto["id"], "kenteken": auto["kenteken"], "km_stand": auto["km_stand"], "inkoopprijs": auto["inkoopprijs"], "verkoopprijs": auto["verkoopprijs"],
                 "apk_datum": auto["apk_datum"], "extra_kosten": auto["extra_kosten"], "afbeelding": auto["afbeelding"], "naam": auto["naam"], "transmissie": auto["transmissie"], 
                 "status": auto["status"], "brandstof": auto["brandstof"] if auto["brandstof"] else "Onbekend", "bouwjaar": auto["bouwjaar"] if auto["bouwjaar"] else 0,
                 "kleur": auto["kleur"] if auto["kleur"] else "Onbekend", "cataloguswaarde": auto["cataloguswaarde"] if auto["cataloguswaarde"] else 0.0, "winst": winst
             })
+
 
         if menu_optie == "🟢 Actuele Voorraad":
             verwerkte_autos = [x for x in verwerkte_autos if x["status"] != "Verkocht"]
@@ -605,11 +615,24 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
 
                         st.write(f"**Inkoopprijs:** € {formatteer_euro_nl(inkoop_veilig)} | **Extra kosten:** € {formatteer_euro_nl(kosten_veilig)}")
                         st.write(f"**Marge / Winst:** € {formatteer_euro_nl(winst_veilig)}")
-
+                        
+                        # ---> HIER STAAT HET NIEUWE STUK NU EXACT GOED INGESPRONGEN <---
+                        b_edit, b_del = st.columns(2)
+                        
+                        try: km_int = int(float(auto['km_stand']))
+                        except: km_int = 0
+                            
+                        if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", use_container_width=True):
+                            bewerk_auto_dialog(auto["id"], auto["kenteken"], km_int, auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"], auto["status"], auto["brandstof"], auto["bouwjaar"], auto["kleur"], auto["cataloguswaarde"])
+                        
+                        if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", use_container_width=True):
+                            supabase.table("voorraad").delete().eq("id", auto["id"]).execute()
+                            st.rerun()
                         
                         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
                         if st.button("📄 Koopcontract / Factuur", key=f"contract_{auto['id']}", type="secondary", use_container_width=True):
                             genereer_contract_dialog(auto["id"], auto["naam"], auto["kenteken"], auto["km_stand"], auto["verkoopprijs"], auto["apk_datum"])
+
 elif menu_optie == "💰 Financieel Overzicht":
     st.title("💰 Financieel Overzicht & Budget")
     st.markdown("### ⚙️ Budget Instellingen")
