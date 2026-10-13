@@ -294,7 +294,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
                 st.rerun()
 
-
 # --- DIALOG KOOPOVEREENKOMST ---
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
 def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
@@ -318,6 +317,12 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         contant_vink = "[X]" if betaalwijze == "Contant" else "[  ]"
         bank_vink = "[X]" if betaalwijze == "Per bankoverschrijving" else "[  ]"
         huidige_datum = datetime.today().strftime('%d-%m-%Y')
+
+        # --- VEILIGHEIDSFIX: Zet km stand om naar een geldig heel getal ---
+        try:
+            km_veilig = int(float(str(km).replace(".", "").replace(",", "")))
+        except:
+            km_veilig = 0
 
         html_content = f"""
         <html>
@@ -349,7 +354,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             <h3>3. Voertuiggegevens</h3>
             <table>
                 <tr><td class="label">Merk & Model:</td><td>{merk_model}</td><td class="label">Kenteken:</td><td>{kenteken}</td></tr>
-                <tr><td class="label">Tellerstand:</td><td>{km:,} km</td><td class="label">APK tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
+                <tr><td class="label">Tellerstand:</td><td>{km_veilig:,} km</td><td class="label">APK tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
             </table>
             <h3>4. Financiële Afspraken</h3>
             <table>
@@ -365,6 +370,8 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         filename = f"Koopovereenkomst_{kenteken}_{huidige_datum}.html"
         href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst</a>'
         st.markdown(href, unsafe_allow_html=True)
+
+
 # --- SIDEBAR NAVIGATIE ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
