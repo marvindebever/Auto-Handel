@@ -413,7 +413,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         """
         b64 = base64.b64encode(html_content.encode('utf-8')).decode()
         filename = f"Koopovereenkomst_{kenteken}_{leverdatum_str}.html"
-        href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:12px; border-radius:8px; text-decoration:none; font-weight:bold; margin-top:15px; font-size:14px;">📥 Prachtig Contract Downloaden</a>'
+        href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:12px; border-radius:8px; text-decoration:none; font-weight:bold; margin-top:15px; font-size:14px;">📥 Contract Downloaden</a>'
         st.markdown(href, unsafe_allow_html=True)
 
 
