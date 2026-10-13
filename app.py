@@ -356,9 +356,9 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             
             <h3>1. Gegevens van de Verkoper</h3>
             <table>
-                <tr><td class="label">Naam / Bedrijfsnaam:</td><td class="value">Autohandel Dongen</td></tr>
-                <tr><td class="label">Adres & Huisnummer:</td><td class="value">De Volger 2B</td></tr>
-                <tr><td class="label">Postcode & Woonplaats:</td><td class="value">5051 CX Dongen</td></tr>
+                <tr><td class="label">Naam / Bedrijfsnaam:</td><td class="value">MT Automotive</td></tr>
+                <tr><td class="label">Adres & Huisnummer:</td><td class="value">Kanaalstraat 83</td></tr>
+                <tr><td class="label">Postcode & Woonplaats:</td><td class="value">5104 AB Dongen</td></tr>
             </table>
             
             <h3>2. Gegevens van de Koper</h3>
