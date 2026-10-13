@@ -687,9 +687,16 @@ elif menu_optie == "📅 Agenda & Notities":
         st.error("Installeer eerst de kalender-module via je requirements.txt: streamlit-calendar")
         st.stop()
 
-    # --- POP-UP: NIEUWE AFSPRAAK TOEVOEGEN ---
+    # --- INITIALISEER IN SESSIE STATE OM REFRESH-LUS TE VOORKOMEN ---
+    if "show_add_dialog" not in st.session_state: st.session_state["show_add_dialog"] = False
+    if "show_view_dialog" not in st.session_state: st.session_state["show_view_dialog"] = False
+    if "selected_date" not in st.session_state: st.session_state["selected_date"] = ""
+    if "selected_event" not in st.session_state: st.session_state["selected_event"] = None
+
+    # --- POP-UP 1: NIEUWE AFSPRAAK ---
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
-    def nieuwe_afspraak_dialog(gekozen_datum_str):
+    def nieuwe_afspraak_popup():
+        gekozen_datum_str = st.session_state["selected_date"]
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
             st.write(f"**Geselecteerde begindatum:** {formatteer_datum_nl(gekozen_datum_str)}")
             hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=True)
@@ -706,24 +713,21 @@ elif menu_optie == "📅 Agenda & Notities":
             ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", use_container_width=True)
             
         if ag_submit and ag_titel.strip():
-            if hele_dag:
-                opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}"
-            else:
-                start_volledig = f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}"
-                end_volledig = f"{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
-                opslag_datum = f"{start_volledig}||{end_volledig}"
-            
+            opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}" if hele_dag else f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}||{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
             nieuw_event = {"datum": opslag_datum, "titel": ag_titel.strip(), "notitie": ag_notitie.strip(), "status": "Open"}
             supabase.table("agenda").insert(nieuw_event).execute()
+            st.session_state["show_add_dialog"] = False
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
 
-    # --- POP-UP: AFSPRAAK BEHEREN / BEWERKEN ---
+    # --- POP-UP 2: BEKIJKEN / BEWERKEN ---
     @st.dialog("🔍 Afspraak Beheren")
-    def bekijk_afspraak_dialog(event_id, titel_ruw, start_veld, eind_veld, notitie_veld, status_veld):
+    def bekijk_afspraak_popup():
+        ev = st.session_state["selected_event"]
+        event_id, titel_ruw, start_veld, eind_veld, notitie_veld, status_veld = ev["id"], ev["title"], ev["start_tijd"], ev["eind_tijd"], ev["notitie"], ev["status"]
+        
         bewerk_modus_key = f"edit_mode_{event_id}"
-        if bewerk_modus_key not in st.session_state:
-            st.session_state[bewerk_modus_key] = False
+        if bewerk_modus_key not in st.session_state: st.session_state[bewerk_modus_key] = False
 
         is_voorheen_hele_dag = "T" not in str(start_veld)
         pure_datum_van = str(start_veld).split("T")[0]
@@ -748,34 +752,28 @@ elif menu_optie == "📅 Agenda & Notities":
                 if pure_datum_van == pure_datum_tot: st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_van)} (Gehele dag)")
                 else: st.write(f"📅 **Periode:** {formatteer_datum_nl(pure_datum_van)} t/m {formatteer_datum_nl(pure_datum_tot)} (Gehele dagen)")
             else:
-                st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_van)}")
-                st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
+                st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_van)} | ⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
                 
             st.write(f"📊 **Status:** {status_veld}")
             if notitie_veld: st.write(f"📝 **Opmerkingen:**  \n{notitie_veld}")
-                
             st.markdown("---")
+            
             col_b1, col_b2, col_b3 = st.columns(3)
-            
-            if status_veld == "Open":
-                if col_b1.button("✅ Voltooid", key=f"btn_done_{event_id}", type="primary", use_container_width=True):
-                    supabase.table("agenda").update({"status": "Voltooid"}).eq("id", event_id).execute()
-                    st.rerun()
-            else:
-                if col_b1.button("🔄 Heropenen", key=f"btn_re_{event_id}", use_container_width=True):
-                    supabase.table("agenda").update({"status": "Open"}).eq("id", event_id).execute()
-                    st.rerun()
-            
-            if col_b2.button("✏️ Bewerken", key=f"btn_edit_act_{event_id}", use_container_width=True):
+            if col_b1.button("✅ Voltooid" if status_veld == "Open" else "🔄 Heropenen", use_container_width=True):
+                nieuwe_status = "Voltooid" if status_veld == "Open" else "Open"
+                supabase.table("agenda").update({"status": nieuwe_status}).eq("id", event_id).execute()
+                st.session_state["show_view_dialog"] = False
+                st.rerun()
+            if col_b2.button("✏️ Bewerken", use_container_width=True):
                 st.session_state[bewerk_modus_key] = True
                 st.rerun()
-            if col_b3.button("🗑️ Wissen", key=f"btn_del_{event_id}", type="secondary", use_container_width=True):
+            if col_b3.button("🗑️ Wissen", type="secondary", use_container_width=True):
                 supabase.table("agenda").delete().eq("id", event_id).execute()
+                st.session_state["show_view_dialog"] = False
                 st.rerun()
         else:
             st.markdown("### ✏️ Afspraak Wijzigen")
             edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=is_voorheen_hele_dag, key=f"edit_hd_{event_id}")
-            
             if edit_hele_dag:
                 col_d1, col_d2 = st.columns(2)
                 edit_datum_van = col_d1.date_input("Pas Begindatum aan", value=standaard_van, key=f"edit_dat_v_{event_id}")
@@ -791,13 +789,13 @@ elif menu_optie == "📅 Agenda & Notities":
             
             st.markdown("---")
             col_save1, col_save2 = st.columns(2)
-            if col_save1.button("💾 Wijzigingen Opslaan", type="primary", use_container_width=True, key=f"btn_save_{event_id}"):
-                if edit_titel.strip():
-                    nieuw_datum_format = f"{edit_datum_van}||{edit_datum_tot}" if edit_hele_dag else f"{edit_datum_van}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum_van}T{edit_tijd_tot.strftime('%H:%M:%S')}"
-                    supabase.table("agenda").update({"datum": nieuw_datum_format, "titel": edit_titel.strip(), "notitie": edit_notitie.strip()}).eq("id", event_id).execute()
-                    st.session_state[bewerk_modus_key] = False
-                    st.rerun()
-            if col_save2.button("❌ Annuleren", use_container_width=True, key=f"btn_can_{event_id}"):
+            if col_save1.button("💾 Opslaan", type="primary", use_container_width=True):
+                nieuw_datum_format = f"{edit_datum_van}||{edit_datum_tot}" if edit_hele_dag else f"{edit_datum_van}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum_van}T{edit_tijd_tot.strftime('%H:%M:%S')}"
+                supabase.table("agenda").update({"datum": nieuw_datum_format, "titel": edit_titel.strip(), "notitie": edit_notitie.strip()}).eq("id", event_id).execute()
+                st.session_state[bewerk_modus_key] = False
+                st.session_state["show_view_dialog"] = False
+                st.rerun()
+            if col_save2.button("❌ Annuleren", use_container_width=True):
                 st.session_state[bewerk_modus_key] = False
                 st.rerun()
     st.markdown("""
@@ -846,24 +844,38 @@ elif menu_optie == "📅 Agenda & Notities":
     custom_css = """
         .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
         .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255,255,255,0.2) !important; }
-        .fc-theme-standard .fc-scrollgrid { border: 1px solid rgba(255,255,255,0.1) !important; }
     """
     
     state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="agenda_volledige_breedte")
     
-    # --- DE STATE-TRIGGER CONTROLE (VOORKOMT DE REFRESH-LUS) ---
+    # --- VEILIGE EVENT AFHANDELING VIA STATE-CHANGES ---
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
-        last_clicked = f"event_{ev['id']}"
-        if st.session_state.get("last_agenda_click") != last_clicked:
-            st.session_state["last_agenda_click"] = last_clicked
-            props = ev.get("extendedProps", {})
-            bekijk_afspraak_dialog(str(ev["id"]), ev["title"], props.get("start_tijd"), props.get("eind_tijd"), props.get("notitie"), props.get("status"))
+        props = ev.get("extendedProps", {})
+        click_id = f"ev_{ev['id']}"
+        
+        if st.session_state.get("last_click_id") != click_id:
+            st.session_state["last_click_id"] = click_id
+            st.session_state["selected_event"] = {
+                "id": ev["id"], "title": ev["title"], "notitie": props.get("notitie"),
+                "status": props.get("status"), "start_tijd": props.get("start_tijd"), "eind_tijd": props.get("eind_tijd")
+            }
+            st.session_state["show_view_dialog"] = True
+            st.rerun()
         
     elif state.get("dateClick"):
         ruwe_datum_str = str(state["dateClick"]["date"])
         puur_datum = ruwe_datum_str.split("T")[0].split("Z")[0].strip()
-        last_clicked = f"date_{puur_datum}"
-        if st.session_state.get("last_agenda_click") != last_clicked:
-            st.session_state["last_agenda_click"] = last_clicked
-            nieuwe_afspraak_dialog(puur_datum)
+        click_id = f"dt_{puur_datum}"
+        
+        if st.session_state.get("last_click_id") != click_id:
+            st.session_state["last_click_id"] = click_id
+            st.session_state["selected_date"] = puur_datum
+            st.session_state["show_add_dialog"] = True
+            st.rerun()
+
+    # --- ONKOPPELBARE POP-UP TRIGGERS (BUITEN DE KALENDER LUS) ---
+    if st.session_state["show_add_dialog"]:
+        nieuwe_afspraak_popup()
+    if st.session_state["show_view_dialog"]:
+        bekijk_afspraak_popup()
