@@ -577,20 +577,35 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         else: st.info("Geen afbeelding beschikbaar.")
 
                     with c2:
-                        st.write(f"**Kilometerstand:** {auto['km_stand']:,} km".replace(",", "."))
-                        st.write(f"**Brandstof:** {auto['brandstof']} | **Bouwjaar:** {auto['bouwjaar'] if auto['bouwjaar'] > 0 else 'Onbekend'}")
-                        st.write(f"**Kleur:** {auto['kleur']} | **Cataloguswaarde:** € {formatteer_euro_nl(auto['cataloguswaarde'])}")
+                        # Zorg dat de kilometerstand veilig als getal wordt ingeladen
+                        try: km_veilig = int(float(auto['km_stand']))
+                        except: km_veilig = 0
+                            
+                        try: bouwjaar_veilig = int(float(auto['bouwjaar']))
+                        except: bouwjaar_veilig = 0
+                            
+                        try: cat_veilig = float(auto['cataloguswaarde'])
+                        except: cat_veilig = 0.0
+
+                        st.write(f"**Kilometerstand:** {km_veilig:,} km".replace(",", "."))
+                        st.write(f"**Brandstof:** {auto['brandstof']} | **Bouwjaar:** {bouwjaar_veilig if bouwjaar_veilig > 0 else 'Onbekend'}")
+                        st.write(f"**Kleur:** {auto['kleur']} | **Cataloguswaarde:** € {formatteer_euro_nl(cat_veilig)}")
                         st.write(f"**Transmissie:** {auto['transmissie']} | **APK Datum:** {formatteer_datum_nl(auto['apk_datum'])}")
                         st.markdown("---")
-                        st.write(f"**Inkoopprijs:** € {formatteer_euro_nl(auto['inkoopprijs'])} | **Extra kosten:** € {formatteer_euro_nl(auto['extra_kosten'])}")
-                        st.write(f"**Marge / Winst:** € {formatteer_euro_nl(auto['winst'])}")
                         
-                        b_edit, b_del = st.columns(2)
-                        if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", use_container_width=True):
-                            bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"], auto["status"], auto["brandstof"], auto["bouwjaar"], auto["kleur"], auto["cataloguswaarde"])
-                        if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", use_container_width=True):
-                            supabase.table("voorraad").delete().eq("id", auto["id"]).execute()
-                            st.rerun()
+                        # Prijzen veilig inladen
+                        try: inkoop_veilig = float(auto['inkoopprijs'])
+                        except: inkoop_veilig = 0.0
+                            
+                        try: kosten_veilig = float(auto['extra_kosten'])
+                        except: kosten_veilig = 0.0
+                            
+                        try: winst_veilig = float(auto['winst'])
+                        except: winst_veilig = 0.0
+
+                        st.write(f"**Inkoopprijs:** € {formatteer_euro_nl(inkoop_veilig)} | **Extra kosten:** € {formatteer_euro_nl(kosten_veilig)}")
+                        st.write(f"**Marge / Winst:** € {formatteer_euro_nl(winst_veilig)}")
+
                         
                         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
                         if st.button("📄 Koopcontract / Factuur", key=f"contract_{auto['id']}", type="secondary", use_container_width=True):
