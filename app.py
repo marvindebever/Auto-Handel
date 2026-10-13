@@ -2,57 +2,23 @@ import base64
 from datetime import datetime
 import io
 import os
-import sqlite3
 import json
 from PIL import Image
 import streamlit as st
 import pandas as pd
 import requests
+from supabase import create_client
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
-DB_NAME = "autohandel_v5.db"
 
-def init_db():
-    with sqlite3.connect(DB_NAME) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS voorraad (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                kenteken TEXT, km_stand INTEGER, inkoopprijs REAL, verkoopprijs REAL,
-                apk_datum TEXT, extra_kosten REAL, afbeelding TEXT, naam TEXT, transmissie TEXT,
-                status TEXT DEFAULT 'In voorraad',
-                brandstof TEXT, vermogen INTEGER, kleur TEXT, cataloguswaarde REAL,
-                bouwjaar INTEGER
-            )
-        """)
-        cursor.execute("PRAGMA table_info(voorraad)")
-        bestaande_kolommen = [k[1] for k in cursor.fetchall()]
-        
-        # Dynamisch kolommen toevoegen indien ze nog niet bestaan
-        aan_te_passen = {
-            "status": "TEXT DEFAULT 'In voorraad'",
-            "brandstof": "TEXT",
-            "vermogen": "INTEGER",
-            "kleur": "TEXT",
-            "cataloguswaarde": "REAL",
-            "bouwjaar": "INTEGER"
-        }
-        for kolom, specificatie in aan_te_passen.items():
-            if kolom not in bestaande_kolommen:
-                cursor.execute(f"ALTER TABLE voorraad ADD COLUMN {kolom} {specificatie}")
-            
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS agenda (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                datum TEXT,
-                titel TEXT,
-                notitie TEXT,
-                status TEXT DEFAULT 'Open'
-            )
-        """)
-        conn.commit()
+# --- SUPABASE VERBINDING INSTELLEN ---
+@st.cache_resource
+def init_supabase():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
 
-init_db()
+supabase = init_supabase()
 # --- STYLING & ACHTERGROND ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
@@ -111,7 +77,6 @@ def zet_achtergrond(logo_path="logo.png"):
         st.markdown(css, unsafe_allow_html=True)
 
 zet_achtergrond("logo.png")
-
 # --- BEVEILIGING ---
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
@@ -132,12 +97,11 @@ if not st.session_state["ingelogd"]:
     
 # --- RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
-    """Haalt voertuiggegevens op uit het openbare RDW-register."""
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    url_voertuig = url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "application/json"
@@ -207,62 +171,42 @@ def formatteer_datum_nl(datum_str):
 def formatteer_euro_nl(bedrag):
     return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- DATA IMPORT & EXPORT FUNCTIES (GECOCCIGEERD) ---
+# --- DATA IMPORT & EXPORT MET SUPABASE ---
 def exporteer_database_naar_json():
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.row_factory = sqlite3.Row  
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde FROM voorraad")
-        voorraad_data = [dict(rij) for rij in cursor.fetchall()]  # FIX: 'rij' correct gedefinieerd
-        
-        cursor.execute("SELECT datum, titel, notitie, status FROM agenda")
-        agenda_data = [dict(rij) for rij in cursor.fetchall()]    # FIX: 'rij' correct gedefinieerd
-        
-        actueel_startbudget = st.session_state.get("startbudget", 10000.0)
-        
-        volledige_backup = {
-            "startbudget": actueel_startbudget,
-            "voorraad": voorraad_data,
-            "agenda": agenda_data
-        }
+    voorraad_data = supabase.table("voorraad").select("kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde").execute().data
+    agenda_data = supabase.table("agenda").select("datum, titel, notitie, status").execute().data
+    
+    actueel_startbudget = st.session_state.get("startbudget", 10000.0)
+    volledige_backup = {
+        "startbudget": actueel_startbudget,
+        "voorraad": voorraad_data,
+        "agenda": agenda_data
+    }
     return json.dumps(volledige_backup, indent=4)
 
 def importeer_json_naar_database(json_data):
     try:
         backup_pakket = json.loads(json_data)
         if isinstance(backup_pakket, dict):
-            voertuigen = backup_pakket.get("voorraad", [])  # FIX: [] hersteld (stond als komma)
-            afspraken = backup_pakket.get("agenda", [])    # FIX: [] hersteld (stond als komma)
+            voertuigen = backup_pakket.get("voorraad", [])
+            afspraken = backup_pakket.get("agenda", [])
             st.session_state["startbudget"] = float(backup_pakket.get("startbudget", 10000.0))
         else:
             voertuigen = backup_pakket
-            afspraken = []                                  # FIX: [] hersteld
+            afspraken = []
             st.session_state["startbudget"] = 10000.0
             
-        with sqlite3.connect(DB_NAME) as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM voorraad")
-            cursor.execute("DELETE FROM agenda")
-            
-            for v in voertuigen:
-                cursor.execute("""
-                    INSERT INTO voorraad (kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (v.get("kenteken"), v.get("km_stand"), v.get("inkoopprijs"), v.get("verkoopprijs"), v.get("apk_datum"), v.get("extra_kosten"), v.get("afbeelding"), v.get("naam"), v.get("transmissie"), v.get("status"), v.get("brandstof"), v.get("bouwjaar"), v.get("kleur"), v.get("cataloguswaarde")))
-            
-            for a in afspraken:
-                cursor.execute("""
-                    INSERT INTO agenda (datum, titel, notitie, status)
-                    VALUES (?, ?, ?, ?)
-                """, (a.get("datum"), a.get("titel"), a.get("notitie"), a.get("status", "Open")))
-            conn.commit()
+        supabase.table("voorraad").delete().gt("id", 0).execute()
+        supabase.table("agenda").delete().gt("id", 0).execute()
+        
+        if voertuigen:
+            supabase.table("voorraad").insert(voertuigen).execute()
+        if afspraken:
+            supabase.table("agenda").insert(afspraken).execute()
         return True
     except Exception as e:
-        st.sidebar.error(f"Import mislukt: {str(e)}")
+        st.sidebar.error(f"Import cloud mislukt: {str(e)}")
         return False
-
-
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig, brandstof_h, bouwjaar_h, kleur_h, cat_h):
@@ -317,21 +261,20 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                         foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                     foto_opslaan = "||".join(foto_lijst)
                 
-                with sqlite3.connect(DB_NAME) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        UPDATE voorraad 
-                        SET naam=?, kenteken=?, km_stand=?, apk_datum=?, transmissie=?, inkoopprijs=?, verkoopprijs=?, extra_kosten=?, afbeelding=?, status=?, brandstof=?, bouwjaar=?, kleur=?, cataloguswaarde=?
-                        WHERE id=?
-                    """, (edit_naam, edit_ktk.upper().replace("-", "").strip(), int(edit_km), str(edit_apk), edit_trans, float(edit_inkoop), float(edit_verkoop), float(edit_kosten), foto_opslaan, edit_status, edit_brandstof, int(edit_bouwjaar), edit_kleur, float(edit_cat), actie_id))
-                    conn.commit()
+                update_data = {
+                    "naam": edit_naam, "kenteken": edit_ktk.upper().replace("-", "").strip(),
+                    "km_stand": int(edit_km), "apk_datum": str(edit_apk), "transmissie": edit_trans,
+                    "inkoopprijs": float(edit_inkoop), "verkoopprijs": float(edit_verkoop),
+                    "extra_kosten": float(edit_kosten), "afbeelding": foto_opslaan, "status": edit_status,
+                    "brandstof": edit_brandstof, "bouwjaar": int(edit_bouwjaar), "kleur": edit_kleur,
+                    "cataloguswaarde": float(edit_cat)
+                }
+                supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
                 st.rerun()
-
 # --- DIALOG KOOPOVEREENKOMST ---
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
 def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     st.write("Vul de gegevens van de koper in om de officiële koopovereenkomst te genereren.")
-    
     koper_naam = st.text_input("Naam Koper")
     koper_adres = st.text_input("Adres & Huisnummer Koper")
     koper_postcode = st.text_input("Postcode & Woonplaats Koper")
@@ -343,7 +286,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     betaalwijze = st.radio("Wijze van betaling:", ["Contant", "Per bankoverschrijving"], horizontal=True)
     bijzondere_afspraken = st.text_area("Eventuele aanvullende afspraken of opmerkingen")
 
-    if st.button("🔥 PDF Contract Downloaden", type="primary", use_container_width=True):
+    if st.button("🔥 Contract Downloaden", type="primary", use_container_width=True):
         if not koper_naam.strip():
             st.error("Vul tenminste de naam van de koper in.")
             return
@@ -407,26 +350,26 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    st.subheader("💾 Backup & Herstel")
+    st.subheader("💾 Cloud Backup & Herstel")
     
     try:
         json_string = exporteer_database_naar_json()
         st.download_button(
-            label="📤 Exporteer Data (Backup)",
+            label="📤 Exporteer Cloud-Data (Backup)",
             data=json_string,
-            file_name=f"autohandel_backup_{datetime.today().strftime('%Y-%m-%d')}.json",
+            file_name=f"autohandel_cloud_backup_{datetime.today().strftime('%Y-%m-%d')}.json",
             mime="application/json",
             use_container_width=True
         )
     except:
         st.error("Export mislukt")
 
-    geimporteerd_bestand = st.file_uploader("📥 Importeer Data (Herstel)", type=["json"])
+    geimporteerd_bestand = st.file_uploader("📥 Importeer Data naar Cloud", type=["json"])
     if geimporteerd_bestand is not None:
         json_data = geimporteerd_bestand.getvalue().decode("utf-8")
-        if st.button("🔄 Herstel database nu", type="primary", use_container_width=True):
+        if st.button("🔄 Herstel cloud-database nu", type="primary", use_container_width=True):
             if importeer_json_naar_database(json_data):
-                st.toast("⚡ Database succesvol hersteld!", icon="✅")
+                st.toast("⚡ Cloud-database succesvol hersteld!", icon="✅")
                 st.rerun()
 
     st.markdown("---")
@@ -434,22 +377,20 @@ with st.sidebar:
         st.session_state["ingelogd"] = False
         st.rerun()
 
-# --- VEILIGE BALANS BEREKENING ---
-with sqlite3.connect(DB_NAME) as conn:
-    cursor = conn.cursor()
-    cursor.execute("SELECT inkoopprijs, verkoopprijs, extra_kosten, status FROM voorraad")
-    stat_rijen = cursor.fetchall()
+# --- VEILIGE BALANS BEREKENING (LIVE CLOUD) ---
+stat_rijen = supabase.table("voorraad").select("inkoopprijs, verkoopprijs, extra_kosten, status").execute().data
 
-autos_in_voorraad = [r for r in stat_rijen if r[3] != 'Verkocht']
-autos_verkocht = [r for r in stat_rijen if r[3] == 'Verkocht']
+autos_in_voorraad = [r for r in stat_rijen if r['status'] != 'Verkocht']
+autos_verkocht = [r for r in stat_rijen if r['status'] == 'Verkocht']
 
-totale_voorraadwaarde = sum(r[0] + r[2] for r in autos_in_voorraad)
-gerealiseerde_winst = sum(r[1] - (r[0] + r[2]) for r in autos_verkocht)
+totale_voorraadwaarde = sum(float(r['inkoopprijs'] or 0) + float(r['extra_kosten'] or 0) for r in autos_in_voorraad)
+gerealiseerde_winst = sum(float(r['verkoopprijs'] or 0) - (float(r['inkoopprijs'] or 0) + float(r['extra_kosten'] or 0)) for r in autos_verkocht)
 
 if "startbudget" not in st.session_state:
     st.session_state["startbudget"] = 10000.0
 
 actueel_vrij_budget = st.session_state["startbudget"] - totale_voorraadwaarde + gerealiseerde_winst
+# --- NIEUWE AUTO TOEVOEGEN ---
 if menu_optie == "🆕 Nieuwe auto toevoegen":
     st.title("🆕 Nieuwe auto toevoegen")
     
@@ -503,7 +444,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         extra_kosten_val = c_form9.number_input("Extra kosten (€)", value=0.0, step=10.0)
         
         gevoegde_fotos = st.file_uploader("Kies foto's (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-        submit = st.form_submit_button("Voeg toe aan voorraad")
+        submit = st.form_submit_button("Voeg toe aan cloud voorraad")
 
     if submit and kenteken.strip():
         foto_data = ""
@@ -517,17 +458,18 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
                 foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
             foto_data = "||".join(foto_lijst)
             
-        with sqlite3.connect(DB_NAME) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO voorraad (naam, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (naam, kenteken.upper().replace("-", "").strip(), int(km_stand_str), float(inkoopprijs_val), float(verkoopprijs_val), str(apk_datum), float(extra_kosten_val), foto_data, transmissie, status_invoer, brandstof_invoer, int(bouwjaar_invoer), kleur_invoer, float(cat_invoer)))
-            conn.commit()
+        nieuw_voertuig = {
+            "naam": naam, "kenteken": kenteken.upper().replace("-", "").strip(), "km_stand": int(km_stand_str),
+            "inkoopprijs": float(inkoopprijs_val), "verkoopprijs": float(verkoopprijs_val), "apk_datum": str(apk_datum),
+            "extra_kosten": float(extra_kosten_val), "afbeelding": foto_data, "transmissie": transmissie,
+            "status": status_invoer, "brandstof": brandstof_invoer, "bouwjaar": int(bouwjaar_invoer),
+            "kleur": kleur_invoer, "cataloguswaarde": float(cat_invoer)
+        }
+        supabase.table("voorraad").insert(nieuw_voertuig).execute()
             
         for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
             if sleutel in st.session_state: del st.session_state[sleutel]
-        st.success("Auto succesvol toegevoegd!")
+        st.success("Auto succesvol toegevoegd aan de Cloud!")
         st.rerun()
 elif menu_optie == "📊 Actuele Status Dashboard":
     st.title("📊 Actuele Status Dashboard")
@@ -547,20 +489,17 @@ elif menu_optie == "📊 Actuele Status Dashboard":
 elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     st.title(menu_optie)
     
-    with sqlite3.connect(DB_NAME) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, kenteken, km_stand, inkoopprijs, verkoopprijs, apk_datum, extra_kosten, afbeelding, naam, transmissie, status, brandstof, bouwjaar, kleur, cataloguswaarde FROM voorraad")
-        alle_autos = cursor.fetchall()
+    alle_autos = supabase.table("voorraad").select("*").execute().data
 
     verwerkte_autos = []
     if alle_autos:
         for auto in alle_autos:
-            winst = auto[4] - (auto[3] + auto[6])
+            winst = float(auto["verkoopprijs"] or 0) - (float(auto["inkoopprijs"] or 0) + float(auto["extra_kosten"] or 0))
             verwerkte_autos.append({
-                "id": auto[0], "kenteken": auto[1], "km_stand": auto[2], "inkoopprijs": auto[3], "verkoopprijs": auto[4],
-                "apk_datum": auto[5], "extra_kosten": auto[6], "afbeelding": auto[7], "naam": auto[8], "transmissie": auto[9], 
-                "status": auto[10], "brandstof": auto[11] if auto[11] else "Onbekend", "bouwjaar": auto[12] if auto[12] else 0,
-                "kleur": auto[13] if auto[13] else "Onbekend", "cataloguswaarde": auto[14] if auto[14] else 0.0, "winst": winst
+                "id": auto["id"], "kenteken": auto["kenteken"], "km_stand": auto["km_stand"], "inkoopprijs": auto["inkoopprijs"], "verkoopprijs": auto["verkoopprijs"],
+                "apk_datum": auto["apk_datum"], "extra_kosten": auto["extra_kosten"], "afbeelding": auto["afbeelding"], "naam": auto["naam"], "transmissie": auto["transmissie"], 
+                "status": auto["status"], "brandstof": auto["brandstof"] if auto["brandstof"] else "Onbekend", "bouwjaar": auto["bouwjaar"] if auto["bouwjaar"] else 0,
+                "kleur": auto["kleur"] if auto["kleur"] else "Onbekend", "cataloguswaarde": auto["cataloguswaarde"] if auto["cataloguswaarde"] else 0.0, "winst": winst
             })
 
         if menu_optie == "🟢 Actuele Voorraad":
@@ -574,7 +513,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
         sorteer_optie = inv_col2.selectbox("Sorteren op", options=["ID Nummer (Oplopend)", "ID Nummer (Aflopend)", "Verwachte Winst (Hoog naar laag)", "Kilometerstand (Laag naar hoog)", "APK Datum"])
         
         if zoekterm: 
-            verwerkte_autos = [x for x in verwerkte_autos if zoekterm in x["kenteken"] or zoekterm in (x["naam"] or "").upper()]
+            verwerkte_autos = [x for x in verwerkte_autos if zoekterm in str(x["kenteken"]) or zoekterm in (x["naam"] or "").upper()]
         
         if "Aflopend" in sorteer_optie: verwerkte_autos.reverse()
         elif "Winst" in sorteer_optie: verwerkte_autos = sorted(verwerkte_autos, key=lambda x: x["winst"], reverse=True)
@@ -588,7 +527,6 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
             towrite.seek(0)
             inv_col3.download_button(label="📊 Excel Export", data=towrite, file_name="inventaris.xlsx", use_container_width=True)
         except: pass
-
         if not verwerkte_autos:
             st.info("Geen auto's gevonden.")
         else:
@@ -628,10 +566,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", use_container_width=True):
                             bewerk_auto_dialog(auto["id"], auto["kenteken"], auto["km_stand"], auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"], auto["status"], auto["brandstof"], auto["bouwjaar"], auto["kleur"], auto["cataloguswaarde"])
                         if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", use_container_width=True):
-                            with sqlite3.connect(DB_NAME) as conn:
-                                cursor = conn.cursor()
-                                cursor.execute("DELETE FROM voorraad WHERE id=?", (auto["id"],))
-                                conn.commit()
+                            supabase.table("voorraad").delete().eq("id", auto["id"]).execute()
                             st.rerun()
                         
                         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
@@ -672,7 +607,6 @@ elif menu_optie == "📅 Agenda & Notities":
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
     def nieuwe_afspraak_dialog(gekozen_datum_str):
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
-            # Hier is formatteer_datum_nl toegepast voor de juiste NL weergave:
             st.write(f"**Geselecteerde datum:** {formatteer_datum_nl(gekozen_datum_str)}")
             hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag")
             
@@ -693,17 +627,13 @@ elif menu_optie == "📅 Agenda & Notities":
                 end_volledig = f"{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
                 opslag_datum = f"{start_volledig}||{end_volledig}"
             
-            with sqlite3.connect(DB_NAME) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO agenda (datum, titel, notitie, status)
-                    VALUES (?, ?, ?, 'Open')
-                """, (opslag_datum, ag_titel.strip(), ag_notitie.strip()))
-                conn.commit()
+            nieuw_event = {
+                "datum": opslag_datum, "titel": ag_titel.strip(),
+                "notitie": ag_notitie.strip(), "status": "Open"
+            }
+            supabase.table("agenda").insert(nieuw_event).execute()
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
-
-
     @st.dialog("🔍 Afspraak Beheren")
     def bekijk_afspraak_dialog(event_id, titel_ruw, start_veld, eind_veld, notitie_veld, status_veld):
         bewerk_modus_key = f"edit_mode_{event_id}"
@@ -727,9 +657,7 @@ elif menu_optie == "📅 Agenda & Notities":
 
         if not st.session_state[bewerk_modus_key]:
             st.markdown(f"### **{pure_titel_origineel}**")
-            # Zorg dat deze regel de formatteer_datum_nl functie gebruikt:
             st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_huidig)}")
-
             
             if not is_voorheen_hele_dag:
                 st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
@@ -745,17 +673,11 @@ elif menu_optie == "📅 Agenda & Notities":
             
             if status_veld == "Open":
                 if col_b1.button("✅ Voltooid", key=f"btn_done_{event_id}", type="primary", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE agenda SET status='Voltooid' WHERE id=?", (event_id,))
-                        conn.commit()
+                    supabase.table("agenda").update({"status": "Voltooid"}).eq("id", event_id).execute()
                     st.rerun()
             else:
                 if col_b1.button("🔄 Heropenen", key=f"btn_re_{event_id}", use_container_width=True):
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE agenda SET status='Open' WHERE id=?", (event_id,))
-                        conn.commit()
+                    supabase.table("agenda").update({"status": "Open"}).eq("id", event_id).execute()
                     st.rerun()
             
             if col_b2.button("✏️ Bewerken", key=f"btn_edit_act_{event_id}", use_container_width=True):
@@ -763,10 +685,7 @@ elif menu_optie == "📅 Agenda & Notities":
                 st.rerun()
                     
             if col_b3.button("🗑️ Wissen", key=f"btn_del_{event_id}", type="secondary", use_container_width=True):
-                with sqlite3.connect(DB_NAME) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM agenda WHERE id=?", (event_id,))
-                    conn.commit()
+                supabase.table("agenda").delete().eq("id", event_id).execute()
                 st.rerun()
         else:
             st.markdown("### ✏️ Afspraak Wijzigen")
@@ -791,21 +710,18 @@ elif menu_optie == "📅 Agenda & Notities":
                     else:
                         nieuw_datum_format = f"{edit_datum}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum}T{edit_tijd_tot.strftime('%H:%M:%S')}"
                     
-                    with sqlite3.connect(DB_NAME) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            UPDATE agenda 
-                            SET datum=?, titel=?, notitie=? 
-                            WHERE id=?
-                        """, (nieuw_datum_format, edit_titel.strip(), edit_notitie.strip(), event_id))
-                        conn.commit()
+                    agenda_update = {
+                        "datum": nieuw_datum_format,
+                        "titel": edit_titel.strip(),
+                        "notitie": edit_notitie.strip()
+                    }
+                    supabase.table("agenda").update(agenda_update).eq("id", event_id).execute()
                     st.session_state[bewerk_modus_key] = False
                     st.rerun()
                     
             if col_save2.button("❌ Annuleren", use_container_width=True, key=f"btn_can_{event_id}"):
                 st.session_state[bewerk_modus_key] = False
                 st.rerun()
-
     st.markdown("""
         <style>
         .fc .fc-toolbar { display: flex !important; flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important; justify-content: space-between !important; margin-bottom: 15px !important; }
@@ -816,28 +732,31 @@ elif menu_optie == "📅 Agenda & Notities":
         </style>
     """, unsafe_allow_html=True)
 
-    with sqlite3.connect(DB_NAME) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, datum, titel, notitie, status FROM agenda")
-        notities = cursor.fetchall()
+    notities = supabase.table("agenda").select("*").execute().data
     
     calendar_events = []
-    for item in notities:
-        n_id, n_datum_veld, n_titel, n_notitie, n_status = item
-        if "||" in str(n_datum_veld):
-            start_tijd, eind_tijd = n_datum_veld.split("||")
-            is_hele_dag = False
-        else:
-            start_tijd = n_datum_veld
-            eind_tijd = n_datum_veld
-            is_hele_dag = True
-        
-        kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
-        calendar_events.append({
-            "id": str(n_id), "title": f"[{n_status}] {n_titel}", "start": start_tijd, "end": eind_tijd,
-            "backgroundColor": kleur, "borderColor": kleur, "allDay": is_hele_dag,
-            "extendedProps": {"notitie": n_notitie, "status": n_status, "start_tijd": start_tijd, "eind_tijd": eind_tijd}
-        })
+    if notities:
+        for item in notities:
+            n_id = item["id"]
+            n_datum_veld = item["datum"]
+            n_titel = item["titel"]
+            n_notitie = item["notitie"]
+            n_status = item["status"]
+            
+            if "||" in str(n_datum_veld):
+                start_tijd, eind_tijd = n_datum_veld.split("||")
+                is_hele_dag = False
+            else:
+                start_tijd = n_datum_veld
+                eind_tijd = n_datum_veld
+                is_hele_dag = True
+            
+            kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
+            calendar_events.append({
+                "id": str(n_id), "title": f"[{n_status}] {n_titel}", "start": start_tijd, "end": eind_tijd,
+                "backgroundColor": kleur, "borderColor": kleur, "allDay": is_hele_dag,
+                "extendedProps": {"notitie": n_notitie, "status": n_status, "start_tijd": start_tijd, "eind_tijd": eind_tijd}
+            })
         
     calendar_options = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
