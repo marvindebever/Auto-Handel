@@ -459,13 +459,24 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
                 foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
             foto_data = "||".join(foto_lijst)
             
-        nieuw_voertuig = {
-            "naam": naam, "kenteken": kenteken.upper().replace("-", "").strip(), "km_stand": int(km_stand_str),
-            "inkoopprijs": float(inkoopprijs_val), "verkoopprijs": float(verkoopprijs_val), "apk_datum": str(apk_datum),
-            "extra_kosten": float(extra_kosten_val), "afbeelding": foto_data, "transmissie": transmissie,
-            "status": status_invoer, "brandstof": brandstof_invoer, "bouwjaar": int(bouwjaar_invoer),
-            "kleur": kleur_invoer, "cataloguswaarde": float(cat_invoer)
-        }
+# Verander dit deel in je app.py code:
+nieuw_voertuig = {
+    "naam": naam, 
+    "kenteken": kenteken.upper().replace("-", "").strip(), 
+    "km_stand": int(km_stand_str),
+    "inkoopprijs": float(inkoopprijs_val), 
+    "verkoopprijs": float(verkoopprijs_val), 
+    "apk_datum": str(apk_datum), # Zorg dat hier exact str() omheen staat!
+    "extra_kosten": float(extra_kosten_val), 
+    "afbeelding": foto_data, 
+    "transmissie": transmissie,
+    "status": status_invoer, 
+    "brandstof": brandstof_invoer, 
+    "bouwjaar": int(bouwjaar_invoer),
+    "kleur": kleur_invoer, 
+    "cataloguswaarde": float(cat_invoer)
+}
+
         supabase.table("voorraad").insert(nieuw_voertuig).execute()
             
         for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
