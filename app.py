@@ -466,11 +466,17 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             foto_lijst = []
             for f in gevoegde_fotos:
                 img = Image.open(f)
+                
+                # ---> HIER STAAT DE FIX VOOR TRANSPARANTIE / COLOR MODES <---
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                    
                 img.thumbnail((800, 800))
                 buffer = io.BytesIO()
                 img.save(buffer, format="JPEG", quality=70)
                 foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
             foto_data = "||".join(foto_lijst)
+
             
         # Zorg dat dit dictionary-blok netjes op hetzelfde niveau staat
         nieuw_voertuig = {
