@@ -207,6 +207,7 @@ def importeer_json_naar_database(json_data):
     except Exception as e:
         st.sidebar.error(f"Import cloud mislukt: {str(e)}")
         return False
+
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig, brandstof_h, bouwjaar_h, kleur_h, cat_h):
@@ -510,6 +511,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
         st.markdown("### 🔍 Filters & Sortering")
         inv_col1, inv_col2, inv_col3 = st.columns([2, 1.5, 1], vertical_alignment="bottom")
         zoekterm = inv_col1.text_input("Zoek op kenteken of omschrijving...").upper()
+
         sorteer_optie = inv_col2.selectbox("Sorteren op", options=["ID Nummer (Oplopend)", "ID Nummer (Aflopend)", "Verwachte Winst (Hoog naar laag)", "Kilometerstand (Laag naar hoog)", "APK Datum"])
         
         if zoekterm: 
