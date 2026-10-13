@@ -263,11 +263,17 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     foto_lijst = []
                     for f in edit_fotos:
                         img = Image.open(f)
+                        
+                        # ---> HIER STAAT DE CRUCIALE FIX VOOR TRANSPARANTIE / COLOR MODES <---
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                            
                         img.thumbnail((800, 800))
                         buffer = io.BytesIO()
                         img.save(buffer, format="JPEG", quality=70)
                         foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                     foto_opslaan = "||".join(foto_lijst)
+
                 
                 update_data = {
                     "naam": edit_naam, "kenteken": edit_ktk.upper().replace("-", "").strip(),
