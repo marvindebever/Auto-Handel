@@ -315,8 +315,8 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             st.error("Vul tenminste de naam van de koper in.")
             return
 
-        contant_vink = "[X]" if betaalwijze == "Contant" else "[ ]"
-        bank_vink = "[X]" if betaalwijze == "Per bankoverschrijving" else "[ ]"
+        contant_vink = "[X]" if betaalwijze == "Contant" else "[ &nbsp; ]"
+        bank_vink = "[X]" if betaalwijze == "Per bankoverschrijving" else "[ &nbsp; ]"
         
         huidige_datum_str = datetime.today().strftime('%d-%m-%Y')
         leverdatum_str = edit_leverdatum.strftime('%d-%m-%Y')
@@ -329,23 +329,30 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         <head>
             <meta charset="UTF-8">
             <style>
-                body {{ font-family: Arial, sans-serif; color: #000; padding: 10px; line-height: 1.4; font-size: 13px; }}
-                h2 {{ text-align: center; margin-bottom: 2px; font-size: 20px; font-weight: bold; }}
-                .sub-header {{ text-align: center; font-size: 10px; font-style: italic; margin-bottom: 15px; color: #333; }}
-                h3 {{ background-color: #ffffff; padding: 4px 0px; margin-top: 15px; margin-bottom: 8px; border-bottom: 1px solid #000; font-size: 14px; font-weight: bold; }}
-                table {{ width: 100%; border-collapse: collapse; margin-bottom: 5px; }}
-                td {{ padding: 3px 0px; vertical-align: top; }}
-                .label {{ width: 160px; font-weight: normal; }}
+                body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #000; padding: 30px; line-height: 1.5; font-size: 13px; max-width: 800px; margin: 0 auto; }}
+                h2 {{ text-align: center; margin-bottom: 2px; font-size: 22px; font-weight: bold; letter-spacing: 0.5px; }}
+                .sub-header {{ text-align: center; font-size: 10px; font-style: italic; margin-bottom: 25px; color: #444; text-align: justify; text-align-last: center; }}
+                
+                /* Grijze koppen net als de eerste bon */
+                h3 {{ background-color: #f5f5f5; padding: 6px 10px; margin-top: 20px; margin-bottom: 12px; font-size: 13px; font-weight: bold; border: 1px solid #ddd; border-radius: 4px; color: #000; }}
+                
+                table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; margin-left: 10px; }}
+                td {{ padding: 4px 0px; vertical-align: top; color: #000; }}
+                .label {{ width: 180px; font-weight: bold; color: #333; }}
                 .value {{ font-weight: normal; }}
-                .legal-text {{ font-size: 10px; color: #111; text-align: justify; margin-top: 5px; margin-bottom: 5px; }}
-                .signature-container {{ display: flex; justify-content: space-between; margin-top: 10px; }}
-                .signature-box {{ width: 48%; border: 1px solid #ccc; padding: 10px; min-height: 90px; box-sizing: border-box; }}
-                .footer-notice {{ text-align: center; font-size: 8px; color: #666; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 5px; }}
+                
+                .legal-text {{ font-size: 11px; color: #444; text-align: justify; margin-top: 8px; margin-bottom: 8px; margin-left: 10px; line-height: 1.4; }}
+                
+                /* Handtekeningenboxen strak uitgelijnd */
+                .signature-container {{ display: flex; justify-content: space-between; margin-top: 15px; margin-left: 10px; }}
+                .signature-box {{ width: 48%; border: 1px solid #bbb; padding: 12px; min-height: 110px; box-sizing: border-box; border-radius: 4px; background-color: #fafafa; }}
+                
+                .footer-notice {{ text-align: center; font-size: 8px; color: #776; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 8px; font-style: italic; }}
             </style>
         </head>
         <body>
             <h2>PARTICULIERE KOOPOVEREENKOMST AUTO</h2>
-            <div class="sub-header">(Margevoertuig / Zonder Garantie)<br>Ondergetekenden komen overeen dat de verkoper het hieronder omschreven voertuig verkoopt aan de koper tegen de overengekomen prijs. Deze verkoop geschiedt tussen twee particulieren. De koper verklaart het voertuig te hebben geïnspecteerd en te accepteren in de huidige staat.</div>
+            <div class="sub-header"><strong>(Margevoertuig / Zonder Garantie)</strong><br>Ondergetekenden komen overeen dat de verkoper het hieronder omschreven voertuig verkoopt aan de koper tegen de overengekomen prijs. Deze verkoop geschiedt tussen twee particulieren. De koper verklaart het voertuig te hebben geïnspecteerd en te accepteren in de huidige staat.</div>
             
             <h3>1. Gegevens van de Verkoper</h3>
             <table>
@@ -364,10 +371,10 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             </table>
             
             <h3>3. Voertuiggegevens</h3>
-            <table style="width: 100%;">
+            <table>
                 <tr>
-                    <td class="label" style="width: 130px;">Merk & Model:</td><td class="value" style="width: 250px;">{merk_model}</td>
-                    <td class="label" style="width: 110px;">Kenteken:</td><td class="value">{kenteken}</td>
+                    <td class="label" style="width: 140px;">Merk & Model:</td><td class="value" style="width: 260px;">{merk_model}</td>
+                    <td class="label" style="width: 120px;">Kenteken:</td><td class="value">{kenteken}</td>
                 </tr>
                 <tr>
                     <td class="label">Tellerstand:</td><td class="value">{km_veilig:,} km</td>
@@ -377,25 +384,25 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             
             <h3>4. Financiële Afspraken & Levering</h3>
             <table>
-                <tr><td class="label">Overengekomen prijs:</td><td class="value">&euro; {formatteer_euro_nl(verkoop)}</td></tr>
-                <tr><td class="label">Wijze van betaling:</td><td class="value">{contant_vink} Contant &nbsp;&nbsp; {bank_vink} Per bankoverschrijving</td></tr>
+                <tr><td class="label">Overengekomen prijs:</td><td class="value" style="font-weight: bold;">&euro; {formatteer_euro_nl(verkoop)}</td></tr>
+                <tr><td class="label">Wijze van betaling:</td><td class="value">{contant_vink} Contant &nbsp;&nbsp;&nbsp;&nbsp; {bank_vink} Per bankoverschrijving</td></tr>
                 <tr><td class="label">Datum van levering:</td><td class="value">{leverdatum_str}</td></tr>
             </table>
             <div class="legal-text">De verkoper verklaart dat het voertuig vrij is van beslagen, boetes en/of andere financiële claims tot het hierboven genoemde tijdstip van overdracht. Eventuele boetes of belastingen na dit tijdstip komen volledig voor rekening van de koper.</div>
             
             <h3>5. Bijzondere Afspraken & Garantie-uitsluiting</h3>
-            <div style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">Garantieclausule (Gekocht in de huidige staat):</div>
-            <div class="legal-text" style="margin-top: 0px;">Het voertuig wordt door de koper gekocht in de staat waarin het zich op de datum van verkoop bevindt ("as is, where is"). Beide partijen verklaren nadrukkelijk dat er sprake is van een particuliere transactie. De verkoper verleent geen enkele vorm van garantie op mechanische, elektrische of optische onderdelen, noch op verborgen gebreken, tenzij hieronder schriftelijk anders is overengekomen.</div>
-            <div style="font-size: 11px; margin-top: 5px;"><strong>Aanvullende afspraken:</strong> {bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</div>
+            <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px; margin-left: 10px; color: #111;">Garantieclausule (Gekocht in de huidige staat):</div>
+            <div class="legal-text" style="margin-top: 0px;">Le voertuig wordt door de koper gekocht in de staat waarin het zich op de datum van verkoop bevindt ("as is, where is"). Beide partijen verklaren nadrukkelijk dat er sprake is van een particuliere transactie. De verkoper verleent geen enkele vorm van garantie op mechanische, elektrische of optische onderdelen, noch op verborgen gebreken, tenzij hieronder schriftelijk anders is overengekomen.</div>
+            <div style="font-size: 12px; margin-top: 8px; margin-left: 10px;"><strong>Aanvullende afspraken:</strong> {bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</div>
             
             <h3>6. Handtekening voor Akkoord</h3>
             <div class="signature-container">
                 <div class="signature-box">
-                    Handtekening Verkoper:<br><br><br>
+                    <strong>Handtekening Verkoper:</strong><br><br><br><br>
                     Datum: {huidige_datum_str}
                 </div>
                 <div class="signature-box">
-                    Handtekening Koper:<br><br><br>
+                    <strong>Handtekening Koper:</strong><br><br><br><br>
                     Datum: {huidige_datum_str}
                 </div>
             </div>
@@ -406,8 +413,9 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         """
         b64 = base64.b64encode(html_content.encode('utf-8')).decode()
         filename = f"Koopovereenkomst_{kenteken}_{leverdatum_str}.html"
-        href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; margin-top:10px;">📥 Download Overeenkomst</a>'
+        href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:12px; border-radius:8px; text-decoration:none; font-weight:bold; margin-top:15px; font-size:14px;">📥 Prachtig Contract Downloaden</a>'
         st.markdown(href, unsafe_allow_html=True)
+
 
 # --- SIDEBAR NAVIGATIE ---
 with st.sidebar:
