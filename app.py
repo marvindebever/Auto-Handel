@@ -253,18 +253,25 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         edit_verkoop = col_e8.number_input("Pas Verkoopprijs aan (€)", value=float(verkoop), step=50.0)
         edit_kosten = col_e9.number_input("Pas Extra kosten aan (€)", value=float(kosten), step=10.0)
         
-        edit_fotos = st.file_uploader("Upload nieuwe foto's", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=uploader_key)
+        # --- DE GEWENSTE WIJZIGING: VERWIJDER-CHECKBOX EN KLANT-LOGICA ---
+        verwijder_fotos = st.checkbox("🗑️ Verwijder huidige foto's", value=False)
+        edit_fotos = st.file_uploader("Upload nieuwe foto's (vervangt oude foto's)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=uploader_key)
+        
         submit_edit = st.form_submit_button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True)
         
         if submit_edit:
             if edit_ktk.strip():
-                foto_opslaan = foto_huidig
+                # Bepaal wat we met de foto's doen op basis van de checkbox en uploader
+                if verwijder_fotos:
+                    foto_opslaan = ""
+                else:
+                    foto_opslaan = foto_huidig
+
                 if edit_fotos:
                     foto_lijst = []
                     for f in edit_fotos:
                         img = Image.open(f)
                         
-                        # ---> HIER STAAT DE CRUCIALE FIX VOOR TRANSPARANTIE / COLOR MODES <---
                         if img.mode in ("RGBA", "P"):
                             img = img.convert("RGB")
                             
@@ -274,7 +281,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                         foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                     foto_opslaan = "||".join(foto_lijst)
 
-                
                 update_data = {
                     "naam": edit_naam, "kenteken": edit_ktk.upper().replace("-", "").strip(),
                     "km_stand": int(edit_km), "apk_datum": str(edit_apk), "transmissie": edit_trans,
@@ -285,6 +291,8 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 }
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
                 st.rerun()
+
+
 # --- DIALOG KOOPOVEREENKOMST ---
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
 def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
