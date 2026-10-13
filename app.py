@@ -310,7 +310,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     edit_leverdatum = st.date_input("Datum van levering", value=datetime.today().date(), format="DD-MM-YYYY")
     bijzondere_afspraken = st.text_area("Aanvullende afspraken of opmerkingen", value="Geen.")
 
-    if st.button("🔥 Contract Downloaden", type="primary", use_container_width=True):
+    if st.button("🔥 Contract Aanmaken", type="primary", use_container_width=True):
         if not koper_naam.strip():
             st.error("Vul tenminste de naam van de koper in.")
             return
