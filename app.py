@@ -687,7 +687,7 @@ elif menu_optie == "📅 Agenda & Notities":
         st.error("Installeer eerst de kalender-module via je requirements.txt: streamlit-calendar")
         st.stop()
 
-    # --- INITIALISEER IN SESSIE STATE OM REFRESH-LUS TE VOORKOMEN ---
+    # --- INITIALISEER IN SESSIE STATE ---
     if "show_add_dialog" not in st.session_state: st.session_state["show_add_dialog"] = False
     if "show_view_dialog" not in st.session_state: st.session_state["show_view_dialog"] = False
     if "selected_date" not in st.session_state: st.session_state["selected_date"] = ""
@@ -716,8 +716,10 @@ elif menu_optie == "📅 Agenda & Notities":
             opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}" if hele_dag else f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}||{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
             nieuw_event = {"datum": opslag_datum, "titel": ag_titel.strip(), "notitie": ag_notitie.strip(), "status": "Open"}
             supabase.table("agenda").insert(nieuw_event).execute()
+            
+            # Reset states handmatig VOOR de rerun om lussen te voorkomen
             st.session_state["show_add_dialog"] = False
-            st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
+            st.session_state["last_click_id"] = ""
             st.rerun()
 
     # --- POP-UP 2: BEKIJKEN / BEWERKEN ---
@@ -763,6 +765,7 @@ elif menu_optie == "📅 Agenda & Notities":
                 nieuwe_status = "Voltooid" if status_veld == "Open" else "Open"
                 supabase.table("agenda").update({"status": nieuwe_status}).eq("id", event_id).execute()
                 st.session_state["show_view_dialog"] = False
+                st.session_state["last_click_id"] = ""
                 st.rerun()
             if col_b2.button("✏️ Bewerken", use_container_width=True):
                 st.session_state[bewerk_modus_key] = True
@@ -770,6 +773,7 @@ elif menu_optie == "📅 Agenda & Notities":
             if col_b3.button("🗑️ Wissen", type="secondary", use_container_width=True):
                 supabase.table("agenda").delete().eq("id", event_id).execute()
                 st.session_state["show_view_dialog"] = False
+                st.session_state["last_click_id"] = ""
                 st.rerun()
         else:
             st.markdown("### ✏️ Afspraak Wijzigen")
@@ -794,6 +798,7 @@ elif menu_optie == "📅 Agenda & Notities":
                 supabase.table("agenda").update({"datum": nieuw_datum_format, "titel": edit_titel.strip(), "notitie": edit_notitie.strip()}).eq("id", event_id).execute()
                 st.session_state[bewerk_modus_key] = False
                 st.session_state["show_view_dialog"] = False
+                st.session_state["last_click_id"] = ""
                 st.rerun()
             if col_save2.button("❌ Annuleren", use_container_width=True):
                 st.session_state[bewerk_modus_key] = False
@@ -804,6 +809,11 @@ elif menu_optie == "📅 Agenda & Notities":
         .fc .fc-toolbar-title { font-size: 1.3rem !important; color: white !important; }
         .fc .fc-daygrid-day-number { font-size: 0.95rem !important; font-weight: bold !important; color: white !important; }
         .fc-daygrid-event { font-size: 0.8rem !important; padding: 3px !important; border-radius: 4px !important; }
+        /* CSS FIX: Herstelt alle tabelranden onafhankelijk van Streamlit containers */
+        .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255, 255, 255, 0.1) !important; }
+        .fc-theme-standard .fc-scrollgrid { border: 1px solid rgba(255, 255, 255, 0.1) !important; }
+        .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; }
+        .fc .fc-button-primary:hover { background-color: rgb(255, 75, 75) !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -841,14 +851,10 @@ elif menu_optie == "📅 Agenda & Notities":
         "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
     
-    custom_css = """
-        .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
-        .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255,255,255,0.2) !important; }
-    """
+    # Render de kalender
+    state = calendar(events=calendar_events, options=calendar_options, key="agenda_volledige_breedte")
     
-    state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="agenda_volledige_breedte")
-    
-    # --- VEILIGE EVENT AFHANDELING VIA STATE-CHANGES ---
+    # --- GEOPTIMALISEERDE EVENT CONTROL (OPGELOST: REFRESH-LUS EN CRASHES) ---
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
         props = ev.get("extendedProps", {})
@@ -874,7 +880,7 @@ elif menu_optie == "📅 Agenda & Notities":
             st.session_state["show_add_dialog"] = True
             st.rerun()
 
-    # --- ONKOPPELBARE POP-UP TRIGGERS (BUITEN DE KALENDER LUS) ---
+    # --- POP-UP TRIGGERS ---
     if st.session_state["show_add_dialog"]:
         nieuwe_afspraak_popup()
     if st.session_state["show_view_dialog"]:
