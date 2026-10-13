@@ -824,110 +824,62 @@ elif menu_optie == "📅 Agenda & Notities":
                 st.rerun()
     st.markdown("""
         <style>
-        .fc .fc-toolbar { display: flex !important; flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important; justify-content: space-between !important; margin-bottom: 15px !important; }
+        .fc .fc-toolbar { display: flex !important; justify-content: space-between !important; margin-bottom: 15px !important; }
         .fc .fc-toolbar-title { font-size: 1.3rem !important; color: white !important; }
-        .fc .fc-button { padding: 6px 10px !important; font-size: 0.9rem !important; }
         .fc .fc-daygrid-day-number { font-size: 0.95rem !important; font-weight: bold !important; color: white !important; }
         .fc-daygrid-event { font-size: 0.8rem !important; padding: 3px !important; border-radius: 4px !important; }
         </style>
     """, unsafe_allow_html=True)
 
     notities = supabase.table("agenda").select("*").execute().data
-    
     calendar_events = []
+    
     if notities:
         from datetime import timedelta
         for item in notities:
-            n_id = item["id"]
-            n_datum_veld = item["datum"]
-            n_titel = item["titel"]
-            n_notitie = item["notitie"]
-            n_status = item["status"]
-            
-            db_start = n_datum_veld
-            db_eind = n_datum_veld
+            n_id, n_datum_veld, n_titel, n_notitie, n_status = item["id"], item["datum"], item["titel"], item["notitie"], item["status"]
+            db_start = db_eind = start_tijd = eind_tijd = n_datum_veld
             
             if "||" in str(n_datum_veld):
                 start_tijd, eind_tijd = n_datum_veld.split("||")
-                db_start = start_tijd
-                db_eind = eind_tijd
-                
-                if "T" in str(start_tijd):
-                    is_hele_dag = False
-                else:
-                    is_hele_dag = True
-                    try:
-                        eind_dt = datetime.strptime(eind_tijd, "%Y-%m-%d") + timedelta(days=1)
-                        eind_tijd = eind_dt.strftime("%Y-%m-%d")
-                    except:
-                        pass
+                db_start, db_eind = start_tijd, eind_tijd
+                is_hele_dag = "T" not in str(start_tijd)
+                if is_hele_dag:
+                    try: eind_tijd = (datetime.strptime(eind_tijd, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+                    except: pass
             else:
-                start_tijd = n_datum_veld
-                eind_tijd = n_datum_veld
                 is_hele_dag = True
-                try:
-                    eind_dt = datetime.strptime(eind_tijd, "%Y-%m-%d") + timedelta(days=1)
-                    eind_tijd = eind_dt.strftime("%Y-%m-%d")
-                except:
-                    pass
+                try: eind_tijd = (datetime.strptime(eind_tijd, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+                except: pass
             
             kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
             calendar_events.append({
-                "id": str(n_id), 
-                "title": f"[{n_status}] {n_titel}", 
-                "start": start_tijd, 
-                "end": eind_tijd,
-                "backgroundColor": kleur, 
-                "borderColor": kleur, 
-                "allDay": is_hele_dag,
-                "extendedProps": {
-                    "notitie": n_notitie, 
-                    "status": n_status, 
-                    "start_tijd": db_start, 
-                    "eind_tijd": db_eind
-                }
+                "id": str(n_id), "title": f"[{n_status}] {n_titel}", "start": start_tijd, "end": eind_tijd,
+                "backgroundColor": kleur, "borderColor": kleur, "allDay": is_hele_dag,
+                "extendedProps": {"notitie": n_notitie, "status": n_status, "start_tijd": db_start, "eind_tijd": db_eind}
             })
         
     calendar_options = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "selectable": False, "height": "auto", "contentHeight": 550,
-        "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"},
-        "slotMinTime": "07:00:00", "slotMaxTime": "21:00:00"
+        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "height": "auto", "contentHeight": 550,
+        "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
     
     custom_css = """
         .fc-theme-standard td, .fc-theme-standard th { border: 1px solid rgba(255,255,255,0.1) !important; }
         .fc .fc-button-primary { background-color: #1e1e24 !important; border: 1px solid rgba(255,255,255,0.2) !important; }
-        .fc .fc-button-primary:hover { background-color: rgb(255, 75, 75) !important; }
         .fc-theme-standard .fc-scrollgrid { border: 1px solid rgba(255,255,255,0.1) !important; }
     """
     
     state = calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="agenda_volledige_breedte")
     
+    # --- DE FIX VOOR HET REFRESHEN EN DATUM VERWERKING ---
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
         props = ev.get("extendedProps", {})
-        bekijk_afspraak_dialog(
-            event_id=ev["id"], 
-            titel_ruw=ev["title"], 
-            start_veld=props.get("start_tijd"), 
-            eind_veld=props.get("eind_tijd"), 
-            notitie_veld=props.get("notitie"), 
-            status_veld=props.get("status")
-        )
+        bekijk_afspraak_dialog(str(ev["id"]), ev["title"], props.get("start_tijd"), props.get("eind_tijd"), props.get("notitie"), props.get("status"))
+        
     elif state.get("dateClick"):
-        ruwe_datum_str = state["dateClick"]["date"]
-        try:
-            if "T" in ruwe_datum_str:
-                datum_deel, tijd_deel = ruwe_datum_str.split("T")
-                pure_dt = datetime.strptime(datum_deel, "%Y-%m-%d")
-                uurs_check = int(tijd_deel.split(":")[0])
-                if uurs_check >= 20:
-                    from datetime import timedelta
-                    pure_dt = pure_dt + timedelta(days=1)
-                puur_datum = pure_dt.strftime("%Y-%m-%d")
-            else:
-                puur_datum = ruwe_datum_str.split("Z")[0].split("T")[0]
-        except:
-            puur_datum = ruwe_datum_str.split("T")[0]
+        ruwe_datum_str = str(state["dateClick"]["date"])
+        puur_datum = ruwe_datum_str.split("T")[0].split("Z")[0].strip()
         nieuwe_afspraak_dialog(puur_datum)
