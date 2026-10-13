@@ -687,7 +687,6 @@ elif menu_optie == "📅 Agenda & Notities":
         st.error("Installeer eerst de kalender-module via je requirements.txt: streamlit-calendar")
         st.stop()
 
-    # --- ARCHITECTUUR FIX: POP-UPS WORDEN HIER GEDEFINEERD ---
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
     def nieuwe_afspraak_popup(gekozen_datum_str):
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
@@ -707,8 +706,7 @@ elif menu_optie == "📅 Agenda & Notities":
             
         if ag_submit and ag_titel.strip():
             opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}" if hele_dag else f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}||{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
-            nieuw_event = {"datum": opslag_datum, "titel": ag_titel.strip(), "notitie": ag_notitie.strip(), "status": "Open"}
-            supabase.table("agenda").insert(nieuw_event).execute()
+            supabase.table("agenda").insert({"datum": opslag_datum, "titel": ag_titel.strip(), "notitie": ag_notitie.strip(), "status": "Open"}).execute()
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
 
@@ -735,7 +733,7 @@ elif menu_optie == "📅 Agenda & Notities":
                 if pure_datum_van == pure_datum_tot: st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_van)} (Gehele dag)")
                 else: st.write(f"📅 **Periode:** {formatteer_datum_nl(pure_datum_van)} t/m {formatteer_datum_nl(pure_datum_tot)} (Gehele dagen)")
             else:
-                st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_van)} (Met specifieke tijden)")
+                st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_van)} (Met tijden)")
                 
             st.write(f"📊 **Status:** {status_veld}")
             if notitie_veld: st.write(f"📝 **Opmerkingen:**  \n{notitie_veld}")
@@ -776,7 +774,6 @@ elif menu_optie == "📅 Agenda & Notities":
                 st.session_state[bewerk_modus_key] = False
                 st.rerun()
 
-    # --- STYLING FIX: GEEN WITTE LIJNEN EN TRANSPARANTE INTEGRATIE ---
     st.markdown("""
         <style>
         .fc .fc-toolbar { display: flex !important; justify-content: space-between !important; margin-bottom: 15px !important; }
@@ -790,7 +787,6 @@ elif menu_optie == "📅 Agenda & Notities":
         </style>
     """, unsafe_allow_html=True)
 
-    # --- DATA OPNHALEN ---
     notities = supabase.table("agenda").select("*").execute().data
     calendar_events = []
     
@@ -825,20 +821,23 @@ elif menu_optie == "📅 Agenda & Notities":
         "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
     
-    # Render de kalender direct op de pagina
     state = calendar(events=calendar_events, options=calendar_options, key="agenda_strakke_kalender")
     
-    # --- DE VOLLEDIG VEILIGE KLIK-TRIGGER CONTROLE ---
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
         props = ev.get("extendedProps", {})
-        ev_data = {
-            "id": ev["id"], "title": ev["title"], "notitie": props.get("notitie"),
-            "status": props.get("status"), "start_tijd": props.get("start_tijd"), "eind_tijd": props.get("eind_tijd")
-        }
-        bekijk_afspraak_popup(ev_data)
+        bekijk_afspraak_popup({"id": ev["id"], "title": ev["title"], "notitie": props.get("notitie"), "status": props.get("status"), "start_tijd": props.get("start_tijd"), "eind_tijd": props.get("eind_tijd")})
         
     elif state.get("dateClick"):
-        ruwe_datum_str = str(state["dateClick"]["date"])
-        puur_datum = ruwe_datum_str.split("T")[0].split("Z")[0].strip()
+        ruwe_str = str(state["dateClick"]["date"])
+        # TIMEZONE FIX: Als de kalender door UTC-tijd 22:00 uur doorgeeft, schuiven we hem direct 4 uur door naar de volgende dag
+        if "T" in ruwe_str:
+            try:
+                dt = datetime.fromisoformat(ruwe_str.replace("Z", ""))
+                puur_datum = (dt + timedelta(hours=4) if dt.hour >= 20 else dt).strftime("%Y-%m-%d")
+            except:
+                puur_datum = ruwe_str.split("T")[0]
+        else:
+            puur_datum = ruwe_str.strip()
+            
         nieuwe_afspraak_popup(puur_datum)
