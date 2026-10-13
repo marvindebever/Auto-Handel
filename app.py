@@ -169,7 +169,14 @@ def formatteer_datum_nl(datum_str):
     except: return datum_str
 
 def formatteer_euro_nl(bedrag):
-    return f"{bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    try:
+        # Als het bedrag als tekst uit de database komt, maken we er eerst een getal van
+        veilig_bedrag = float(bedrag) if bedrag is not None else 0.0
+    except:
+        veilig_bedrag = 0.0
+        
+    return f"{veilig_bedrag:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 
 # --- DATA IMPORT & EXPORT MET SUPABASE ---
 def exporteer_database_naar_json():
