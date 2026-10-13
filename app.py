@@ -690,21 +690,25 @@ elif menu_optie == "📅 Agenda & Notities":
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
     def nieuwe_afspraak_dialog(gekozen_datum_str):
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
-            st.write(f"**Geselecteerde datum:** {formatteer_datum_nl(gekozen_datum_str)}")
-            hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag")
+            st.write(f"**Geselecteerde begindatum:** {formatteer_datum_nl(gekozen_datum_str)}")
+            hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=True)
             
-            tijd_col1, tijd_col2 = st.columns(2)
-            if not hele_dag:
+            if hele_dag:
+                # Nieuwe mogelijkheid voor meerdaagse evenementen
+                tot_datum = st.date_input("Einddatum (t/m)", value=datetime.strptime(gekozen_datum_str, "%Y-%m-%d").date(), format="DD-MM-YYYY")
+            else:
+                tijd_col1, tijd_col2 = st.columns(2)
                 ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
                 ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
             
-            ag_titel = st.text_input("Titel (bijv. Proefrit Golf, APK Keuring)")
+            ag_titel = st.text_input("Titel (bijv. Auto verhuurd, Vakantie, Showroom dicht)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
             ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", use_container_width=True)
             
         if ag_submit and ag_titel.strip():
             if hele_dag:
-                opslag_datum = str(gekozen_datum_str)
+                # Sla de van- en tot-datum op gescheiden door ||
+                opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}"
             else:
                 start_volledig = f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}"
                 end_volledig = f"{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
@@ -717,6 +721,7 @@ elif menu_optie == "📅 Agenda & Notities":
             supabase.table("agenda").insert(nieuw_event).execute()
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
+
     @st.dialog("🔍 Afspraak Beheren")
     def bekijk_afspraak_dialog(event_id, titel_ruw, start_veld, eind_veld, notitie_veld, status_veld):
         bewerk_modus_key = f"edit_mode_{event_id}"
@@ -724,14 +729,18 @@ elif menu_optie == "📅 Agenda & Notities":
             st.session_state[bewerk_modus_key] = False
 
         is_voorheen_hele_dag = "T" not in str(start_veld)
-        pure_datum_huidig = start_veld.split("T")[0] if "T" in str(start_veld) else start_veld
+        pure_datum_van = str(start_veld).split("T")[0]
+        pure_datum_tot = str(eind_veld).split("T")[0]
         
-        try: standaard_datum = datetime.strptime(pure_datum_huidig, "%Y-%m-%d").date()
-        except: standaard_datum = datetime.today().date()
+        try: standaard_van = datetime.strptime(pure_datum_van, "%Y-%m-%d").date()
+        except: standaard_van = datetime.today().date()
+        
+        try: standaard_tot = datetime.strptime(pure_datum_tot, "%Y-%m-%d").date()
+        except: standaard_tot = standaard_van
 
         try:
-            huidig_van = datetime.strptime(start_veld.split("T")[1][:5], "%H:%M").time() if "T" in str(start_veld) else datetime.strptime("10:00", "%H:%M").time()
-            huidig_tot = datetime.strptime(eind_veld.split("T")[1][:5], "%H:%M").time() if "T" in str(eind_veld) else datetime.strptime("11:00", "%H:%M").time()
+            huidig_van = datetime.strptime(str(start_veld).split("T")[1][:5], "%H:%M").time() if "T" in str(start_veld) else datetime.strptime("10:00", "%H:%M").time()
+            huidig_tot = datetime.strptime(str(eind_veld).split("T")[1][:5], "%H:%M").time() if "T" in str(eind_veld) else datetime.strptime("11:00", "%H:%M").time()
         except:
             huidig_van = datetime.strptime("10:00", "%H:%M").time()
             huidig_tot = datetime.strptime("11:00", "%H:%M").time()
@@ -740,12 +749,15 @@ elif menu_optie == "📅 Agenda & Notities":
 
         if not st.session_state[bewerk_modus_key]:
             st.markdown(f"### **{pure_titel_origineel}**")
-            st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_huidig)}")
             
-            if not is_voorheen_hele_dag:
-                st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
+            if is_voorheen_hele_dag:
+                if pure_datum_van == pure_datum_tot:
+                    st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_van)} (Gehele dag)")
+                else:
+                    st.write(f"📅 **Periode:** {formatteer_datum_nl(pure_datum_van)} t/m {formatteer_datum_nl(pure_datum_tot)} (Gehele dagen)")
             else:
-                st.write("📅 **Tijd:** Gehele dag")
+                st.write(f"📅 **Datum:** {formatteer_datum_nl(pure_datum_van)}")
+                st.write(f"⏱️ **Tijd:** {huidig_van.strftime('%H:%M')} tot {huidig_tot.strftime('%H:%M')} uur")
                 
             st.write(f"📊 **Status:** {status_veld}")
             if notitie_veld:
@@ -772,11 +784,16 @@ elif menu_optie == "📅 Agenda & Notities":
                 st.rerun()
         else:
             st.markdown("### ✏️ Afspraak Wijzigen")
-            edit_datum = st.date_input("Pas Datum aan", value=standaard_datum, key=f"edit_dat_{event_id}")
-            edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag", value=is_voorheen_hele_dag, key=f"edit_hd_{event_id}")
             
-            tijd_edit_col1, tijd_edit_col2 = st.columns(2)
-            if not edit_hele_dag:
+            edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=is_voorheen_hele_dag, key=f"edit_hd_{event_id}")
+            
+            if edit_hele_dag:
+                col_d1, col_d2 = st.columns(2)
+                edit_datum_van = col_d1.date_input("Pas Begindatum aan", value=standaard_van, key=f"edit_dat_v_{event_id}")
+                edit_datum_tot = col_d2.date_input("Pas Einddatum aan", value=standaard_tot, key=f"edit_dat_t_{event_id}")
+            else:
+                edit_datum_van = st.date_input("Pas Datum aan", value=standaard_van, key=f"edit_dat_{event_id}")
+                tijd_edit_col1, tijd_edit_col2 = st.columns(2)
                 edit_tijd_van = tijd_edit_col1.time_input("Pas Begintijd aan", value=huidig_van, key=f"edit_v_{event_id}")
                 edit_tijd_tot = tijd_edit_col2.time_input("Pas Eindtijd aan", value=huidig_tot, key=f"edit_t_{event_id}")
             
@@ -789,9 +806,9 @@ elif menu_optie == "📅 Agenda & Notities":
             if col_save1.button("💾 Wijzigingen Opslaan", type="primary", use_container_width=True, key=f"btn_save_{event_id}"):
                 if edit_titel.strip():
                     if edit_hele_dag:
-                        nieuw_datum_format = str(edit_datum)
+                        nieuw_datum_format = f"{edit_datum_van}||{edit_datum_tot}"
                     else:
-                        nieuw_datum_format = f"{edit_datum}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum}T{edit_tijd_tot.strftime('%H:%M:%S')}"
+                        nieuw_datum_format = f"{edit_datum_van}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum_van}T{edit_tijd_tot.strftime('%H:%M:%S')}"
                     
                     agenda_update = {
                         "datum": nieuw_datum_format,
@@ -819,6 +836,7 @@ elif menu_optie == "📅 Agenda & Notities":
     
     calendar_events = []
     if notities:
+        from datetime import timedelta
         for item in notities:
             n_id = item["id"]
             n_datum_veld = item["datum"]
@@ -826,19 +844,48 @@ elif menu_optie == "📅 Agenda & Notities":
             n_notitie = item["notitie"]
             n_status = item["status"]
             
+            db_start = n_datum_veld
+            db_eind = n_datum_veld
+            
             if "||" in str(n_datum_veld):
                 start_tijd, eind_tijd = n_datum_veld.split("||")
-                is_hele_dag = False
+                db_start = start_tijd
+                db_eind = eind_tijd
+                
+                if "T" in str(start_tijd):
+                    is_hele_dag = False
+                else:
+                    is_hele_dag = True
+                    try:
+                        eind_dt = datetime.strptime(eind_tijd, "%Y-%m-%d") + timedelta(days=1)
+                        eind_tijd = eind_dt.strftime("%Y-%m-%d")
+                    except:
+                        pass
             else:
                 start_tijd = n_datum_veld
                 eind_tijd = n_datum_veld
                 is_hele_dag = True
+                try:
+                    eind_dt = datetime.strptime(eind_tijd, "%Y-%m-%d") + timedelta(days=1)
+                    eind_tijd = eind_dt.strftime("%Y-%m-%d")
+                except:
+                    pass
             
             kleur = "#28a745" if n_status == "Voltooid" else "#ff4b4b"
             calendar_events.append({
-                "id": str(n_id), "title": f"[{n_status}] {n_titel}", "start": start_tijd, "end": eind_tijd,
-                "backgroundColor": kleur, "borderColor": kleur, "allDay": is_hele_dag,
-                "extendedProps": {"notitie": n_notitie, "status": n_status, "start_tijd": start_tijd, "eind_tijd": eind_tijd}
+                "id": str(n_id), 
+                "title": f"[{n_status}] {n_titel}", 
+                "start": start_tijd, 
+                "end": eind_tijd,
+                "backgroundColor": kleur, 
+                "borderColor": kleur, 
+                "allDay": is_hele_dag,
+                "extendedProps": {
+                    "notitie": n_notitie, 
+                    "status": n_status, 
+                    "start_tijd": db_start, 
+                    "eind_tijd": db_eind
+                }
             })
         
     calendar_options = {
@@ -860,7 +907,14 @@ elif menu_optie == "📅 Agenda & Notities":
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
         props = ev.get("extendedProps", {})
-        bekijk_afspraak_dialog(event_id=ev["id"], titel_ruw=ev["title"], start_veld=props.get("start_tijd"), eind_veld=props.get("eind_tijd"), notitie_veld=props.get("notitie"), status_veld=props.get("status"))
+        bekijk_afspraak_dialog(
+            event_id=ev["id"], 
+            titel_ruw=ev["title"], 
+            start_veld=props.get("start_tijd"), 
+            eind_veld=props.get("eind_tijd"), 
+            notitie_veld=props.get("notitie"), 
+            status_veld=props.get("status")
+        )
     elif state.get("dateClick"):
         ruwe_datum_str = state["dateClick"]["date"]
         try:
@@ -873,7 +927,7 @@ elif menu_optie == "📅 Agenda & Notities":
                     pure_dt = pure_dt + timedelta(days=1)
                 puur_datum = pure_dt.strftime("%Y-%m-%d")
             else:
-                puur_datum = ruwe_datum_str.split("Z")[0]
+                puur_datum = ruwe_datum_str.split("Z")[0].split("T")[0]
         except:
             puur_datum = ruwe_datum_str.split("T")[0]
         nieuwe_afspraak_dialog(puur_datum)
