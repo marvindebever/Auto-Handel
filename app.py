@@ -243,7 +243,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     standaard_aankoopdatum = datetime.today().date()
     if foto_huidig and "AANKOOPDATUM:" in str(foto_huidig):
         try:
-            # Vis de datum uit de fotostring
             deel_datum = str(foto_huidig).split("AANKOOPDATUM:")[1].split("||")[0].strip()
             standaard_aankoopdatum = datetime.strptime(deel_datum, "%Y-%m-%d").date()
         except:
@@ -289,7 +288,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         if submit_edit:
             if edit_ktk.strip():
                 basis_fotos = []
-                # Behoud bestaande foto-strings, filter de oude datummarkering eruit
                 if not verwijder_fotos and foto_huidig:
                     for element in foto_huidig.split("||"):
                         if element and "AANKOOPDATUM:" not in element:
@@ -305,7 +303,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                         img.save(buffer, format="JPEG", quality=70)
                         basis_fotos.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                 
-                # Voeg de datum als herkenbaar eerste element toe aan de fotokolom string
                 datum_prefix = f"AANKOOPDATUM:{edit_aankoopdatum.strftime('%Y-%m-%d')}"
                 basis_fotos.insert(0, datum_prefix)
                 foto_opslaan = "||".join(basis_fotos)
@@ -321,7 +318,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
                 st.cache_data.clear()
                 st.rerun()
-
 
 # --- DIALOG KOOPOVEREENKOMST ---
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
@@ -508,29 +504,16 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             foto_lijst = []
             for f in gevoegde_fotos:
                 img = Image.open(f)
-                
-                # ---> HIER STAAT DE FIX VOOR TRANSPARANTIE / COLOR MODES <---
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
-                    
                 img.thumbnail((800, 800))
                 buffer = io.BytesIO()
                 img.save(buffer, format="JPEG", quality=70)
                 foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
             foto_data = "||".join(foto_lijst)
 
-        # Voeg hier de automatische aankoopdatum (vandaag) toe aan het dictionary-blok
-        huidige_datum_vandaag = datetime.today().strftime('%Y-%m-%d')
-
-
-
-        # Deze regel stond te ver naar rechts en staat nu exact goed uitgelijnd!
-        supabase.table("voorraad").insert(nieuw_voertuig).execute()
-        st.cache_data.clear()
-        for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
-            if sleutel in st.session_state: del st.session_state[sleutel]
-        st.success("Auto succesvol toegevoegd aan de Cloud!")
-        st.rerun()
+        datum_prefix = f"AANKOOPDATUM:{aankoop_datum_invoer.strftime('%Y-%m-%d')}"
+        totaal_opslaan_string = f"{datum_prefix}||{foto_data}" if foto_data else datum_prefix
 
         nieuw_voertuig = {
             "naam": naam, 
@@ -540,15 +523,21 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             "verkoopprijs": float(verkoopprijs_val), 
             "apk_datum": str(apk_datum),
             "extra_kosten": float(extra_kosten_val), 
-            "afbeelding": foto_data, 
+            "afbeelding": totaal_opslaan_string, 
             "transmissie": transmissie,
             "status": status_invoer, 
             "brandstof": brandstof_invoer, 
             "bouwjaar": int(bouwjaar_invoer),
             "kleur": kleur_invoer, 
-            "cataloguswaarde": float(cat_invoer),
-            "notitie": f"Aangekocht op: {aankoop_datum_invoer}"  # <-- KIJKT NU NAAR JE INVOERVELD IN PLAATS VAN VAST VANDAAG
+            "cataloguswaarde": float(cat_invoer)
         }
+
+        supabase.table("voorraad").insert(nieuw_voertuig).execute()
+        st.cache_data.clear()
+        for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
+            if sleutel in st.session_state: del st.session_state[sleutel]
+        st.success("Auto succesvol toegevoegd aan de Cloud!")
+        st.rerun()
 
 
 elif menu_optie == "📊 Actuele Status Dashboard":
@@ -635,23 +624,23 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                     c1, c2 = st.columns(2)
                     with c1:
                         if auto["afbeelding"]:
-                            alle_fotos = auto["afbeelding"].split("||")
-                            foto_cols = st.columns(min(len(alle_fotos), 3))
-                            for idx, f_data in enumerate(alle_fotos):
-                                with foto_cols[idx % min(len(alle_fotos), 3)]:
-                                    try: 
-                                        st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="data:image/jpeg;base64,{f_data}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
-                                    except: st.error("Fout foto")
+                            alle_elementen = auto["afbeelding"].split("||")
+                            alle_fotos = [x for x in alle_elementen if "AANKOOPDATUM:" not in x]
+                            if alle_fotos:
+                                foto_cols = st.columns(min(len(alle_fotos), 3))
+                                for idx, f_data in enumerate(alle_fotos):
+                                    with foto_cols[idx % min(len(alle_fotos), 3)]:
+                                        try: 
+                                            st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="data:image/jpeg;base64,{f_data}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
+                                        except: st.error("Fout foto")
+                            else: st.info("Geen afbeelding beschikbaar.")
                         else: st.info("Geen afbeelding beschikbaar.")
 
                     with c2:
-                        # Zorg dat de kilometerstand veilig als getal wordt ingeladen
                         try: km_veilig = int(float(auto['km_stand']))
                         except: km_veilig = 0
-                            
                         try: bouwjaar_veilig = int(float(auto['bouwjaar']))
                         except: bouwjaar_veilig = 0
-                            
                         try: cat_veilig = float(auto['cataloguswaarde'])
                         except: cat_veilig = 0.0
 
@@ -660,9 +649,14 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         st.write(f"**Kleur:** {auto['kleur']} | **Cataloguswaarde:** € {formatteer_euro_nl(cat_veilig)}")
                         st.write(f"**Transmissie:** {auto['transmissie']} | **APK Datum:** {formatteer_datum_nl(auto['apk_datum'])}")
                         
-                        # Haal de aankoopdatum uit de opgeslagen notitie en toon deze netjes
-                        aankoop_tekst = auto.get("notitie", "Aangekocht op: Onbekend")
-                        st.write(f"📅 **Aankoopstatus:** {aankoop_tekst}")
+                        aankoop_datum_tekst = "Onbekend"
+                        if auto["afbeelding"] and "AANKOOPDATUM:" in str(auto["afbeelding"]):
+                            try:
+                                ruwe_datum = str(auto["afbeelding"]).split("AANKOOPDATUM:")[1].split("||")[0].strip()
+                                aankoop_datum_tekst = datetime.strptime(ruwe_datum, "%Y-%m-%d").strftime("%d-%m-%Y")
+                            except: pass
+                            
+                        st.write(f"📅 **Aankoopdatum:** {aankoop_datum_tekst}")
                         st.markdown("---")
 
                         
@@ -729,9 +723,9 @@ elif menu_optie == "💰 Financieel Overzicht":
             notitie_veld = auto.get("notitie", "")
             
             statiedagen = 0
-            if "Aangekocht op: " in str(notitie_veld):
+            if auto.get("afbeelding") and "AANKOOPDATUM:" in str(auto.get("afbeelding")):
                 try:
-                    datum_str = str(notitie_veld).split("Aangekocht op: ")[1].strip()
+                    datum_str = str(auto.get("afbeelding")).split("AANKOOPDATUM:")[1].split("||")[0].strip()
                     aankoop_datum = datetime.strptime(datum_str, "%Y-%m-%d").date()
                     statiedagen = (datetime.today().date() - aankoop_datum).days
                 except:
