@@ -714,9 +714,13 @@ elif menu_optie == "📅 Agenda & Notities":
             if hele_dag:
                 tot_datum = st.date_input("Einddatum (t/m)", value=datetime.strptime(gekozen_datum_str, "%Y-%m-%d").date(), format="DD-MM-YYYY")
             else:
+                # Zorg dat tot_datum ook een geldige waarde heeft als het vinkje UIT staat
+                tot_datum = datetime.strptime(gekozen_datum_str, "%Y-%m-%d").date()
+                
                 tijd_col1, tijd_col2 = st.columns(2)
                 ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
                 ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
+
             
             ag_titel = st.text_input("Titel (bijv. Auto verhuurd, Vakantie, Showroom dicht)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
