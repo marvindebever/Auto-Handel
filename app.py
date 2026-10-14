@@ -239,17 +239,15 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 
     uploader_key = f"fotos_upload_{actie_id}"
 
-    # --- ROBUUSTE LOOKUP VAN DE OPGESLAGEN AANKOOPDATUM (BUITEN HET FORMULIER) ---
+    # --- VEILIGE LOOKUP VAN DE AANKOOPDATUM IN DE FOTOSTRING ---
     standaard_aankoopdatum = datetime.today().date()
-    try:
-        huidige_id_data = supabase.table("voorraad").select("notitie").eq("id", actie_id).execute().data
-        if huidige_id_data and len(huidige_id_data) > 0:
-            huidige_notitie = huidige_id_data[0].get("notitie", "")
-            if huidige_notitie and "Aangekocht op: " in str(huidige_notitie):
-                datum_str = str(huidige_notitie).split("Aangekocht op: ")[1].strip()
-                standaard_aankoopdatum = datetime.strptime(datum_str, "%Y-%m-%d").date()
-    except:
-        pass
+    if foto_huidig and "AANKOOPDATUM:" in str(foto_huidig):
+        try:
+            # Vis de datum uit de fotostring
+            deel_datum = str(foto_huidig).split("AANKOOPDATUM:")[1].split("||")[0].strip()
+            standaard_aankoopdatum = datetime.strptime(deel_datum, "%Y-%m-%d").date()
+        except:
+            pass
 
     with st.form(f"edit_form_{actie_id}", clear_on_submit=False):
         edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
@@ -276,7 +274,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         trans_opties = ["Handgeschakeld", "Automaat"]
         edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
         
-        # Datumkiezer binnen het formulier met de veilig uitgelezen standaard_aankoopdatum
         edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
         
         col_e7, col_e8, col_e9 = st.columns(3)
@@ -291,26 +288,27 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         
         if submit_edit:
             if edit_ktk.strip():
-                if verwijder_fotos:
-                    basis_fotos = []
-                else:
-                    basis_fotos = foto_huidig.split("||") if foto_huidig else []
+                basis_fotos = []
+                # Behoud bestaande foto-strings, filter de oude datummarkering eruit
+                if not verwijder_fotos and foto_huidig:
+                    for element in foto_huidig.split("||"):
+                        if element and "AANKOOPDATUM:" not in element:
+                            basis_fotos.append(element)
 
                 if edit_fotos:
                     for f in edit_fotos:
                         img = Image.open(f)
                         if img.mode in ("RGBA", "P"):
                             img = img.convert("RGB")
-                            
                         img.thumbnail((800, 800))
                         buffer = io.BytesIO()
                         img.save(buffer, format="JPEG", quality=70)
                         basis_fotos.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                 
-                foto_opslaan = "||".join(basis_fotos) if basis_fotos else ""
-
-                # Vorm de datum expliciet om naar een zuivere tekststring vóór de database update
-                notitie_string = f"Aangekocht op: {edit_aankoopdatum.strftime('%Y-%m-%d')}"
+                # Voeg de datum als herkenbaar eerste element toe aan de fotokolom string
+                datum_prefix = f"AANKOOPDATUM:{edit_aankoopdatum.strftime('%Y-%m-%d')}"
+                basis_fotos.insert(0, datum_prefix)
+                foto_opslaan = "||".join(basis_fotos)
 
                 update_data = {
                     "naam": edit_naam, "kenteken": edit_ktk.upper().replace("-", "").strip(),
@@ -318,8 +316,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     "inkoopprijs": float(edit_inkoop), "verkoopprijs": float(edit_verkoop),
                     "extra_kosten": float(edit_kosten), "afbeelding": foto_opslaan, "status": edit_status,
                     "brandstof": edit_brandstof, "bouwjaar": int(edit_bouwjaar), "kleur": edit_kleur,
-                    "cataloguswaarde": float(edit_cat),
-                    "notitie": notitie_string
+                    "cataloguswaarde": float(edit_cat)
                 }
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
                 st.cache_data.clear()
