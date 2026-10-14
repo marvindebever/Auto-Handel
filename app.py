@@ -266,16 +266,20 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         
         # --- NIEUW: Haal de huidige opgeslagen aankoopdatum op en toon een datumkiezer ---
         try:
-            huidige_datum_str = str(foto_huidig) if "Aangekocht op: " not in str(foto_huidig) else str(foto_huidig).split("Aangekocht op: ")[1].strip()
-            standaard_aankoopdatum = datetime.strptime(huidige_datum_str, "%Y-%m-%d").date()
+            # Controleer of de notitie-informatie correct gesplitst kan worden
+            huidige_id_data = supabase.table("voorraad").select("notitie").eq("id", actie_id).execute().data
+            huidige_notitie = huidige_id_data[0].get("notitie", "") if huidige_id_data else ""
+            if "Aangekocht op: " in str(huidige_notitie):
+                datum_str = str(huidige_notitie).split("Aangekocht op: ")[1].strip()
+                standaard_aankoopdatum = datetime.strptime(datum_str, "%Y-%m-%d").date()
+            else:
+                standaard_aankoopdatum = datetime.today().date()
         except:
             standaard_aankoopdatum = datetime.today().date()
             
         edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
         
-        col_e7, col_e8, col_e9 = st.columns(3)
-        edit_inkoop = col_e7.number_input("Pas Inkoopprijs aan (€)", value=float(inkoop), step=50.0)
-        
+        # De kolommen zijn hier gecorrigeerd en herhaaldelijke toewijzingen zijn opgeschoond
         col_e7, col_e8, col_e9 = st.columns(3)
         edit_inkoop = col_e7.number_input("Pas Inkoopprijs aan (€)", value=float(inkoop), step=50.0)
         edit_verkoop = col_e8.number_input("Pas Verkoopprijs aan (€)", value=float(verkoop), step=50.0)
@@ -289,17 +293,14 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         
         if submit_edit:
             if edit_ktk.strip():
-                # 1. Bepaal de basis (huidige foto's behouden óf leegmaken als de checkbox aan staat)
                 if verwijder_fotos:
                     basis_fotos = []
                 else:
                     basis_fotos = foto_huidig.split("||") if foto_huidig else []
 
-                # 2. Als er nieuwe foto's zijn geüpload, verwerk deze en voeg ze toe aan de lijst
                 if edit_fotos:
                     for f in edit_fotos:
                         img = Image.open(f)
-                        
                         if img.mode in ("RGBA", "P"):
                             img = img.convert("RGB")
                             
@@ -308,7 +309,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                         img.save(buffer, format="JPEG", quality=70)
                         basis_fotos.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
                 
-                # 3. Voeg alles weer netjes samen tot één string (of leeg als er geen foto's zijn)
                 foto_opslaan = "||".join(basis_fotos) if basis_fotos else ""
 
                 update_data = {
@@ -318,9 +318,11 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     "extra_kosten": float(edit_kosten), "afbeelding": foto_opslaan, "status": edit_status,
                     "brandstof": edit_brandstof, "bouwjaar": int(edit_bouwjaar), "kleur": edit_kleur,
                     "cataloguswaarde": float(edit_cat),
-                    "notitie": f"Aangekocht op: {edit_aankoopdatum}"  # <-- ZORGT DAT DE NIEUWE DATUM WORDT OPGESLAGEN
+                    "notitie": f"Aangekocht op: {edit_aankoopdatum}"  # <-- Slaat de handmatig gewijzigde datum netjes op
                 }
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
+                st.cache_data.clear()
+                st.rerun()
 
 
 # --- DIALOG KOOPOVEREENKOMST ---
