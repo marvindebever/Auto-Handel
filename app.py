@@ -264,9 +264,8 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         trans_opties = ["Handgeschakeld", "Automaat"]
         edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
         
-        # --- NIEUW: Haal de huidige opgeslagen aankoopdatum op en toon een datumkiezer ---
+        # --- Haal de huidige opgeslagen aankoopdatum op ---
         try:
-            # Controleer of de notitie-informatie correct gesplitst kan worden
             huidige_id_data = supabase.table("voorraad").select("notitie").eq("id", actie_id).execute().data
             huidige_notitie = huidige_id_data[0].get("notitie", "") if huidige_id_data else ""
             if "Aangekocht op: " in str(huidige_notitie):
@@ -279,7 +278,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
             
         edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
         
-        # De kolommen zijn hier gecorrigeerd en herhaaldelijke toewijzingen zijn opgeschoond
         col_e7, col_e8, col_e9 = st.columns(3)
         edit_inkoop = col_e7.number_input("Pas Inkoopprijs aan (€)", value=float(inkoop), step=50.0)
         edit_verkoop = col_e8.number_input("Pas Verkoopprijs aan (€)", value=float(verkoop), step=50.0)
@@ -318,7 +316,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     "extra_kosten": float(edit_kosten), "afbeelding": foto_opslaan, "status": edit_status,
                     "brandstof": edit_brandstof, "bouwjaar": int(edit_bouwjaar), "kleur": edit_kleur,
                     "cataloguswaarde": float(edit_cat),
-                    "notitie": f"Aangekocht op: {edit_aankoopdatum}"  # <-- Slaat de handmatig gewijzigde datum netjes op
+                    "notitie": f"Aangekocht op: {str(edit_aankoopdatum)}"  # <-- NU VEILIG OMGEZET NAAR TEXT STRING
                 }
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
                 st.cache_data.clear()
