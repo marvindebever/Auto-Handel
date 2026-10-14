@@ -504,8 +504,9 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
                 foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
             foto_data = "||".join(foto_lijst)
 
-            
-        # Zorg dat dit dictionary-blok netjes op hetzelfde niveau staat
+        # Voeg hier de automatische aankoopdatum (vandaag) toe aan het dictionary-blok
+        huidige_datum_vandaag = datetime.today().strftime('%Y-%m-%d')
+
         nieuw_voertuig = {
             "naam": naam, 
             "kenteken": kenteken.upper().replace("-", "").strip(), 
@@ -520,8 +521,10 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             "brandstof": brandstof_invoer, 
             "bouwjaar": int(bouwjaar_invoer),
             "kleur": kleur_invoer, 
-            "cataloguswaarde": float(cat_invoer)
+            "cataloguswaarde": float(cat_invoer),
+            "notitie": f"Aangekocht op: {huidige_datum_vandaag}"  # <-- We slaan de datum veilig op in een tekstveld
         }
+
 
         # Deze regel stond te ver naar rechts en staat nu exact goed uitgelijnd!
         supabase.table("voorraad").insert(nieuw_voertuig).execute()
@@ -640,7 +643,12 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         st.write(f"**Brandstof:** {auto['brandstof']} | **Bouwjaar:** {bouwjaar_veilig if bouwjaar_veilig > 0 else 'Onbekend'}")
                         st.write(f"**Kleur:** {auto['kleur']} | **Cataloguswaarde:** € {formatteer_euro_nl(cat_veilig)}")
                         st.write(f"**Transmissie:** {auto['transmissie']} | **APK Datum:** {formatteer_datum_nl(auto['apk_datum'])}")
+                        
+                        # Haal de aankoopdatum uit de opgeslagen notitie en toon deze netjes
+                        aankoop_tekst = auto.get("notitie", "Aangekocht op: Onbekend")
+                        st.write(f"📅 **Aankoopstatus:** {aankoop_tekst}")
                         st.markdown("---")
+
                         
                         # Prijzen veilig inladen
                         try: inkoop_veilig = float(auto['inkoopprijs'])
@@ -674,14 +682,62 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                             genereer_contract_dialog(auto["id"], auto["naam"], auto["kenteken"], auto["km_stand"], auto["verkoopprijs"], auto["apk_datum"])
 
 elif menu_optie == "💰 Financieel Overzicht":
-    st.title("💰 Financieel Overzicht & Budget")
+    st.title("💰 Financieel Overzicht & Rendement")
+    
     st.markdown("### ⚙️ Budget Instellingen")
+    # Voeg het invoerveld weer toe zodat je je startbudget live kunt wijzigen
     nieuw_budget = st.number_input("Stel je totale startbudget / werkkapitaal in (€):", value=float(st.session_state["startbudget"]), step=500.0)
     if nieuw_budget != st.session_state["startbudget"]:
         st.session_state["startbudget"] = nieuw_budget
         st.rerun()
         
     st.markdown("---")
+    
+    # --- EXACTE RENDEMENT & STATIEDAGEN BEREKENING ---
+    alle_voorraad_data = haal_voorraad_op()
+    
+    totale_inkoop_verkocht = 0.0
+    totale_kosten_verkocht = 0.0
+    totale_omzet_verkocht = 0.0
+    
+    oude_autos_teller = 0
+    totale_statiedagen_voorraad = 0
+    aantal_auto_in_voorraad = 0
+    
+    if alle_voorraad_data:
+        for auto in alle_voorraad_data:
+            ik = float(auto.get("inkoopprijs") or 0.0)
+            ex = float(auto.get("extra_kosten") or 0.0)
+            vk = float(auto.get("verkoopprijs") or 0.0)
+            status = auto.get("status", "")
+            notitie_veld = auto.get("notitie", "")
+            
+            statiedagen = 0
+            if "Aangekocht op: " in str(notitie_veld):
+                try:
+                    datum_str = str(notitie_veld).split("Aangekocht op: ")[1].strip()
+                    aankoop_datum = datetime.strptime(datum_str, "%Y-%m-%d").date()
+                    statiedagen = (datetime.today().date() - aankoop_datum).days
+                except:
+                    statiedagen = 0
+
+            if status == "Verkocht":
+                totale_inkoop_verkocht += ik
+                totale_kosten_verkocht += ex
+                totale_omzet_verkocht += vk
+            elif status == "In voorraad":
+                aantal_auto_in_voorraad += 1
+                totale_statiedagen_voorraad += max(0, statiedagen)
+                if statiedagen > 30:
+                    oude_autos_teller += 1
+
+    # ROI en Marge berekeningen
+    totale_investering_verkocht = totale_inkoop_verkocht + totale_kosten_verkocht
+    gemiddelde_roi = (gerealiseerde_winst / totale_investering_verkocht * 100) if totale_investering_verkocht > 0 else 0.0
+    gemiddelde_marge = (gerealiseerde_winst / totale_omzet_verkocht * 100) if totale_omzet_verkocht > 0 else 0.0
+    gemiddelde_statiedagen = (totale_statiedagen_voorraad / aantal_auto_in_voorraad) if aantal_auto_in_voorraad > 0 else 0
+
+    # --- VISUELE LAY-OUT ---
     st.markdown("### 📊 Balans Overzicht")
     col_f1, col_f2, col_f3 = st.columns(3)
     col_f1.metric("Totale Startkapitaal", f"€ {formatteer_euro_nl(st.session_state['startbudget'])}")
@@ -693,8 +749,36 @@ elif menu_optie == "💰 Financieel Overzicht":
         col_f3.metric("Besteedbaar Cashgeld (Ruimte voor inkoop)", f"€ {formatteer_euro_nl(actueel_vrij_budget)}")
 
     st.markdown("---")
-    st.markdown("### 📊 Rendement")
-    st.metric("Gerealiseerde Netto Winst (Verkochte auto's)", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
+    
+    st.markdown("### 📈 Rendement & Performance")
+    col_r1, col_f4, col_r2 = st.columns(3)
+    col_r1.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
+    col_f4.metric("Gemiddelde Marge per Deal", f"{gemiddelde_marge:.1f}%")
+    col_r2.metric("Return on Investment (ROI)", f"{gemiddelde_roi:.1f}%")
+
+    st.markdown("---")
+    
+    # Een compacte tabel die de prestaties van je verkochte auto's samenvat
+    st.markdown("### 📋 Financieel KPI Overzicht")
+    financiele_kpis = pd.DataFrame({
+        "Financieel Cijfer": ["Totale Omzet (Verkocht)", "Investeringswaarde Verkocht", "Besteedbaar Werkkapitaal"],
+        "Bedrag (€)": [f"€ {formatteer_euro_nl(totale_omzet_verkocht)}", f"€ {formatteer_euro_nl(totale_investering_verkocht)}", f"€ {formatteer_euro_nl(actueel_vrij_budget)}"]
+    })
+    st.table(financiele_kpis)
+
+    st.markdown("---")
+    
+    st.markdown("### ⏱️ Omloopanalyse")
+    col_o1, col_o2 = st.columns(2)
+    col_o1.metric("Gemiddelde statiedagen", f"{int(gemiddelde_statiedagen)} dagen", help="Hoe lang staan je huidige auto's gemiddeld al te koop.")
+    col_o2.metric("Auto's > 30 dagen in voorraad", f"{oude_autos_teller} stuks", delta="Langer dan een maand!" if oude_autos_teller > 0 else None, delta_color="inverse")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    if oude_autos_teller > 2:
+        st.warning("⚠️ **Financieel Advies:** Je hebt een aantal auto's die al langer dan een maand stilstaan. Overweeg om deze met een kleine korting te verkopen om snel werkkapitaal vrij te maken voor snellere handelsauto's.")
+    else:
+        st.success("✅ **Financieel Advies:** Je omloopsnelheid ziet er gezond uit! Je verkoopt je auto's snel achter elkaar waardoor je werkkapitaal efficiënt blijft rollen.")
+
 
 elif menu_optie == "📅 Agenda & Notities":
     st.title("📅 Agenda & Notities")
