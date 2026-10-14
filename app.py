@@ -445,9 +445,9 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
 # --- SIDEBAR NAVIGATIE ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
-    menu_optie = st.radio(
+    menu_optie = st.sidebar.radio(
         "Kies een functie:",
-        ["🆕 Nieuwe auto toevoegen", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📅 Agenda & Notities", "📊 Actuele Status Dashboard", "💰 Financieel Overzicht"]
+        ["🆕 Nieuwe auto toevoegen", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📅 Agenda & Notities", "💰 Financieel Overzicht"]
     )
     
     st.markdown("---")
@@ -591,22 +591,6 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             if sleutel in st.session_state: del st.session_state[sleutel]
         st.success("Auto succesvol toegevoegd aan de Cloud!")
         st.rerun()
-
-
-elif menu_optie == "📊 Actuele Status Dashboard":
-    st.title("📊 Actuele Status Dashboard")
-    st.subheader("Financiële kerncijfers & Budgetbeheer")
-    
-    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-    stat_col1.metric(label="Huidige Voorraad", value=f"{len(autos_in_voorraad)} stuks")
-    stat_col2.metric(label="Investeringswaarde (Vast in auto's)", value=f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
-    
-    if actueel_vrij_budget < 0:
-        stat_col3.metric(label="🚨 Besteedbaar Budget (KAS)", value=f"€ {formatteer_euro_nl(actueel_vrij_budget)}", delta="TE WEINIG BUDGET!", delta_color="inverse")
-    else:
-        stat_col3.metric(label="💰 Besteedbaar Budget (KAS)", value=f"€ {formatteer_euro_nl(actueel_vrij_budget)}")
-        
-    stat_col4.metric(label="Gerealiseerde Winst (Netto)", value=f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
 
 elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     st.title(menu_optie)
