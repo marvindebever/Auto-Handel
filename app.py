@@ -19,6 +19,19 @@ def init_supabase():
     return create_client(url, key)
 
 supabase = init_supabase()
+# --- GECACHED DATA OPHALEN (NIEUW & SNELLER) ---
+@st.cache_data(ttl=300)  # Slaat data 5 minuten op in het geheugen, tenzij handmatig geleegd
+def haal_voorraad_op():
+    return supabase.table("voorraad").select("*").execute().data
+
+@st.cache_data(ttl=300)
+def haal_agenda_op():
+    return supabase.table("agenda").select("*").execute().data
+
+@st.cache_data(ttl=300)
+def haal_stat_rijen_op():
+    return supabase.table("voorraad").select("inkoopprijs, verkoopprijs, extra_kosten, status").execute().data
+
 # --- STYLING & ACHTERGROND ---
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
@@ -210,10 +223,13 @@ def importeer_json_naar_database(json_data):
             supabase.table("voorraad").insert(voertuigen).execute()
         if afspraken:
             supabase.table("agenda").insert(afspraken).execute()
+            
+        st.cache_data.clear()  # Wist de cache netjes na het importeren van een back-up
         return True
     except Exception as e:
         st.sidebar.error(f"Import cloud mislukt: {str(e)}")
         return False
+
 
 # --- DIALOGS (BEWERKEN POP-UP) ---
 @st.dialog("✏️ Auto Gegevens Bewerken")
@@ -292,7 +308,9 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     "cataloguswaarde": float(edit_cat)
                 }
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
+                st.cache_data.clear()
                 st.rerun()
+
 
 # --- DIALOG KOOPOVEREENKOMST ---
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
@@ -302,121 +320,68 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     koper_adres = st.text_input("Adres & Huisnummer Koper")
     koper_postcode = st.text_input("Postcode & Woonplaats Koper")
     koper_tel = st.text_input("Telefoonnummer Koper")
-    koper_legit = st.text_input("Legitimatie Koper (Type/Nr)", placeholder="Bijv. Rijbewijs / 123456789")
+    koper_legit = st.text_input("Legitimatie Koper (Type/Nr)", placeholder="Bijv. Rijbewijs / Nummer")
     
     st.markdown("---")
-    st.write("**Financiële Afspraken & Levering:**")
+    st.write("**Financiële Afspraken:**")
     betaalwijze = st.radio("Wijze van betaling:", ["Contant", "Per bankoverschrijving"], horizontal=True)
-    edit_leverdatum = st.date_input("Datum van levering", value=datetime.today().date(), format="DD-MM-YYYY")
-    bijzondere_afspraken = st.text_area("Aanvullende afspraken of opmerkingen", value="Geen.")
+    bijzondere_afspraken = st.text_area("Eventuele aanvullende afspraken of opmerkingen")
 
-    if st.button("🔥 Contract Aanmaken", type="primary", use_container_width=True):
+    if st.button("🔥 Contract Downloaden", type="primary", use_container_width=True):
         if not koper_naam.strip():
             st.error("Vul tenminste de naam van de koper in.")
             return
 
-        contant_vink = "[X]" if betaalwijze == "Contant" else "[ &nbsp; ]"
-        bank_vink = "[X]" if betaalwijze == "Per bankoverschrijving" else "[ &nbsp; ]"
-        
-        huidige_datum_str = datetime.today().strftime('%d-%m-%Y')
-        leverdatum_str = edit_leverdatum.strftime('%d-%m-%Y')
-
-        try: km_veilig = int(float(str(km).replace(".", "").replace(",", "")))
-        except: km_veilig = 0
+        contant_vink = "[X]" if betaalwijze == "Contant" else "[  ]"
+        bank_vink = "[X]" if betaalwijze == "Per bankoverschrijving" else "[  ]"
+        huidige_datum = datetime.today().strftime('%d-%m-%Y')
 
         html_content = f"""
         <html>
         <head>
             <meta charset="UTF-8">
             <style>
-                body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #000; padding: 30px; line-height: 1.5; font-size: 13px; max-width: 800px; margin: 0 auto; }}
-                h2 {{ text-align: center; margin-bottom: 2px; font-size: 22px; font-weight: bold; letter-spacing: 0.5px; }}
-                .sub-header {{ text-align: center; font-size: 10px; font-style: italic; margin-bottom: 25px; color: #444; text-align: justify; text-align-last: center; }}
-                
-                /* Grijze koppen net als de eerste bon */
-                h3 {{ background-color: #f5f5f5; padding: 6px 10px; margin-top: 20px; margin-bottom: 12px; font-size: 13px; font-weight: bold; border: 1px solid #ddd; border-radius: 4px; color: #000; }}
-                
-                table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; margin-left: 10px; }}
-                td {{ padding: 4px 0px; vertical-align: top; color: #000; }}
-                .label {{ width: 180px; font-weight: bold; color: #333; }}
-                .value {{ font-weight: normal; }}
-                
-                .legal-text {{ font-size: 11px; color: #444; text-align: justify; margin-top: 8px; margin-bottom: 8px; margin-left: 10px; line-height: 1.4; }}
-                
-                /* Handtekeningenboxen strak uitgelijnd */
-                .signature-container {{ display: flex; justify-content: space-between; margin-top: 15px; margin-left: 10px; }}
-                .signature-box {{ width: 48%; border: 1px solid #bbb; padding: 12px; min-height: 110px; box-sizing: border-box; border-radius: 4px; background-color: #fafafa; }}
-                
-                .footer-notice {{ text-align: center; font-size: 8px; color: #776; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 8px; font-style: italic; }}
+                body {{ font-family: Arial, sans-serif; color: #000; padding: 20px; line-height: 1.4; }}
+                h2 {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; }}
+                h3 {{ background-color: #f2f2f2; padding: 5px; margin-top: 15px; border: 1px solid #000; }}
+                table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; }}
+                td {{ padding: 4px; vertical-align: top; }}
+                .label {{ font-weight: bold; width: 180px; }}
             </style>
         </head>
         <body>
             <h2>PARTICULIERE KOOPOVEREENKOMST AUTO</h2>
-            <div class="sub-header"><strong>(Margevoertuig / Zonder Garantie)</strong><br>Ondergetekenden komen overeen dat de verkoper het hieronder omschreven voertuig verkoopt aan de koper tegen de overengekomen prijs. Deze verkoop geschiedt tussen twee particulieren. De koper verklaart het voertuig te hebben geïnspecteerd en te accepteren in de huidige staat.</div>
-            
+            <p style="font-size: 11px; font-style: italic;">(Margevoertuig / Zonder Garantie)</p>
             <h3>1. Gegevens van de Verkoper</h3>
             <table>
-                <tr><td class="label">Naam / Bedrijfsnaam:</td><td class="value">MT Automotive</td></tr>
-                <tr><td class="label">Adres & Huisnummer:</td><td class="value">Kanaalstraat 83</td></tr>
-                <tr><td class="label">Postcode & Woonplaats:</td><td class="value">5104 AB Dongen</td></tr>
+                <tr><td class="label">Naam:</td><td>Autohandel Dongen</td></tr>
+                <tr><td class="label">Adres:</td><td>De Volger 2B, 5051 CX Dongen</td></tr>
             </table>
-            
             <h3>2. Gegevens van de Koper</h3>
             <table>
-                <tr><td class="label">Naam:</td><td class="value">{koper_naam}</td></tr>
-                <tr><td class="label">Adres & Huisnummer:</td><td class="value">{koper_adres}</td></tr>
-                <tr><td class="label">Postcode & Woonplaats:</td><td class="value">{koper_postcode}</td></tr>
-                <tr><td class="label">Telefoonnummer:</td><td class="value">{koper_tel}</td></tr>
-                <tr><td class="label">Legitimatie (Type/Nr):</td><td class="value">{koper_legit}</td></tr>
+                <tr><td class="label">Naam:</td><td>{koper_naam}</td></tr>
+                <tr><td class="label">Adres:</td><td>{koper_adres} {koper_postcode}</td></tr>
+                <tr><td class="label">Legitimatie:</td><td>{koper_legit}</td></tr>
             </table>
-            
             <h3>3. Voertuiggegevens</h3>
             <table>
-                <tr>
-                    <td class="label" style="width: 140px;">Merk & Model:</td><td class="value" style="width: 260px;">{merk_model}</td>
-                    <td class="label" style="width: 120px;">Kenteken:</td><td class="value">{kenteken}</td>
-                </tr>
-                <tr>
-                    <td class="label">Tellerstand:</td><td class="value">{km_veilig:,} km</td>
-                    <td class="label">APK geldig tot:</td><td class="value">{formatteer_datum_nl(apk)}</td>
-                </tr>
+                <tr><td class="label">Merk & Model:</td><td>{merk_model}</td><td class="label">Kenteken:</td><td>{kenteken}</td></tr>
+                <tr><td class="label">Tellerstand:</td><td>{km:,} km</td><td class="label">APK tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
             </table>
-            
-            <h3>4. Financiële Afspraken & Levering</h3>
+            <h3>4. Financiële Afspraken</h3>
             <table>
-                <tr><td class="label">Overengekomen prijs:</td><td class="value" style="font-weight: bold;">&euro; {formatteer_euro_nl(verkoop)}</td></tr>
-                <tr><td class="label">Wijze van betaling:</td><td class="value">{contant_vink} Contant &nbsp;&nbsp;&nbsp;&nbsp; {bank_vink} Per bankoverschrijving</td></tr>
-                <tr><td class="label">Datum van levering:</td><td class="value">{leverdatum_str}</td></tr>
+                <tr><td class="label">Prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td></tr>
+                <tr><td class="label">Betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp; {bank_vink} Bank</td></tr>
             </table>
-            <div class="legal-text">De verkoper verklaart dat het voertuig vrij is van beslagen, boetes en/of andere financiële claims tot het hierboven genoemde tijdstip van overdracht. Eventuele boetes of belastingen na dit tijdstip komen volledig voor rekening van de koper.</div>
-            
-            <h3>5. Bijzondere Afspraken & Garantie-uitsluiting</h3>
-            <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px; margin-left: 10px; color: #111;">Garantieclausule (Gekocht in de huidige staat):</div>
-            <div class="legal-text" style="margin-top: 0px;">Le voertuig wordt door de koper gekocht in de staat waarin het zich op de datum van verkoop bevindt ("as is, where is"). Beide partijen verklaren nadrukkelijk dat er sprake is van een particuliere transactie. De verkoper verleent geen enkele vorm van garantie op mechanische, elektrische of optische onderdelen, noch op verborgen gebreken, tenzij hieronder schriftelijk anders is overengekomen.</div>
-            <div style="font-size: 12px; margin-top: 8px; margin-left: 10px;"><strong>Aanvullende afspraken:</strong> {bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</div>
-            
-            <h3>6. Handtekening voor Akkoord</h3>
-            <div class="signature-container">
-                <div class="signature-box">
-                    <strong>Handtekening Verkoper:</strong><br><br><br><br>
-                    Datum: {huidige_datum_str}
-                </div>
-                <div class="signature-box">
-                    <strong>Handtekening Koper:</strong><br><br><br><br>
-                    Datum: {huidige_datum_str}
-                </div>
-            </div>
-            
-            <div class="footer-notice">This contract is generated for informational purposes. Financial terms should comply with local guidelines. AI systems may generate unexpected outputs; check physical details before signing.</div>
+            <h3>5. Bijzondere Afspraken</h3>
+            <p>{bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</p>
         </body>
         </html>
         """
         b64 = base64.b64encode(html_content.encode('utf-8')).decode()
-        filename = f"Koopovereenkomst_{kenteken}_{leverdatum_str}.html"
-        href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:12px; border-radius:8px; text-decoration:none; font-weight:bold; margin-top:15px; font-size:14px;">📥 Contract Downloaden</a>'
+        filename = f"Koopovereenkomst_{kenteken}_{huidige_datum}.html"
+        href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst</a>'
         st.markdown(href, unsafe_allow_html=True)
-
-
 # --- SIDEBAR NAVIGATIE ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
@@ -454,7 +419,7 @@ with st.sidebar:
         st.rerun()
 
 # --- VEILIGE BALANS BEREKENING (LIVE CLOUD) ---
-stat_rijen = supabase.table("voorraad").select("inkoopprijs, verkoopprijs, extra_kosten, status").execute().data
+stat_rijen = haal_stat_rijen_op()
 
 autos_in_voorraad = [r for r in stat_rijen if r['status'] != 'Verkocht']
 autos_verkocht = [r for r in stat_rijen if r['status'] == 'Verkocht']
@@ -560,7 +525,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
         # Deze regel stond te ver naar rechts en staat nu exact goed uitgelijnd!
         supabase.table("voorraad").insert(nieuw_voertuig).execute()
-            
+        st.cache_data.clear()
         for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
             if sleutel in st.session_state: del st.session_state[sleutel]
         st.success("Auto succesvol toegevoegd aan de Cloud!")
@@ -585,7 +550,7 @@ elif menu_optie == "📊 Actuele Status Dashboard":
 elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     st.title(menu_optie)
     
-    alle_autos = supabase.table("voorraad").select("*").execute().data
+    alle_autos = haal_voorraad_op()
 
     verwerkte_autos = []
     if alle_autos:
@@ -701,6 +666,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         
                         if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", use_container_width=True):
                             supabase.table("voorraad").delete().eq("id", auto["id"]).execute()
+                            st.cache_data.clear()
                             st.rerun()
                         
                         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
@@ -759,6 +725,7 @@ elif menu_optie == "📅 Agenda & Notities":
         if ag_submit and ag_titel.strip():
             opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}" if hele_dag else f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}||{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
             supabase.table("agenda").insert({"datum": opslag_datum, "titel": ag_titel.strip(), "notitie": ag_notitie.strip(), "status": "Open"}).execute()
+            st.cache_data.clear()
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
 
@@ -795,12 +762,14 @@ elif menu_optie == "📅 Agenda & Notities":
             if col_b1.button("✅ Voltooid" if status_veld == "Open" else "🔄 Heropenen", use_container_width=True):
                 nieuwe_status = "Voltooid" if status_veld == "Open" else "Open"
                 supabase.table("agenda").update({"status": nieuwe_status}).eq("id", event_id).execute()
+                st.cache_data.clear()
                 st.rerun()
             if col_b2.button("✏️ Bewerken", use_container_width=True):
                 st.session_state[bewerk_modus_key] = True
                 st.rerun()
             if col_b3.button("🗑️ Wissen", type="secondary", use_container_width=True):
                 supabase.table("agenda").delete().eq("id", event_id).execute()
+                st.cache_data.clear()
                 st.rerun()
         else:
             st.markdown("### ✏️ Afspraak Wijzigen")
@@ -820,6 +789,7 @@ elif menu_optie == "📅 Agenda & Notities":
             if col_save1.button("💾 Opslaan", type="primary", use_container_width=True):
                 nieuw_datum_format = f"{edit_datum_van}||{edit_datum_tot}" if edit_hele_dag else f"{edit_datum_van}T10:00:00||{edit_datum_van}T11:00:00"
                 supabase.table("agenda").update({"datum": nieuw_datum_format, "titel": edit_titel.strip(), "notitie": edit_notitie.strip()}).eq("id", event_id).execute()
+                st.cache_data.clear()
                 st.session_state[bewerk_modus_key] = False
                 st.rerun()
             if col_save2.button("❌ Annuleren", use_container_width=True):
@@ -839,7 +809,7 @@ elif menu_optie == "📅 Agenda & Notities":
         </style>
     """, unsafe_allow_html=True)
 
-    notities = supabase.table("agenda").select("*").execute().data
+    notities = haal_agenda_op()
     calendar_events = []
     
     if notities:
