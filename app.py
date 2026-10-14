@@ -697,36 +697,60 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         try: cat_veilig = float(auto['cataloguswaarde'])
                         except: cat_veilig = 0.0
 
-                        st.write(f"**Kilometerstand:** {km_veilig:,} km".replace(",", "."))
-                        st.write(f"**Brandstof:** {auto['brandstof']} | **Bouwjaar:** {bouwjaar_veilig if bouwjaar_veilig > 0 else 'Onbekend'}")
-                        st.write(f"**Kleur:** {auto['kleur']} | **Cataloguswaarde:** € {formatteer_euro_nl(cat_veilig)}")
-                        st.write(f"**Transmissie:** {auto['transmissie']} | **APK Datum:** {formatteer_datum_nl(auto['apk_datum'])}")
-                        
                         aankoop_datum_tekst = "Onbekend"
                         if auto["afbeelding"] and "AANKOOPDATUM:" in str(auto["afbeelding"]):
                             try:
                                 ruwe_datum = str(auto["afbeelding"]).split("AANKOOPDATUM:")[1].split("||")[0].strip()
                                 aankoop_datum_tekst = datetime.strptime(ruwe_datum, "%Y-%m-%d").strftime("%d-%m-%Y")
                             except: pass
-                            
-                        st.write(f"📅 **Aankoopdatum:** {aankoop_datum_tekst}")
-                        st.markdown("---")
 
-                        
-                        # Prijzen veilig inladen
                         try: inkoop_veilig = float(auto['inkoopprijs'])
                         except: inkoop_veilig = 0.0
-                            
                         try: kosten_veilig = float(auto['extra_kosten'])
                         except: kosten_veilig = 0.0
-                            
                         try: winst_veilig = float(auto['winst'])
                         except: winst_veilig = 0.0
 
-                        st.write(f"**Inkoopprijs:** € {formatteer_euro_nl(inkoop_veilig)} | **Extra kosten:** € {formatteer_euro_nl(kosten_veilig)}")
-                        st.write(f"**Marge / Winst:** € {formatteer_euro_nl(winst_veilig)}")
-                        
-                        # ---> HIER STAAT HET NIEUWE STUK NU EXACT GOED INGESPRONGEN <---
+                        # --- NIEUW: Alle voertuiggegevens strak uitgelijnd in een kolommen-tabel ---
+                        voertuig_tabel_html = f"""
+                        <div style="background-color: rgba(30, 30, 35, 0.4); padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 15px;">
+                            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                                <tbody>
+                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                        <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Kilometerstand</td>
+                                        <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{km_veilig:,} km</td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                        <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Brandstof / Bouwjaar</td>
+                                        <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{auto['brandstof']} | {bouwjaar_veilig if bouwjaar_veilig > 0 else 'Onbekend'}</td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                        <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Kleur / Cataloguswaarde</td>
+                                        <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{auto['kleur']} | € {formatteer_euro_nl(cat_veilig)}</td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                        <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Transmissie / APK Datum</td>
+                                        <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{auto['transmissie']} | {formatteer_datum_nl(auto['apk_datum'])}</td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.2);">
+                                        <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Aankoopdatum</td>
+                                        <td style="padding: 6px 5px; color: #28a745; font-weight: bold; text-align: right;">📅 {aankoop_datum_tekst}</td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                        <td style="padding: 8px 5px; color: rgba(255, 255, 255, 0.6);">Inkoopprijs + Extra kosten</td>
+                                        <td style="padding: 8px 5px; color: white; font-weight: bold; text-align: right;">€ {formatteer_euro_nl(inkoop_veilig)} + € {formatteer_euro_nl(kosten_veilig)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 5px; color: rgba(255, 255, 255, 0.6); font-size: 15px;">Verwachte Marge / Winst</td>
+                                        <td style="padding: 8px 5px; color: #28a745; font-size: 16px; font-weight: bold; text-align: right;">€ {formatteer_euro_nl(winst_veilig)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        """
+                        st.markdown(voertuig_tabel_html, unsafe_allow_html=True)
+
+                        # Hieronder lopen je bestaande kolommen voor de knoppen direct weer verder
                         b_edit, b_del = st.columns(2)
                         
                         try: km_int = int(float(auto['km_stand']))
