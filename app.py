@@ -264,6 +264,18 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         trans_opties = ["Handgeschakeld", "Automaat"]
         edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
         
+        # --- NIEUW: Haal de huidige opgeslagen aankoopdatum op en toon een datumkiezer ---
+        try:
+            huidige_datum_str = str(foto_huidig) if "Aangekocht op: " not in str(foto_huidig) else str(foto_huidig).split("Aangekocht op: ")[1].strip()
+            standaard_aankoopdatum = datetime.strptime(huidige_datum_str, "%Y-%m-%d").date()
+        except:
+            standaard_aankoopdatum = datetime.today().date()
+            
+        edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
+        
+        col_e7, col_e8, col_e9 = st.columns(3)
+        edit_inkoop = col_e7.number_input("Pas Inkoopprijs aan (€)", value=float(inkoop), step=50.0)
+        
         col_e7, col_e8, col_e9 = st.columns(3)
         edit_inkoop = col_e7.number_input("Pas Inkoopprijs aan (€)", value=float(inkoop), step=50.0)
         edit_verkoop = col_e8.number_input("Pas Verkoopprijs aan (€)", value=float(verkoop), step=50.0)
@@ -305,11 +317,10 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     "inkoopprijs": float(edit_inkoop), "verkoopprijs": float(edit_verkoop),
                     "extra_kosten": float(edit_kosten), "afbeelding": foto_opslaan, "status": edit_status,
                     "brandstof": edit_brandstof, "bouwjaar": int(edit_bouwjaar), "kleur": edit_kleur,
-                    "cataloguswaarde": float(edit_cat)
+                    "cataloguswaarde": float(edit_cat),
+                    "notitie": f"Aangekocht op: {edit_aankoopdatum}"  # <-- ZORGT DAT DE NIEUWE DATUM WORDT OPGESLAGEN
                 }
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
-                st.cache_data.clear()
-                st.rerun()
 
 
 # --- DIALOG KOOPOVEREENKOMST ---
@@ -479,8 +490,12 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         transmissie = st.selectbox("Transmissie", options=["Handgeschakeld", "Automaat"])
         status_invoer = st.selectbox("Status bij instroom", options=["In voorraad", "Gereserveerd"])
         
+        # --- NIEUW: Handmatige datumkiezer voor aankoop (staat standaard op vandaag) ---
+        aankoop_datum_invoer = st.date_input("Datum aankoop", value=datetime.today().date(), format="DD-MM-YYYY")
+        
         c_form7, c_form8, c_form9 = st.columns(3)
         inkoopprijs_val = c_form7.number_input("Inkoopprijs (€)", value=0.0, step=50.0)
+
         verkoopprijs_val = c_form8.number_input("Verkoopprijs (€)", value=0.0, step=50.0)
         extra_kosten_val = c_form9.number_input("Extra kosten (€)", value=0.0, step=10.0)
         
@@ -507,6 +522,16 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         # Voeg hier de automatische aankoopdatum (vandaag) toe aan het dictionary-blok
         huidige_datum_vandaag = datetime.today().strftime('%Y-%m-%d')
 
+
+
+        # Deze regel stond te ver naar rechts en staat nu exact goed uitgelijnd!
+        supabase.table("voorraad").insert(nieuw_voertuig).execute()
+        st.cache_data.clear()
+        for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
+            if sleutel in st.session_state: del st.session_state[sleutel]
+        st.success("Auto succesvol toegevoegd aan de Cloud!")
+        st.rerun()
+
         nieuw_voertuig = {
             "naam": naam, 
             "kenteken": kenteken.upper().replace("-", "").strip(), 
@@ -522,17 +547,8 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             "bouwjaar": int(bouwjaar_invoer),
             "kleur": kleur_invoer, 
             "cataloguswaarde": float(cat_invoer),
-            "notitie": f"Aangekocht op: {huidige_datum_vandaag}"  # <-- We slaan de datum veilig op in een tekstveld
+            "notitie": f"Aangekocht op: {aankoop_datum_invoer}"  # <-- KIJKT NU NAAR JE INVOERVELD IN PLAATS VAN VAST VANDAAG
         }
-
-
-        # Deze regel stond te ver naar rechts en staat nu exact goed uitgelijnd!
-        supabase.table("voorraad").insert(nieuw_voertuig).execute()
-        st.cache_data.clear()
-        for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
-            if sleutel in st.session_state: del st.session_state[sleutel]
-        st.success("Auto succesvol toegevoegd aan de Cloud!")
-        st.rerun()
 
 
 elif menu_optie == "📊 Actuele Status Dashboard":
