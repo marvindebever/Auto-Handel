@@ -707,21 +707,23 @@ elif menu_optie == "📅 Agenda & Notities":
 
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
     def nieuwe_afspraak_popup(gekozen_datum_str):
+
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
             st.write(f"**Geselecteerde begindatum:** {formatteer_datum_nl(gekozen_datum_str)}")
-            hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=True)
+            
+            # Voeg een unieke key toe aan de checkbox
+            hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=True, key="nieuwe_afspraak_hele_dag")
             
             if hele_dag:
                 tot_datum = st.date_input("Einddatum (t/m)", value=datetime.strptime(gekozen_datum_str, "%Y-%m-%d").date(), format="DD-MM-YYYY")
             else:
-                # Zorg dat tot_datum ook een geldige waarde heeft als het vinkje UIT staat
                 tot_datum = datetime.strptime(gekozen_datum_str, "%Y-%m-%d").date()
                 
                 tijd_col1, tijd_col2 = st.columns(2)
                 ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
                 ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
 
-            
+           
             ag_titel = st.text_input("Titel (bijv. Auto verhuurd, Vakantie, Showroom dicht)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
             ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", use_container_width=True)
