@@ -759,6 +759,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     alle_voorraad_data = haal_voorraad_op()
     
     totale_inkoop_verkocht = 0.0
+    max_statiedagen_voertuig = 0  # Houdt de dagen van de oudste auto bij
     totale_kosten_verkocht = 0.0
     totale_omzet_verkocht = 0.0
     
@@ -789,6 +790,11 @@ elif menu_optie == "💰 Financieel Overzicht":
             elif status == "In voorraad":
                 aantal_auto_in_voorraad += 1
                 totale_statiedagen_voorraad += max(0, statiedagen)
+                
+                # Update de maximale statiedagen als dit specifieke voertuig langer staat
+                if statiedagen > max_statiedagen_voertuig:
+                    max_statiedagen_voertuig = statiedagen
+                    
                 if statiedagen > 30:
                     oude_autos_teller += 1
 
@@ -797,6 +803,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     gemiddelde_roi = (gerealiseerde_winst / totale_investering_verkocht * 100) if totale_investering_verkocht > 0 else 0.0
     gemiddelde_marge = (gerealiseerde_winst / totale_omzet_verkocht * 100) if totale_omzet_verkocht > 0 else 0.0
     gemiddelde_statiedagen = (totale_statiedagen_voorraad / aantal_auto_in_voorraad) if aantal_auto_in_voorraad > 0 else 0
+
 
     # --- VISUELE LAY-OUT (ALLES IN STRAKKE KOLOMMENTABELLEN) ---
     
@@ -896,7 +903,7 @@ elif menu_optie == "💰 Financieel Overzicht":
 
     st.markdown("---")
     
-    # 4. Omloopanalyse Tabel
+    # 4. Omloopanalyse Tabel (Nu met de langststaande auto)
     st.markdown("### ⏱️ Omloopanalyse")
     omloop_html = f"""
     <div style="background-color: rgba(25, 25, 25, 0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
@@ -912,9 +919,14 @@ elif menu_optie == "💰 Financieel Overzicht":
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Gemiddelde statiedagen van huidige voorraad</td>
                     <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">{int(gemiddelde_statiedagen)} dagen</td>
                 </tr>
-                <tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Aantal auto's > 30 dagen in voorraad</td>
                     <td style="padding: 15px 10px; color: {'#ff4b4b' if oude_autos_teller > 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">{oude_autos_teller} stuks</td>
+                </tr>
+                <tr>
+                    <!-- NIEUWE RIJ -->
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Aantal dagen van het langststaande voertuig</td>
+                    <td style="padding: 15px 10px; color: {'#ff4b4b' if max_statiedagen_voertuig > 45 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">{int(max_statiedagen_voertuig)} dagen</td>
                 </tr>
             </tbody>
         </table>
@@ -924,7 +936,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     
     st.markdown("<br>", unsafe_allow_html=True)
     if oude_autos_teller > 0 or gemiddelde_statiedagen > 60:
-        st.warning(f"⚠️ **Financieel Advies:** Je hebt momenteel {oude_autos_teller} auto('s) die al langer dan een maand stilstaan (Gemiddeld {int(gemiddelde_statiedagen)} dagen). Overweeg om deze specifieke voorraad met een gerichte korting te verkopen om snel werkkapitaal vrij te maken voor snellere handelsauto's.")
+        st.warning(f"⚠️ **Financieel Advies:** Je hebt momenteel {oude_autos_teller} auto('s) die al langer dan een maand stilstaan. Je langststaande voertuig staat al {int(max_statiedagen_voertuig)} dagen op voorraad. Overweeg om deze gerichte pluk voorraad met een korting te verkopen om snel werkkapitaal vrij te maken.")
     else:
         st.success("✅ **Financieel Advies:** Je omloopsnelheid ziet er gezond uit! Je verkoopt je auto's snel achter elkaar waardoor je werkkapitaal efficiënt blijft rollen.")
 
