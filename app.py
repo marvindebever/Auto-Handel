@@ -723,11 +723,13 @@ elif menu_optie == "📅 Agenda & Notities":
             ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", use_container_width=True)
             
         if ag_submit and ag_titel.strip():
+            # Gebruik de live ingevulde tijden (ag_tijd_van en ag_tijd_tot) in plaats van de vaste 10:00 en 11:00 uur!
             opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}" if hele_dag else f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}||{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
             supabase.table("agenda").insert({"datum": opslag_datum, "titel": ag_titel.strip(), "notitie": ag_notitie.strip(), "status": "Open"}).execute()
             st.cache_data.clear()
             st.toast("⚡ Afspraak succesvol toegevoegd!", icon="✅")
             st.rerun()
+
 
     @st.dialog("🔍 Afspraak Beheren")
     def bekijk_afspraak_popup(ev_data):
@@ -774,12 +776,22 @@ elif menu_optie == "📅 Agenda & Notities":
         else:
             st.markdown("### ✏️ Afspraak Wijzigen")
             edit_hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=is_voorheen_hele_dag, key=f"edit_hd_{event_id}")
+            
+            # Nieuwe tijdsvelden toevoegen voor de bewerkmodus:
             if edit_hele_dag:
                 col_d1, col_d2 = st.columns(2)
                 edit_datum_van = col_d1.date_input("Pas Begindatum aan", value=standaard_van, key=f"edit_dat_v_{event_id}")
                 edit_datum_tot = col_d2.date_input("Pas Einddatum aan", value=standaard_tot, key=f"edit_dat_t_{event_id}")
             else:
-                edit_datum_van = st.date_input("Pas Datum aan", value=standaard_van, key=f"edit_dat_{event_id}")
+                col_d1, col_t1, col_t2 = st.columns([2, 1, 1])
+                edit_datum_van = col_d1.date_input("Pas Datum aan", value=standaard_van, key=f"edit_dat_{event_id}")
+                
+                # Haal de huidige opgeslagen tijden op om als standaardwaarde te tonen
+                huidige_tijd_van = datetime.strptime(str(start_veld).split("T")[1][:5], "%H:%M").time() if "T" in str(start_veld) else datetime.strptime("10:00", "%H:%M").time()
+                huidige_tijd_tot = datetime.strptime(str(eind_veld).split("T")[1][:5], "%H:%M").time() if "T" in str(eind_veld) else datetime.strptime("11:00", "%H:%M").time()
+                
+                edit_tijd_van = col_t1.time_input("Pas Begintijd aan", value=huidige_tijd_van, key=f"edit_tijd_v_{event_id}")
+                edit_tijd_tot = col_t2.time_input("Pas Eindtijd aan", value=huidige_tijd_tot, key=f"edit_tijd_t_{event_id}")
             
             edit_titel = st.text_input("Pas Titel aan", value=pure_titel_origineel, key=f"edit_ttl_{event_id}")
             edit_notitie = st.text_area("Pas Aanvullende informatie aan", value=notitie_veld if notitie_veld else "", key=f"edit_not_{event_id}")
@@ -787,14 +799,13 @@ elif menu_optie == "📅 Agenda & Notities":
             st.markdown("---")
             col_save1, col_save2 = st.columns(2)
             if col_save1.button("💾 Opslaan", type="primary", use_container_width=True):
-                nieuw_datum_format = f"{edit_datum_van}||{edit_datum_tot}" if edit_hele_dag else f"{edit_datum_van}T10:00:00||{edit_datum_van}T11:00:00"
+                # Sla de gewijzigde live tijden op in de database!
+                nieuw_datum_format = f"{edit_datum_van}||{edit_datum_tot}" if edit_hele_dag else f"{edit_datum_van}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum_van}T{edit_tijd_tot.strftime('%H:%M:%S')}"
                 supabase.table("agenda").update({"datum": nieuw_datum_format, "titel": edit_titel.strip(), "notitie": edit_notitie.strip()}).eq("id", event_id).execute()
                 st.cache_data.clear()
                 st.session_state[bewerk_modus_key] = False
                 st.rerun()
-            if col_save2.button("❌ Annuleren", use_container_width=True):
-                st.session_state[bewerk_modus_key] = False
-                st.rerun()
+
 
     st.markdown("""
         <style>
