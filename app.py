@@ -239,6 +239,18 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 
     uploader_key = f"fotos_upload_{actie_id}"
 
+    # --- ROBUUSTE LOOKUP VAN DE OPGESLAGEN AANKOOPDATUM (BUITEN HET FORMULIER) ---
+    standaard_aankoopdatum = datetime.today().date()
+    try:
+        huidige_id_data = supabase.table("voorraad").select("notitie").eq("id", actie_id).execute().data
+        if huidige_id_data and len(huidige_id_data) > 0:
+            huidige_notitie = huidige_id_data[0].get("notitie", "")
+            if huidige_notitie and "Aangekocht op: " in str(huidige_notitie):
+                datum_str = str(huidige_notitie).split("Aangekocht op: ")[1].strip()
+                standaard_aankoopdatum = datetime.strptime(datum_str, "%Y-%m-%d").date()
+    except:
+        pass
+
     with st.form(f"edit_form_{actie_id}", clear_on_submit=False):
         edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
         edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -264,18 +276,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         trans_opties = ["Handgeschakeld", "Automaat"]
         edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
         
-        # --- ROBUUSTE LOOKUP VAN DE OPGESLAGEN AANKOOPDATUM ---
-        standaard_aankoopdatum = datetime.today().date()
-        try:
-            huidige_id_data = supabase.table("voorraad").select("notitie").eq("id", actie_id).execute().data
-            if huidige_id_data and isinstance(huidige_id_data, list):
-                huidige_notitie = huidige_id_data[0].get("notitie", "")
-                if "Aangekocht op: " in str(huidige_notitie):
-                    datum_str = str(huidige_notitie).split("Aangekocht op: ")[1].strip()
-                    standaard_aankoopdatum = datetime.strptime(datum_str, "%Y-%m-%d").date()
-        except:
-            pass
-            
+        # Datumkiezer binnen het formulier met de veilig uitgelezen standaard_aankoopdatum
         edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
         
         col_e7, col_e8, col_e9 = st.columns(3)
@@ -308,7 +309,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 
                 foto_opslaan = "||".join(basis_fotos) if basis_fotos else ""
 
-                # Zet de geselecteerde datum stringvariant vooraf klaar
+                # Vorm de datum expliciet om naar een zuivere tekststring vóór de database update
                 notitie_string = f"Aangekocht op: {edit_aankoopdatum.strftime('%Y-%m-%d')}"
 
                 update_data = {
