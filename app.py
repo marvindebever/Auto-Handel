@@ -320,6 +320,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 st.rerun()
 
 # --- DIALOG KOOPOVEREENKOMST ---
+
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
 def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     st.write("Vul de gegevens van de koper in om de officiële koopovereenkomst te genereren.")
@@ -339,7 +340,6 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             st.error("Vul tenminste de naam van de koper in.")
             return
 
-        # --- NIEUW: Zet de tellerstand veilig om naar een heel getal (integer) ---
         try:
             km_veilig_getal = int(float(km))
         except:
@@ -350,7 +350,6 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         huidige_datum = datetime.today().strftime('%d-%m-%Y')
 
         html_content = f"""
-
         <html>
         <head>
             <meta charset="UTF-8">
@@ -359,36 +358,48 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
                 h2 {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; }}
                 h3 {{ background-color: #f2f2f2; padding: 5px; margin-top: 15px; border: 1px solid #000; }}
                 table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; }}
-                td {{ padding: 4px; vertical-align: top; }}
-                .label {{ font-weight: bold; width: 180px; }}
+                td {{ padding: 6px; vertical-align: top; border: 1px solid #ddd; }}
+                .label {{ font-weight: bold; width: 180px; background-color: #f9f9f9; }}
             </style>
         </head>
         <body>
             <h2>PARTICULIERE KOOPOVEREENKOMST AUTO</h2>
-            <p style="font-size: 11px; font-style: italic;">(Margevoertuig / Zonder Garantie)</p>
+            <p style="font-size: 11px; font-style: italic; text-align: center;">(Margevoertuig / Zonder Garantie)</p>
+            
             <h3>1. Gegevens van de Verkoper</h3>
             <table>
-                <tr><td class="label">Naam:</td><td>Autohandel Dongen</td></tr>
-                <tr><td class="label">Adres:</td><td>De Volger 2B, 5051 CX Dongen</td></tr>
+                <tr><td class="label">Naam:</td><td>Autohandel Dongen</td><td class="label">Adres:</td><td>De Volger 2B, 5051 CX Dongen</td></tr>
             </table>
+            
             <h3>2. Gegevens van de Koper</h3>
             <table>
-                <tr><td class="label">Naam:</td><td>{koper_naam}</td></tr>
-                <tr><td class="label">Adres:</td><td>{koper_adres} {koper_postcode}</td></tr>
-                <tr><td class="label">Legitimatie:</td><td>{koper_legit}</td></tr>
+                <tr><td class="label">Naam:</td><td>{koper_naam}</td><td class="label">Adres:</td><td>{koper_adres} {koper_postcode}</td></tr>
+                <tr><td class="label">Telefoon:</td><td>{koper_tel}</td><td class="label">Legitimatie:</td><td>{koper_legit}</td></tr>
             </table>
+            
             <h3>3. Voertuiggegevens</h3>
             <table>
                 <tr><td class="label">Merk & Model:</td><td>{merk_model}</td><td class="label">Kenteken:</td><td>{kenteken}</td></tr>
                 <tr><td class="label">Tellerstand:</td><td>{km_veilig_getal:,} km</td><td class="label">APK tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
             </table>
+            
             <h3>4. Financiële Afspraken</h3>
             <table>
-                <tr><td class="label">Prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td></tr>
-                <tr><td class="label">Betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp; {bank_vink} Bank</td></tr>
+                <tr><td class="label">Prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td><td class="label">Betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp; {bank_vink} Bank</td></tr>
             </table>
+            
             <h3>5. Bijzondere Afspraken</h3>
-            <p>{bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</p>
+            <table>
+                <tr><td>{bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</td></tr>
+            </table>
+            
+            <br><br>
+            <table style="border: none;">
+                <tr style="border: none;">
+                    <td style="border: none; width: 50%;">Handtekening Verkoper:<br><br><br>________________________</td>
+                    <td style="border: none; width: 50%;">Handtekening Koper:<br><br><br>________________________</td>
+                </tr>
+            </table>
         </body>
         </html>
         """
@@ -396,6 +407,8 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         filename = f"Koopovereenkomst_{kenteken}_{huidige_datum}.html"
         href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst</a>'
         st.markdown(href, unsafe_allow_html=True)
+
+
 # --- SIDEBAR NAVIGATIE ---
 with st.sidebar:
     st.title("⚙️ Navigatie")
