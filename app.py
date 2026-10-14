@@ -748,7 +748,6 @@ elif menu_optie == "💰 Financieel Overzicht":
     st.title("💰 Financieel Overzicht & Rendement")
     
     st.markdown("### ⚙️ Budget Instellingen")
-    # Voeg het invoerveld weer toe zodat je je startbudget live kunt wijzigen
     nieuw_budget = st.number_input("Stel je totale startbudget / werkkapitaal in (€):", value=float(st.session_state["startbudget"]), step=500.0)
     if nieuw_budget != st.session_state["startbudget"]:
         st.session_state["startbudget"] = nieuw_budget
@@ -773,7 +772,6 @@ elif menu_optie == "💰 Financieel Overzicht":
             ex = float(auto.get("extra_kosten") or 0.0)
             vk = float(auto.get("verkoopprijs") or 0.0)
             status = auto.get("status", "")
-            notitie_veld = auto.get("notitie", "")
             
             statiedagen = 0
             if auto.get("afbeelding") and "AANKOOPDATUM:" in str(auto.get("afbeelding")):
@@ -800,45 +798,131 @@ elif menu_optie == "💰 Financieel Overzicht":
     gemiddelde_marge = (gerealiseerde_winst / totale_omzet_verkocht * 100) if totale_omzet_verkocht > 0 else 0.0
     gemiddelde_statiedagen = (totale_statiedagen_voorraad / aantal_auto_in_voorraad) if aantal_auto_in_voorraad > 0 else 0
 
-        # --- VISUELE LAY-OUT ---
+    # --- VISUELE LAY-OUT (ALLES IN STRAKKE KOLOMMENTABELLEN) ---
+    
+    # 1. Balans Overzicht Tabel
     st.markdown("### 📊 Balans Overzicht")
-    col_f1, col_f2, col_f3 = st.columns(3)
-    col_f1.metric("Totale Startkapitaal", f"€ {formatteer_euro_nl(st.session_state['startbudget'])}")
-    col_f2.metric("Vastgelegd in Voorraad", f"€ {formatteer_euro_nl(totale_voorraadwaarde)}")
-    
-    if actueel_vrij_budget < 0:
-        col_f3.metric("Besteedbaar Cashgeld", f"€ {formatteer_euro_nl(actueel_vrij_budget)}", "Negatieve kasstroom!", delta_color="inverse")
-    else:
-        col_f3.metric("Besteedbaar Cashgeld (Ruimte voor inkoop)", f"€ {formatteer_euro_nl(actueel_vrij_budget)}")
+    balans_html = f"""
+    <div style="background-color: rgba(25, 25, 25, 0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid rgba(255, 255, 255, 0.2);">
+                    <th style="padding: 10px; color: rgba(255, 255, 255, 0.7) !important; font-size: 14px; font-weight: normal;">Balans Post</th>
+                    <th style="padding: 10px; color: rgba(255, 255, 255, 0.7) !important; font-size: 14px; font-weight: normal; text-align: right;">Waarde (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Totale Startkapitaal</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(st.session_state['startbudget'])}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Voorraad</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_voorraadwaarde)}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Besteedbaar Cashgeld (Vrij budget)</td>
+                    <td style="padding: 15px 10px; color: {'#ff4b4b' if actueel_vrij_budget < 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(actueel_vrij_budget)}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(balans_html, unsafe_allow_html=True)
 
     st.markdown("---")
     
+    # 2. Rendement & Performance Tabel
     st.markdown("### 📈 Rendement & Performance")
-    col_r1, col_f4, col_r2 = st.columns(3)
-    col_r1.metric("Gerealiseerde Netto Winst", f"€ {formatteer_euro_nl(gerealiseerde_winst)}")
-    col_f4.metric("Gemiddelde Marge per Deal", f"{gemiddelde_marge:.1f}%")
-    col_r2.metric("Return on Investment (ROI)", f"{gemiddelde_roi:.1f}%")
+    rendement_html = f"""
+    <div style="background-color: rgba(25, 25, 25, 0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid rgba(255, 255, 255, 0.2);">
+                    <th style="padding: 10px; color: rgba(255, 255, 255, 0.7) !important; font-size: 14px; font-weight: normal;">Prestatie Cijfer</th>
+                    <th style="padding: 10px; color: rgba(255, 255, 255, 0.7) !important; font-size: 14px; font-weight: normal; text-align: right;">Resultaat</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Gerealiseerde Netto Winst</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(gerealiseerde_winst)}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Gemiddelde Marge per Deal</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">{gemiddelde_marge:.1f}%</td>
+                </tr>
+                <tr>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Return on Investment (ROI)</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">{gemiddelde_roi:.1f}%</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(rendement_html, unsafe_allow_html=True)
 
     st.markdown("---")
     
-    # Financieel KPI Overzicht uitgelijnd over de volledige breedte
+    # 3. Financieel KPI Overzicht Tabel
     st.markdown("### 📋 Financieel KPI Overzicht")
-    # We bouwen de tabel om naar metrics zodat alle letters en cijfers exact even groot zijn als de rest!
-    col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-    col_kpi1.metric("Totale Omzet (Verkocht)", f"€ {formatteer_euro_nl(totale_omzet_verkocht)}")
-    col_kpi2.metric("Investeringswaarde Verkocht", f"€ {formatteer_euro_nl(totale_investering_verkocht)}")
-    col_kpi3.metric("Besteedbaar Werkkapitaal", f"€ {formatteer_euro_nl(actueel_vrij_budget)}")
+    kpi_html = f"""
+    <div style="background-color: rgba(25, 25, 25, 0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid rgba(255, 255, 255, 0.2);">
+                    <th style="padding: 10px; color: rgba(255, 255, 255, 0.7) !important; font-size: 14px; font-weight: normal;">Financieel Cijfer</th>
+                    <th style="padding: 10px; color: rgba(255, 255, 255, 0.7) !important; font-size: 14px; font-weight: normal; text-align: right;">Bedrag (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Totale Omzet (Verkocht)</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_omzet_verkocht)}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Investeringswaarde Verkocht</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_investering_verkocht)}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Besteedbaar Werkkapitaal</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(actueel_vrij_budget)}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(kpi_html, unsafe_allow_html=True)
 
     st.markdown("---")
     
+    # 4. Omloopanalyse Tabel
     st.markdown("### ⏱️ Omloopanalyse")
-    col_o1, col_o2 = st.columns(2)
-    col_o1.metric("Gemiddelde statiedagen", f"{int(gemiddelde_statiedagen)} dagen", help="Hoe lang staan je huidige auto's gemiddeld al te koop.")
-    col_o2.metric("Auto's > 30 dagen in voorraad", f"{oude_autos_teller} stuks", delta="Langer dan een maand!" if oude_autos_teller > 0 else None, delta_color="inverse")
+    omloop_html = f"""
+    <div style="background-color: rgba(25, 25, 25, 0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid rgba(255, 255, 255, 0.2);">
+                    <th style="padding: 10px; color: rgba(255, 255, 255, 0.7) !important; font-size: 14px; font-weight: normal;">Omloop Parameter</th>
+                    <th style="padding: 10px; color: rgba(255, 255, 255, 0.7) !important; font-size: 14px; font-weight: normal; text-align: right;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Gemiddelde statiedagen van huidige voorraad</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">{int(gemiddelde_statiedagen)} dagen</td>
+                </tr>
+                <tr>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Aantal auto's > 30 dagen in voorraad</td>
+                    <td style="padding: 15px 10px; color: {'#ff4b4b' if oude_autos_teller > 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">{oude_autos_teller} stuks</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(omloop_html, unsafe_allow_html=True)
     
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    # VERBETERDE ADVISERING: Activeert nu ook als er 1 of meer auto's extreem lang (>60 dagen) staan OF als de teller > 0 is
     if oude_autos_teller > 0 or gemiddelde_statiedagen > 60:
         st.warning(f"⚠️ **Financieel Advies:** Je hebt momenteel {oude_autos_teller} auto('s) die al langer dan een maand stilstaan (Gemiddeld {int(gemiddelde_statiedagen)} dagen). Overweeg om deze specifieke voorraad met een gerichte korting te verkopen om snel werkkapitaal vrij te maken voor snellere handelsauto's.")
     else:
