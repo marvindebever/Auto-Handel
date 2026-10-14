@@ -324,16 +324,17 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 @st.dialog("📄 Particuliere Koopovereenkomst Genereren")
 def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     st.write("Vul de gegevens van de koper in om de officiële koopovereenkomst te genereren.")
-    koper_naam = st.text_input("Naam Koper")
+    koper_naam = st.text_input("Naam / Bedrijfsnaam Koper")
     koper_adres = st.text_input("Adres & Huisnummer Koper")
     koper_postcode = st.text_input("Postcode & Woonplaats Koper")
     koper_tel = st.text_input("Telefoonnummer Koper")
     koper_legit = st.text_input("Legitimatie Koper (Type/Nr)", placeholder="Bijv. Rijbewijs / Nummer")
     
     st.markdown("---")
-    st.write("**Financiële Afspraken:**")
+    st.write("**Financiële Afspraken & Levering:**")
     betaalwijze = st.radio("Wijze van betaling:", ["Contant", "Per bankoverschrijving"], horizontal=True)
-    bijzondere_afspraken = st.text_area("Eventuele aanvullende afspraken of opmerkingen")
+    datum_levering = st.date_input("Datum van levering", value=datetime.today().date(), format="DD-MM-YYYY")
+    bijzondere_afspraken = st.text_area("Aanvullende afspraken (Bijv. inruil, extra onderdelen)", value="Geen.")
 
     if st.button("🔥 Contract Downloaden", type="primary", use_container_width=True):
         if not koper_naam.strip():
@@ -347,64 +348,93 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
 
         contant_vink = "[X]" if betaalwijze == "Contant" else "[  ]"
         bank_vink = "[X]" if betaalwijze == "Per bankoverschrijving" else "[  ]"
-        huidige_datum = datetime.today().strftime('%d-%m-%Y')
+        huidige_datum_formatted = datetime.today().strftime('%d-%m-%Y')
+        levering_formatted = datum_levering.strftime('%d-%m-%Y')
 
         html_content = f"""
         <html>
         <head>
             <meta charset="UTF-8">
             <style>
-                body {{ font-family: Arial, sans-serif; color: #000; padding: 20px; line-height: 1.4; }}
-                h2 {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; }}
-                h3 {{ background-color: #f2f2f2; padding: 5px; margin-top: 15px; border: 1px solid #000; }}
-                table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; }}
-                td {{ padding: 6px; vertical-align: top; border: 1px solid #ddd; }}
-                .label {{ font-weight: bold; width: 180px; background-color: #f9f9f9; }}
+                body {{ font-family: Arial, sans-serif; color: #000; padding: 10px; line-height: 1.4; font-size: 13px; }}
+                h2 {{ text-align: center; font-size: 18px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }}
+                .sub-header {{ text-align: center; font-size: 11px; font-style: italic; margin-bottom: 15px; color: #444; }}
+                h3 {{ font-size: 14px; border: 1px solid #000; padding: 4px 8px; margin-top: 15px; margin-bottom: 8px; background-color: #fcfcfc; }}
+                table {{ width: 100%; border-collapse: collapse; margin-bottom: 5px; }}
+                td {{ padding: 4px 0; vertical-align: top; }}
+                .label {{ width: 180px; font-weight: bold; }}
+                .juridisch-text {{ font-size: 11px; color: #222; text-align: justify; margin-top: 5px; margin-bottom: 5px; }}
+                .signature-table {{ width: 100%; margin-top: 15px; }}
+                .signature-table td {{ border: 1px solid #ccc; padding: 10px; width: 50%; }}
+                .footer-notice {{ text-align: center; font-size: 9px; color: #777; margin-top: 25px; border-top: 1px solid #eee; padding-top: 5px; }}
             </style>
         </head>
         <body>
             <h2>PARTICULIERE KOOPOVEREENKOMST AUTO</h2>
-            <p style="font-size: 11px; font-style: italic; text-align: center;">(Margevoertuig / Zonder Garantie)</p>
+            <div class="sub-header">(Margevoertuig / Zonder Garantie)</div>
+            <div class="juridisch-text">Ondergetekenden komen overeen dat de verkoper het hieronder omschreven voertuig verkoopt aan de koper tegen de overengekomen prijs. Deze verkoop geschiedt tussen twee particulieren. De koper verklaart het voertuig te hebben geïnspecteerd en te accepteren in de huidige staat.</div>
             
             <h3>1. Gegevens van de Verkoper</h3>
             <table>
-                <tr><td class="label">Naam:</td><td>Autohandel Dongen</td><td class="label">Adres:</td><td>De Volger 2B, 5051 CX Dongen</td></tr>
+                <tr><td class="label">Naam / Bedrijfsnaam:</td><td>MT Automotive</td></tr>
+                <tr><td class="label">Adres & Huisnummer:</td><td>Kanaalstraat 83</td></tr>
+                <tr><td class="label">Postcode & Woonplaats:</td><td>5104 AB Dongen</td></tr>
             </table>
             
             <h3>2. Gegevens van de Koper</h3>
             <table>
-                <tr><td class="label">Naam:</td><td>{koper_naam}</td><td class="label">Adres:</td><td>{koper_adres} {koper_postcode}</td></tr>
-                <tr><td class="label">Telefoon:</td><td>{koper_tel}</td><td class="label">Legitimatie:</td><td>{koper_legit}</td></tr>
+                <tr><td class="label">Naam:</td><td>{koper_naam}</td></tr>
+                <tr><td class="label">Adres & Huisnummer:</td><td>{koper_adres}</td></tr>
+                <tr><td class="label">Postcode & Woonplaats:</td><td>{koper_postcode}</td></tr>
+                <tr><td class="label">Telefoonnummer:</td><td>{koper_tel}</td></tr>
+                <tr><td class="label">Legitimatie (Type/Nr):</td><td>{koper_legit}</td></tr>
             </table>
             
             <h3>3. Voertuiggegevens</h3>
-            <table>
-                <tr><td class="label">Merk & Model:</td><td>{merk_model}</td><td class="label">Kenteken:</td><td>{kenteken}</td></tr>
-                <tr><td class="label">Tellerstand:</td><td>{km_veilig_getal:,} km</td><td class="label">APK tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
-            </table>
-            
-            <h3>4. Financiële Afspraken</h3>
-            <table>
-                <tr><td class="label">Prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td><td class="label">Betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp; {bank_vink} Bank</td></tr>
-            </table>
-            
-            <h3>5. Bijzondere Afspraken</h3>
-            <table>
-                <tr><td>{bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</td></tr>
-            </table>
-            
-            <br><br>
-            <table style="border: none;">
-                <tr style="border: none;">
-                    <td style="border: none; width: 50%;">Handtekening Verkoper:<br><br><br>________________________</td>
-                    <td style="border: none; width: 50%;">Handtekening Koper:<br><br><br>________________________</td>
+            <table style="width: 100%;">
+                <tr>
+                    <td class="label">Merk & Model:</td><td>{merk_model}</td>
+                    <td class="label" style="padding-left: 20px;">Kenteken:</td><td>{kenteken}</td>
+                </tr>
+                <tr>
+                    <td class="label">Tellerstand:</td><td>{km_veilig_getal:,} km</td>
+                    <td class="label" style="padding-left: 20px;">APK geldig tot:</td><td>{formatteer_datum_nl(apk)}</td>
                 </tr>
             </table>
+            
+            <h3>4. Financiële Afspraken & Levering</h3>
+            <table>
+                <tr><td class="label">Overengekomen prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td></tr>
+                <tr><td class="label">Wijze van betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp; {bank_vink} Per bankoverschrijving</td></tr>
+                <tr><td class="label">Datum van levering:</td><td>{levering_formatted}</td></tr>
+            </table>
+            <div class="juridisch-text">De verkoper verklaart dat het voertuig vrij is van beslagen, boetes en/of andere financiële claims tot het hierboven genoemde tijdstip van overdracht. Eventuele boetes of belastingen na dit tijdstip komen volledig voor rekening van de koper.</div>
+            
+            <h3>5. Bijzondere Afspraken & Garantie-uitsluiting</h3>
+            <div class="juridisch-text" style="font-weight: bold;">Garantieclausule (Gekocht in de huidige staat):</div>
+            <div class="juridisch-text">Het voertuig wordt door de koper gekocht in de staat waarin het zich op de datum van verkoop bevindt ("as is, where is"). Beide partijen verklaren nadrukkelijk dat er sprake is van een particuliere transactie. De verkoper verleent geen enkele vorm van garantie op mechanische, elektrische of optische onderdelen, noch op verborgen gebreken, tenzij hieronder schriftelijk anders is overengekomen.</div>
+            <div class="juridisch-text"><b>Aanvullende afspraken:</b> {bijzondere_afspraken if bijzondere_afspraken.strip() else 'Geen.'}</div>
+            
+            <h3>6. Handtekening voor Akkoord</h3>
+            <table class="signature-table">
+                <tr>
+                    <td>
+                        <b>Handtekening Verkoper:</b><br><br><br><br>
+                        Datum: {levering_formatted}
+                    </td>
+                    <td>
+                        <b>Handtekening Koper:</b><br><br><br><br>
+                        Datum: {levering_formatted}
+                    </td>
+                </tr>
+            </table>
+            
+            <div class="footer-notice">This contract is generated for informational purposes. Financial terms should comply with local guidelines. AI systems may generate unexpected outputs; check physical details before signing.</div>
         </body>
         </html>
         """
         b64 = base64.b64encode(html_content.encode('utf-8')).decode()
-        filename = f"Koopovereenkomst_{kenteken}_{huidige_datum}.html"
+        filename = f"Koopovereenkomst_{kenteken}_{huidige_datum_formatted}.html"
         href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst</a>'
         st.markdown(href, unsafe_allow_html=True)
 
