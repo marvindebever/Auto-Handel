@@ -707,13 +707,12 @@ elif menu_optie == "📅 Agenda & Notities":
 
     @st.dialog("📌 Nieuwe afspraak / notitie toevoegen")
     def nieuwe_afspraak_popup(gekozen_datum_str):
-
+        # 1. Zet de checkbox BUITEN het formulier zodat Streamlit direct live reageert
+        st.write(f"**Geselecteerde begindatum:** {formatteer_datum_nl(gekozen_datum_str)}")
+        hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=True, key="nieuwe_afspraak_hele_dag")
+        
+        # 2. Start hier pas het formulier voor de invoervelden
         with st.form("agenda_toevoeg_form", clear_on_submit=True):
-            st.write(f"**Geselecteerde begindatum:** {formatteer_datum_nl(gekozen_datum_str)}")
-            
-            # Voeg een unieke key toe aan de checkbox
-            hele_dag = st.checkbox("📅 Deze afspraak duurt de gehele dag(en)", value=True, key="nieuwe_afspraak_hele_dag")
-            
             if hele_dag:
                 tot_datum = st.date_input("Einddatum (t/m)", value=datetime.strptime(gekozen_datum_str, "%Y-%m-%d").date(), format="DD-MM-YYYY")
             else:
@@ -722,14 +721,12 @@ elif menu_optie == "📅 Agenda & Notities":
                 tijd_col1, tijd_col2 = st.columns(2)
                 ag_tijd_van = tijd_col1.time_input("Begintijd", value=datetime.strptime("10:00", "%H:%M").time())
                 ag_tijd_tot = tijd_col2.time_input("Eindtijd", value=datetime.strptime("11:00", "%H:%M").time())
-
            
             ag_titel = st.text_input("Titel (bijv. Auto verhuurd, Vakantie, Showroom dicht)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
             ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", use_container_width=True)
             
         if ag_submit and ag_titel.strip():
-            # Gebruik de live ingevulde tijden (ag_tijd_van en ag_tijd_tot) in plaats van de vaste 10:00 en 11:00 uur!
             opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}" if hele_dag else f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}||{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
             supabase.table("agenda").insert({"datum": opslag_datum, "titel": ag_titel.strip(), "notitie": ag_notitie.strip(), "status": "Open"}).execute()
             st.cache_data.clear()
