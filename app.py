@@ -823,15 +823,11 @@ elif menu_optie == "💰 Financieel Overzicht":
     
     # Financieel KPI Overzicht uitgelijnd over de volledige breedte
     st.markdown("### 📋 Financieel KPI Overzicht")
-    financiele_kpis = pd.DataFrame({
-        "Financieel Cijfer": ["Totale Omzet (Verkocht)", "Investeringswaarde Verkocht", "Besteedbaar Werkkapitaal"],
-        "Bedrag (€)": [f"€ {formatteer_euro_nl(totale_omzet_verkocht)}", f"€ {formatteer_euro_nl(totale_investering_verkocht)}", f"€ {formatteer_euro_nl(actueel_vrij_budget)}"]
-    })
-    
-    # We dwingen de tabel via een container en kolom-layout in de volledige breedte
-    kpi_col = st.columns(1)[0]
-    with kpi_col:
-        st.table(financiele_kpis)
+    # We bouwen de tabel om naar metrics zodat alle letters en cijfers exact even groot zijn als de rest!
+    col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+    col_kpi1.metric("Totale Omzet (Verkocht)", f"€ {formatteer_euro_nl(totale_omzet_verkocht)}")
+    col_kpi2.metric("Investeringswaarde Verkocht", f"€ {formatteer_euro_nl(totale_investering_verkocht)}")
+    col_kpi3.metric("Besteedbaar Werkkapitaal", f"€ {formatteer_euro_nl(actueel_vrij_budget)}")
 
     st.markdown("---")
     
