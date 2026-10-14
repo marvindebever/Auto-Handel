@@ -339,11 +339,18 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             st.error("Vul tenminste de naam van de koper in.")
             return
 
+        # --- NIEUW: Zet de tellerstand veilig om naar een heel getal (integer) ---
+        try:
+            km_veilig_getal = int(float(km))
+        except:
+            km_veilig_getal = 0
+
         contant_vink = "[X]" if betaalwijze == "Contant" else "[  ]"
         bank_vink = "[X]" if betaalwijze == "Per bankoverschrijving" else "[  ]"
         huidige_datum = datetime.today().strftime('%d-%m-%Y')
 
         html_content = f"""
+
         <html>
         <head>
             <meta charset="UTF-8">
@@ -373,7 +380,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             <h3>3. Voertuiggegevens</h3>
             <table>
                 <tr><td class="label">Merk & Model:</td><td>{merk_model}</td><td class="label">Kenteken:</td><td>{kenteken}</td></tr>
-                <tr><td class="label">Tellerstand:</td><td>{km:,} km</td><td class="label">APK tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
+                <tr><td class="label">Tellerstand:</td><td>{km_veilig_getal:,} km</td><td class="label">APK tot:</td><td>{formatteer_datum_nl(apk)}</td></tr>
             </table>
             <h3>4. Financiële Afspraken</h3>
             <table>
