@@ -59,6 +59,9 @@ def zet_achtergrond(logo_path="logo.png"):
             border: 1px solid rgba(255, 255, 255, 0.2) !important; text-shadow: none !important;
         }}
         div[data-testid="stMetricValue"] div {{ color: white !important; font-weight: bold !important; }}
+        /* Zorgt dat tabellen de volledige containerbreedte benutten */
+        .stTable, div[data-testid="stTable"] {{ width: 100% !important; }}
+        .stTable table {{ width: 100% !important; }}
         
         .stSidebar [data-testid="stFileUploadDropzone"],
         .stSidebar div[data-testid="stFileUploadDropzone"] > div,
@@ -797,7 +800,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     gemiddelde_marge = (gerealiseerde_winst / totale_omzet_verkocht * 100) if totale_omzet_verkocht > 0 else 0.0
     gemiddelde_statiedagen = (totale_statiedagen_voorraad / aantal_auto_in_voorraad) if aantal_auto_in_voorraad > 0 else 0
 
-    # --- VISUELE LAY-OUT ---
+        # --- VISUELE LAY-OUT ---
     st.markdown("### 📊 Balans Overzicht")
     col_f1, col_f2, col_f3 = st.columns(3)
     col_f1.metric("Totale Startkapitaal", f"€ {formatteer_euro_nl(st.session_state['startbudget'])}")
@@ -818,13 +821,17 @@ elif menu_optie == "💰 Financieel Overzicht":
 
     st.markdown("---")
     
-    # Een compacte tabel die de prestaties van je verkochte auto's samenvat
+    # Financieel KPI Overzicht uitgelijnd over de volledige breedte
     st.markdown("### 📋 Financieel KPI Overzicht")
     financiele_kpis = pd.DataFrame({
         "Financieel Cijfer": ["Totale Omzet (Verkocht)", "Investeringswaarde Verkocht", "Besteedbaar Werkkapitaal"],
         "Bedrag (€)": [f"€ {formatteer_euro_nl(totale_omzet_verkocht)}", f"€ {formatteer_euro_nl(totale_investering_verkocht)}", f"€ {formatteer_euro_nl(actueel_vrij_budget)}"]
     })
-    st.table(financiele_kpis)
+    
+    # We dwingen de tabel via een container en kolom-layout in de volledige breedte
+    kpi_col = st.columns(1)[0]
+    with kpi_col:
+        st.table(financiele_kpis)
 
     st.markdown("---")
     
@@ -834,8 +841,10 @@ elif menu_optie == "💰 Financieel Overzicht":
     col_o2.metric("Auto's > 30 dagen in voorraad", f"{oude_autos_teller} stuks", delta="Langer dan een maand!" if oude_autos_teller > 0 else None, delta_color="inverse")
     
     st.markdown("<br>", unsafe_allow_html=True)
-    if oude_autos_teller > 2:
-        st.warning("⚠️ **Financieel Advies:** Je hebt een aantal auto's die al langer dan een maand stilstaan. Overweeg om deze met een kleine korting te verkopen om snel werkkapitaal vrij te maken voor snellere handelsauto's.")
+    
+    # VERBETERDE ADVISERING: Activeert nu ook als er 1 of meer auto's extreem lang (>60 dagen) staan OF als de teller > 0 is
+    if oude_autos_teller > 0 or gemiddelde_statiedagen > 60:
+        st.warning(f"⚠️ **Financieel Advies:** Je hebt momenteel {oude_autos_teller} auto('s) die al langer dan een maand stilstaan (Gemiddeld {int(gemiddelde_statiedagen)} dagen). Overweeg om deze specifieke voorraad met een gerichte korting te verkopen om snel werkkapitaal vrij te maken voor snellere handelsauto's.")
     else:
         st.success("✅ **Financieel Advies:** Je omloopsnelheid ziet er gezond uit! Je verkoopt je auto's snel achter elkaar waardoor je werkkapitaal efficiënt blijft rollen.")
 
