@@ -264,17 +264,17 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         trans_opties = ["Handgeschakeld", "Automaat"]
         edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
         
-        # --- Haal de huidige opgeslagen aankoopdatum op ---
+        # --- ROBUUSTE LOOKUP VAN DE OPGESLAGEN AANKOOPDATUM ---
+        standaard_aankoopdatum = datetime.today().date()
         try:
             huidige_id_data = supabase.table("voorraad").select("notitie").eq("id", actie_id).execute().data
-            huidige_notitie = huidige_id_data[0].get("notitie", "") if huidige_id_data else ""
-            if "Aangekocht op: " in str(huidige_notitie):
-                datum_str = str(huidige_notitie).split("Aangekocht op: ")[1].strip()
-                standaard_aankoopdatum = datetime.strptime(datum_str, "%Y-%m-%d").date()
-            else:
-                standaard_aankoopdatum = datetime.today().date()
+            if huidige_id_data and isinstance(huidige_id_data, list):
+                huidige_notitie = huidige_id_data[0].get("notitie", "")
+                if "Aangekocht op: " in str(huidige_notitie):
+                    datum_str = str(huidige_notitie).split("Aangekocht op: ")[1].strip()
+                    standaard_aankoopdatum = datetime.strptime(datum_str, "%Y-%m-%d").date()
         except:
-            standaard_aankoopdatum = datetime.today().date()
+            pass
             
         edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
         
@@ -283,7 +283,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         edit_verkoop = col_e8.number_input("Pas Verkoopprijs aan (€)", value=float(verkoop), step=50.0)
         edit_kosten = col_e9.number_input("Pas Extra kosten aan (€)", value=float(kosten), step=10.0)
         
-        # --- FLEXIBELE FOTO LOGICA ---
         verwijder_fotos = st.checkbox("🗑️ Alle huidige foto's permanent wissen", value=False)
         edit_fotos = st.file_uploader("Nieuwe foto's toevoegen", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=uploader_key)
         
@@ -309,6 +308,9 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 
                 foto_opslaan = "||".join(basis_fotos) if basis_fotos else ""
 
+                # Zet de geselecteerde datum stringvariant vooraf klaar
+                notitie_string = f"Aangekocht op: {edit_aankoopdatum.strftime('%Y-%m-%d')}"
+
                 update_data = {
                     "naam": edit_naam, "kenteken": edit_ktk.upper().replace("-", "").strip(),
                     "km_stand": int(edit_km), "apk_datum": str(edit_apk), "transmissie": edit_trans,
@@ -316,7 +318,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     "extra_kosten": float(edit_kosten), "afbeelding": foto_opslaan, "status": edit_status,
                     "brandstof": edit_brandstof, "bouwjaar": int(edit_bouwjaar), "kleur": edit_kleur,
                     "cataloguswaarde": float(edit_cat),
-                    "notitie": f"Aangekocht op: {str(edit_aankoopdatum)}"  # <-- NU VEILIG OMGEZET NAAR TEXT STRING
+                    "notitie": notitie_string
                 }
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
                 st.cache_data.clear()
