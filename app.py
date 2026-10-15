@@ -247,6 +247,8 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     standaard_aankoopdatum = datetime.today().date()
     if foto_huidig and "AANKOOPDATUM:" in str(foto_huidig):
         try:
+            # OUD: deel_datum = onderdelen[1].split("||").strip()
+            # NIEUW (Gecorrigeerd met de missende split):
             onderdelen = str(foto_huidig).split("AANKOOPDATUM:")
             if len(onderdelen) > 1:
                 deel_datum = onderdelen[1].split("||")[0].strip()
@@ -287,7 +289,18 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         edit_kosten = col_e9.number_input("Pas Extra kosten aan (€)", value=float(kosten), step=10.0)
         
         verwijder_fotos = st.checkbox("🗑️ Alle huidige foto's permanent wissen", value=False)
-        edit_fotos = st.file_uploader("Nieuwe foto's toevoegen", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=uploader_key)
+        
+        # --- NIEUW: Dynamische key op basis van st.session_state voorkomt dat mobiel de selectie wist ---
+        if uploader_key not in st.session_state:
+            st.session_state[uploader_key] = 0
+            
+        edit_fotos = st.file_uploader(
+            "Nieuwe foto's toevoegen", 
+            type=["jpg", "jpeg", "png"], 
+            accept_multiple_files=True, 
+            key=f"{uploader_key}_{st.session_state[uploader_key]}"
+        )
+
         
         submit_edit = st.form_submit_button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True)
         
@@ -330,7 +343,12 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                     "brandstof": edit_brandstof, "bouwjaar": int(edit_bouwjaar), "kleur": edit_kleur,
                     "cataloguswaarde": float(edit_cat)
                 }
+
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
+                
+                # Hoog de teller op om de uploader-state netjes te resetten na succesvolle opslag
+                st.session_state[uploader_key] += 1
+                
                 st.cache_data.clear()
                 st.rerun()
 
@@ -561,7 +579,16 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         verkoopprijs_val = c_form8.number_input("Verkoopprijs (€)", value=0.0, step=50.0)
         extra_kosten_val = c_form9.number_input("Extra kosten (€)", value=0.0, step=10.0)
         
-        gevoegde_fotos = st.file_uploader("Kies foto's (Optioneel)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+        # --- NIEUW: Voorkom reset op mobiel bij het toevoegen van een nieuwe auto ---
+        if "nieuw_auto_uploader_key" not in st.session_state:
+            st.session_state["nieuw_auto_uploader_key"] = 0
+            
+        gevoegde_fotos = st.file_uploader(
+            "Kies foto's (Optioneel)", 
+            type=["jpg", "jpeg", "png"], 
+            accept_multiple_files=True, 
+            key=f"nieuwe_auto_fotos_{st.session_state['nieuw_auto_uploader_key']}"
+        )
         submit = st.form_submit_button("Voeg toe aan cloud voorraad")
 
     if submit and kenteken.strip():
@@ -606,6 +633,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
 
         supabase.table("voorraad").insert(nieuw_voertuig).execute()
+        st.session_state["nieuw_auto_uploader_key"] += 1
         st.cache_data.clear()
         for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
             if sleutel in st.session_state: del st.session_state[sleutel]
