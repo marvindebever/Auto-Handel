@@ -235,6 +235,7 @@ def importeer_json_naar_database(json_data):
 
 
 # --- DIALOGS (BEWERKEN POP-UP) ---
+
 @st.dialog("✏️ Auto Gegevens Bewerken")
 def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_huidig, auto_naam, trans_huidig, status_huidig, brandstof_h, bouwjaar_h, kleur_h, cat_h):
     try: standaard_datum = datetime.strptime(apk, "%Y-%m-%d").date()
@@ -242,12 +243,15 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 
     uploader_key = f"fotos_upload_{actie_id}"
 
-    # --- VEILIGE LOOKUP VAN DE AANKOOPDATUM IN DE FOTOSTRING ---
+    # --- INGEBOUWDE VEILIGHEIDSCHECK VOOR DE SPLIT (VOORKOMT CRASHES) ---
     standaard_aankoopdatum = datetime.today().date()
     if foto_huidig and "AANKOOPDATUM:" in str(foto_huidig):
         try:
-            deel_datum = str(foto_huidig).split("AANKOOPDATUM:")[1].split("||")[0].strip()
-            standaard_aankoopdatum = datetime.strptime(deel_datum, "%Y-%m-%d").date()
+            # We controleren eerst of de structuur klopt voordat we index [1] aanspreken
+            onderdelen = str(foto_huidig).split("AANKOOPDATUM:")
+            if len(onderdelen) > 1:
+                deel_datum = onderdelen[1].split("||")[0].strip()
+                standaard_aankoopdatum = datetime.strptime(deel_datum, "%Y-%m-%d").date()
         except:
             pass
 
@@ -293,7 +297,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 basis_fotos = []
                 if not verwijder_fotos and foto_huidig:
                     for element in foto_huidig.split("||"):
-                        # Behoud bestaande internet-links
+                        # Behoud uitsluitend bestaande cloud-URL's, gooi base64 en oude datums eruit
                         if element and "AANKOOPDATUM:" not in element and element.startswith("http"):
                             basis_fotos.append(element)
 
@@ -329,6 +333,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 supabase.table("voorraad").update(update_data).eq("id", actie_id).execute()
                 st.cache_data.clear()
                 st.rerun()
+
 
 # --- DIALOG KOOPOVEREENKOMST ---
 
