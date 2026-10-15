@@ -293,18 +293,26 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 basis_fotos = []
                 if not verwijder_fotos and foto_huidig:
                     for element in foto_huidig.split("||"):
-                        if element and "AANKOOPDATUM:" not in element:
+                        # Behoud bestaande internet-links
+                        if element and "AANKOOPDATUM:" not in element and element.startswith("http"):
                             basis_fotos.append(element)
 
                 if edit_fotos:
-                    for f in edit_fotos:
-                        img = Image.open(f)
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        img.thumbnail((800, 800))
-                        buffer = io.BytesIO()
-                        img.save(buffer, format="JPEG", quality=70)
-                        basis_fotos.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
+                    for idx, f in enumerate(edit_fotos):
+                        try:
+                            img = Image.open(f)
+                            if img.mode in ("RGBA", "P"): img = img.convert("RGB")
+                            img.thumbnail((1000, 1000))
+                            buffer = io.BytesIO()
+                            img.save(buffer, format="JPEG", quality=75)
+                            buffer.seek(0)
+                            
+                            bestandsnaam = f"{edit_ktk.upper()}_edit_{idx}_{int(datetime.today().timestamp())}.jpg"
+                            supabase.storage.from_("autofotos").upload(path=bestandsnaam, file=buffer.getvalue(), file_options={"content-type": "image/jpeg"})
+                            openbare_url = supabase.storage.from_("autofotos").get_public_url(bestandsnaam)
+                            basis_fotos.append(openbare_url)
+                        except Exception as e:
+                            st.error(f"Fout bij uploaden foto: {str(e)}")
                 
                 datum_prefix = f"AANKOOPDATUM:{edit_aankoopdatum.strftime('%Y-%m-%d')}"
                 basis_fotos.insert(0, datum_prefix)
@@ -552,45 +560,52 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         submit = st.form_submit_button("Voeg toe aan cloud voorraad")
 
     if submit and kenteken.strip():
-        foto_data = ""
+        foto_urls = []
         if gevoegde_fotos:
-            foto_lijst = []
-            for f in gevoegde_fotos:
-                img = Image.open(f)
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-                img.thumbnail((800, 800))
-                buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=70)
-                foto_lijst.append(base64.b64encode(buffer.getvalue()).decode("utf-8"))
-            foto_data = "||".join(foto_lijst)
+            for idx, f in enumerate(gevoegde_fotos):
+                try:
+                    img = Image.open(f)
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
+                    img.thumbnail((1000, 1000))
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="JPEG", quality=75)
+                    buffer.seek(0)
+                    
+                    # Maak een unieke bestandsnaam voor de cloud-map
+                    bestandsnaam = f"{kenteken.upper()}_{idx}_{int(datetime.today().timestamp())}.jpg"
+                    
+                    # Upload het bestand rechtstreeks naar de Supabase Storage Bucket
+                    supabase.storage.from_("autofotos").upload(
+                        path=bestandsnaam,
+                        file=buffer.getvalue(),
+                        file_options={"content-type": "image/jpeg"}
+                    )
+                    
+                    # Haal de openbare internetlink (URL) op
+                    openbare_url = supabase.storage.from_("autofotos").get_public_url(bestandsnaam)
+                    foto_urls.append(openbare_url)
+                except Exception as e:
+                    st.error(f"Fout bij uploaden foto {idx}: {str(e)}")
 
+        foto_string_data = "||".join(foto_urls)
         datum_prefix = f"AANKOOPDATUM:{aankoop_datum_invoer.strftime('%Y-%m-%d')}"
-        totaal_opslaan_string = f"{datum_prefix}||{foto_data}" if foto_data else datum_prefix
+        totaal_opslaan_string = f"{datum_prefix}||{foto_string_data}" if foto_string_data else datum_prefix
 
         nieuw_voertuig = {
-            "naam": naam, 
-            "kenteken": kenteken.upper().replace("-", "").strip(), 
-            "km_stand": int(km_stand_str),
-            "inkoopprijs": float(inkoopprijs_val), 
-            "verkoopprijs": float(verkoopprijs_val), 
-            "apk_datum": str(apk_datum),
-            "extra_kosten": float(extra_kosten_val), 
-            "afbeelding": totaal_opslaan_string, 
-            "transmissie": transmissie,
-            "status": status_invoer, 
-            "brandstof": brandstof_invoer, 
-            "bouwjaar": int(bouwjaar_invoer),
-            "kleur": kleur_invoer, 
-            "cataloguswaarde": float(cat_invoer)
+            "naam": naam, "kenteken": kenteken.upper().replace("-", "").strip(), "km_stand": int(km_stand_str),
+            "inkoopprijs": float(inkoopprijs_val), "verkoopprijs": float(verkoopprijs_val), "apk_datum": str(apk_datum),
+            "extra_kosten": float(extra_kosten_val), "afbeelding": totaal_opslaan_string, "transmissie": transmission,
+            "status": status_invoer, "brandstof": brandstof_invoer, "bouwjaar": int(bouwjaar_invoer), "kleur": kleur_invoer, "cataloguswaarde": float(cat_invoer)
         }
 
         supabase.table("voorraad").insert(nieuw_voertuig).execute()
         st.cache_data.clear()
         for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
             if sleutel in st.session_state: del st.session_state[sleutel]
-        st.success("Auto succesvol toegevoegd aan de Cloud!")
+        st.success("Auto succesvol toegevoegd met cloud-foto's!")
         st.rerun()
+
 
 elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
     st.title(menu_optie)
@@ -662,16 +677,19 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                     with c1:
                         if auto["afbeelding"]:
                             alle_elementen = auto["afbeelding"].split("||")
-                            alle_fotos = [x for x in alle_elementen if "AANKOOPDATUM:" not in x]
-                            if alle_fotos:
-                                foto_cols = st.columns(min(len(alle_fotos), 3))
-                                for idx, f_data in enumerate(alle_fotos):
-                                    with foto_cols[idx % min(len(alle_fotos), 3)]:
-                                        try: 
-                                            st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="data:image/jpeg;base64,{f_data}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
-                                        except: st.error("Fout foto")
-                            else: st.info("Geen afbeelding beschikbaar.")
-                        else: st.info("Geen afbeelding beschikbaar.")
+                            # Filter de datum eruit, de rest zijn pure internet-URL's naar je bucket
+                            alle_foto_links = [x for x in alle_elementen if "AANKOOPDATUM:" not in x and x.startswith("http")]
+                            
+                            if alle_foto_links:
+                                foto_cols = st.columns(min(len(alle_foto_links), 3))
+                                for idx, url in enumerate(alle_foto_links):
+                                    with foto_cols[idx % min(len(alle_foto_links), 3)]:
+                                        # Laad de foto bliksemsnel in rechtstreeks vanaf de Supabase CDN link
+                                        st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="{url}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
+                            else:
+                                st.info("Geen afbeelding beschikbaar.")
+                        else:
+                            st.info("Geen afbeelding beschikbaar.")
 
                     with c2:
                         try: km_veilig = int(float(auto['km_stand']))
