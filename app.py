@@ -791,7 +791,13 @@ elif menu_optie == "💰 Financieel Overzicht":
     alle_voorraad_data = haal_voorraad_op()
     
     totale_inkoop_verkocht = 0.0
-    max_statiedagen_voertuig = 0  # Houdt de dagen van de oudste auto bij
+    max_statiedagen_voertuig = 0  
+    
+    # --- NIEUWE VARIABELEN OM DE OUDSTE AUTO TE ONTHOUDEN ---
+    oudste_auto_naam = ""
+    oudste_auto_kenteken = ""
+    oudste_auto_data = None
+    
     totale_kosten_verkocht = 0.0
     totale_omzet_verkocht = 0.0
     
@@ -823,9 +829,12 @@ elif menu_optie == "💰 Financieel Overzicht":
                 aantal_auto_in_voorraad += 1
                 totale_statiedagen_voorraad += max(0, statiedagen)
                 
-                # Update de maximale statiedagen als dit specifieke voertuig langer staat
-                if statiedagen > max_statiedagen_voertuig:
+                # Update de maximale statiedagen en onthoud WELKE auto dit is
+                if statiedagen >= max_statiedagen_voertuig and statiedagen > 0:
                     max_statiedagen_voertuig = statiedagen
+                    oudste_auto_naam = auto.get("naam", "Onbekend")
+                    oudste_auto_kenteken = auto.get("kenteken", "")
+                    oudste_auto_data = auto # We bewaren alle gegevens om de tabel te kunnen tekenen
                     
                 if statiedagen > 30:
                     oude_autos_teller += 1
@@ -964,8 +973,78 @@ elif menu_optie == "💰 Financieel Overzicht":
         </table>
     </div>
     """
-    st.markdown(omloop_html, unsafe_allow_html=True)
     
+    st.markdown(omloop_html, unsafe_allow_html=True)
+    # --- NIEUW: DROPDOWN MENU VOOR DE LANGSTSTAANDE AUTO ---
+    if max_statiedagen_voertuig > 0 and oudste_auto_data:
+        # Bereken de winst/marge specifiek voor deze auto om in de tabel te tonen
+        try:
+            v_vk = float(oudste_auto_data.get("verkoopprijs") or 0)
+            v_ik = float(oudste_auto_data.get("inkoopprijs") or 0)
+            v_ex = float(oudste_auto_data.get("extra_kosten") or 0)
+            v_winst = v_vk - (v_ik + v_ex)
+            v_km = int(float(oudste_auto_data.get("km_stand") or 0))
+            v_cat = float(oudste_auto_data.get("cataloguswaarde") or 0)
+        except:
+            v_winst = 0.0
+            v_km = 0
+            v_cat = 0.0
+
+        # We bouwen een expander (dropdown) die exact matcht met je voorraad-styling
+        with st.expander(f"🚗 Bekijk langststaande voertuig: {oudste_auto_naam} ({oudste_auto_kenteken})"):
+            c_pop1, c_pop2 = st.columns(2)
+            
+            with c_pop1:
+                # Toon de foto's van deze specifieke auto direct uit je Supabase storage link
+                if oudste_auto_data.get("afbeelding"):
+                    alle_elementen = oudste_auto_data["afbeelding"].split("||")
+                    alle_foto_links = [x for x in alle_elementen if "AANKOOPDATUM:" not in x and x.startswith("http")]
+                    
+                    if alle_foto_links:
+                        foto_cols = st.columns(min(len(alle_foto_links), 3))
+                        for idx, url in enumerate(alle_foto_links):
+                            with foto_cols[idx % min(len(alle_foto_links), 3)]:
+                                st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="{url}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
+                    else:
+                        st.info("Geen afbeelding beschikbaar in cloud storage.")
+                else:
+                    st.info("Geen afbeelding beschikbaar.")
+            
+            with c_pop2:
+                # De exacte tabel lay-out zoals getoond in je screenshot, maar nu op je financieel overzicht!
+                oudste_tabel_html = f"""
+                <div style="background-color: rgba(30, 30, 35, 0.4); padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 15px;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                        <tbody>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Kilometerstand</td>
+                                <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{v_km:,} km</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Brandstof / Bouwjaar</td>
+                                <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{oudste_auto_data.get('brandstof', 'Onbekend')} | {oudste_auto_data.get('bouwjaar', 'Onbekend')}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Kleur / Cataloguswaarde</td>
+                                <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{oudste_auto_data.get('kleur', 'Onbekend')} | € {formatteer_euro_nl(v_cat)}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Transmissie / APK Datum</td>
+                                <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{oudste_auto_data.get('transmissie', 'Onbekend')} | {formatteer_datum_nl(oudste_auto_data.get('apk_datum'))}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 8px 5px; color: rgba(255, 255, 255, 0.6);">Inkoopprijs + Extra kosten</td>
+                                <td style="padding: 8px 5px; color: white; font-weight: bold; text-align: right;">€ {formatteer_euro_nl(v_ik)} + € {formatteer_euro_nl(v_ex)}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 5px; color: rgba(255, 255, 255, 0.6); font-size: 15px;">Verwachte Marge / Winst</td>
+                                <td style="padding: 8px 5px; color: #ff4b4b; font-size: 16px; font-weight: bold; text-align: right;">€ {formatteer_euro_nl(v_winst)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                """
+                st.markdown(oudste_tabel_html, unsafe_allow_html=True)    
     st.markdown("<br>", unsafe_allow_html=True)
     if oude_autos_teller > 0 or gemiddelde_statiedagen > 60:
         st.warning(f"⚠️ **Financieel Advies:** Je hebt momenteel {oude_autos_teller} auto('s) die al langer dan een maand stilstaan. Je langststaande voertuig staat al {int(max_statiedagen_voertuig)} dagen op voorraad. Overweeg om deze gerichte pluk voorraad met een korting te verkopen om snel werkkapitaal vrij te maken.")
