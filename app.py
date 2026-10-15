@@ -243,11 +243,10 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
 
     uploader_key = f"fotos_upload_{actie_id}"
 
-    # --- INGEBOUWDE VEILIGHEIDSCHECK VOOR DE SPLIT (VOORKOMT CRASHES) ---
+    # --- INGEBOUWDE VEILIGHEIDSCHECK VOOR DE SPLIT ---
     standaard_aankoopdatum = datetime.today().date()
     if foto_huidig and "AANKOOPDATUM:" in str(foto_huidig):
         try:
-            # We controleren eerst of de structuur klopt voordat we index [1] aanspreken
             onderdelen = str(foto_huidig).split("AANKOOPDATUM:")
             if len(onderdelen) > 1:
                 deel_datum = onderdelen[1].split("||")[0].strip()
@@ -297,7 +296,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 basis_fotos = []
                 if not verwijder_fotos and foto_huidig:
                     for element in foto_huidig.split("||"):
-                        # Behoud uitsluitend bestaande cloud-URL's, gooi base64 en oude datums eruit
                         if element and "AANKOOPDATUM:" not in element and element.startswith("http"):
                             basis_fotos.append(element)
 
@@ -316,7 +314,9 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                             openbare_url = supabase.storage.from_("autofotos").get_public_url(bestandsnaam)
                             basis_fotos.append(openbare_url)
                         except Exception as e:
-                            st.error(f"Fout bij uploaden foto: {str(e)}")
+                            # STOP DIRECT EN TOON DE FOUTMELDING (Geen st.rerun)
+                            st.error(f"🚨 Cloud Upload Mislukt: {str(e)}")
+                            return
                 
                 datum_prefix = f"AANKOOPDATUM:{edit_aankoopdatum.strftime('%Y-%m-%d')}"
                 basis_fotos.insert(0, datum_prefix)
@@ -600,9 +600,10 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         nieuw_voertuig = {
             "naam": naam, "kenteken": kenteken.upper().replace("-", "").strip(), "km_stand": int(km_stand_str),
             "inkoopprijs": float(inkoopprijs_val), "verkoopprijs": float(verkoopprijs_val), "apk_datum": str(apk_datum),
-            "extra_kosten": float(extra_kosten_val), "afbeelding": totaal_opslaan_string, "transmissie": transmission,
+            "extra_kosten": float(extra_kosten_val), "afbeelding": totaal_opslaan_string, "transmissie": transmissie,
             "status": status_invoer, "brandstof": brandstof_invoer, "bouwjaar": int(bouwjaar_invoer), "kleur": kleur_invoer, "cataloguswaarde": float(cat_invoer)
         }
+
 
         supabase.table("voorraad").insert(nieuw_voertuig).execute()
         st.cache_data.clear()
