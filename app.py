@@ -585,31 +585,37 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         c_form1, c_form2 = st.columns(2)
         km_stand_str = c_form1.number_input("Kilometerstand", value=0, step=1)
         apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()), format="DD-MM-YYYY")
-        # -----------------------------------------------------
-        
-        # --- JOUW NIEUWE SCHONE BRANDSTOFBLOK ---
+
+        # --- JOUW NIEUWE SCHONE BRANDSTOFBLOK (GECOOPELD AAN SESSION STATE KEY) ---
         c_form3, c_form4 = st.columns(2)
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
         
-        rdw_brandstof = st.session_state.get("rdw_brandstof", "Benzine")
-        if isinstance(rdw_brandstof, str):
-            rdw_brandstof = rdw_brandstof.strip().title()
-        
-        if rdw_brandstof and rdw_brandstof not in brandstof_opties:
-            brandstof_opties.append(rdw_brandstof)
+        # Zorg dat er ALTIJD een geldige beginwaarde in de session state staat als deze leeg is
+        if "rdw_brandstof" not in st.session_state:
+            st.session_state["rdw_brandstof"] = "Benzine"
             
-        standaard_index = brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0
+        # Als de RDW iets teruggeeft wat niet in de lijst staat, voegen we het netjes toe
+        actuele_brandstof = st.session_state["rdw_brandstof"]
+        if actuele_brandstof and actuele_brandstof not in brandstof_opties:
+            brandstof_opties.append(actuele_brandstof)
             
-        # Dit is het einde van je schone brandstofblok (regel 256-263)
+        standaard_index = brandstof_opties.index(st.session_state["rdw_brandstof"]) if st.session_state["rdw_brandstof"] in brandstof_opties else 0
+            
+        # Door key="rdw_brandstof" te gebruiken, luistert deze selectbox LIVE naar de RDW-knop!
         brandstof_invoer = c_form3.selectbox(
             "Brandstof", 
             options=brandstof_opties, 
             index=standaard_index,
-            key="selectbox_brandstof_uniek"
+            key="rdw_brandstof"  # <-- DIT IS DE CRUCIALE LINK
         )
         
-        # Dit moet er DIRECT onder staan (oude regel 268 is hier gewist):
+        # Omdat de key nu "rdw_brandstof" is, moeten we de variabele voor je database-insert hernoemen naar brandstof_invoer
+        # Zodat regel 299 (nieuw_voertuig) perfect blijft werken zonder fouten!
+        brandstof_invoer = st.session_state["rdw_brandstof"]
+        
         bouwjaar_invoer = c_form4.number_input("Bouwjaar", value=int(st.session_state.get("rdw_bouwjaar", 0)), step=1)
+        
+
         # --- EINDE VAN DE RECENTE GEGEVENS ---
 
         c_form5, c_form6 = st.columns(2)
