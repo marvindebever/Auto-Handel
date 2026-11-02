@@ -113,7 +113,6 @@ if not st.session_state["ingelogd"]:
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     if st.button("Inloggen", type="primary"):
-        # Haalt het wachtwoord veilig op uit de Secrets, met een back-up voor het geval dat
         veilig_wachtwoord = st.secrets.get("PASSWORD")
         
         if not veilig_wachtwoord:
