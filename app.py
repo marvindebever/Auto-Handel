@@ -598,7 +598,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             accept_multiple_files=True, 
             key=f"nieuwe_auto_fotos_{st.session_state['nieuw_auto_uploader_key']}"
         )
-        submit = st.form_submit_button("Voeg toe aan cloud voorraad")
+        submit = st.form_submit_button("Voeg toe aan huidige voorraad")
 
     if submit and kenteken.strip():
         foto_urls = []
