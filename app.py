@@ -917,7 +917,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                                 for idx, url in enumerate(alle_foto_links):
                                     with foto_cols[idx % min(len(alle_foto_links), 3)]:
                                         # Laad de foto bliksemsnel in rechtstreeks vanaf de Supabase CDN link
-                                        st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="{url}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
+                                        st.markdown(f'<img src="{url}" style="width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:8px; display:block;">', unsafe_allow_html=True)
                             else:
                                 st.info("Geen afbeelding beschikbaar.")
                         else:
@@ -1238,7 +1238,7 @@ elif menu_optie == "💰 Financieel Overzicht":
                         foto_cols = st.columns(min(len(alle_foto_links), 3))
                         for idx, url in enumerate(alle_foto_links):
                             with foto_cols[idx % min(len(alle_foto_links), 3)]:
-                                st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="{url}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
+                                st.markdown(f'<img src="{url}" style="width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:8px; display:block;">', unsafe_allow_html=True)
                     else:
                         st.info("Geen afbeelding beschikbaar in cloud storage.")
                 else:
