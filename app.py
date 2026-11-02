@@ -478,7 +478,7 @@ with st.sidebar:
     st.title("⚙️ Navigatie")
     menu_optie = st.sidebar.radio(
         "Kies een functie:",
-        ["🆕 Nieuwe auto toevoegen", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📅 Agenda & Notities", "💰 Financieel Overzicht"]
+        ["🆕 Nieuwe auto toevoegen", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📦 Artikelen", "📅 Agenda & Notities", "💰 Financieel Overzicht"]
     )
     
     st.markdown("---")
@@ -521,7 +521,16 @@ gerealiseerde_winst = sum(float(r['verkoopprijs'] or 0) - (float(r['inkoopprijs'
 if "startbudget" not in st.session_state:
     st.session_state["startbudget"] = 10000.0
 
-actueel_vrij_budget = st.session_state["startbudget"] - totale_voorraadwaarde + gerealiseerde_winst
+# Haal de artikelen op om de totale investering hierin te berekenen
+try:
+    artikelen_res = supabase.table("artikelen").select("aantal, prijs_per_stuk").execute().data
+    totale_waarde_artikelen = sum(int(item["aantal"] or 0) * float(item["prijs_per_stuk"] or 0) for item in artikelen_res)
+except:
+    totale_waarde_artikelen = 0.0
+
+# Trek nu OOK de waarde van de losse artikelen af van het vrije budget
+actueel_vrij_budget = st.session_state["startbudget"] - totale_voorraadwaarde + gerealiseerde_winst - totale_waarde_artikelen
+
 # --- NIEUWE AUTO TOEVOEGEN ---
 if menu_optie == "🆕 Nieuwe auto toevoegen":
     st.title("🆕 Nieuwe auto toevoegen")
@@ -878,6 +887,10 @@ elif menu_optie == "💰 Financieel Overzicht":
     
     # 1. Balans Overzicht Tabel
     st.markdown("### 📊 Balans Overzicht")
+
+    st.markdown(balans_html, unsafe_allow_html=True)
+
+    st.markdown("---")
     balans_html = f"""
     <div style="background-color: rgba(25, 25, 25, 0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
         <table style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -890,23 +903,24 @@ elif menu_optie == "💰 Financieel Overzicht":
             <tbody>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Totale Startkapitaal</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(st.session_state['startbudget'])}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&copy; {formatteer_euro_nl(st.session_state['startbudget'])}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Voorraad</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_voorraadwaarde)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Autovoorraad</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&copy; {formatteer_euro_nl(totale_voorraadwaarde)}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Losse Artikelen</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&copy; {formatteer_euro_nl(totale_waarde_artikelen)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Besteedbaar Cashgeld (Vrij budget)</td>
-                    <td style="padding: 15px 10px; color: {'#ff4b4b' if actueel_vrij_budget < 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(actueel_vrij_budget)}</td>
+                    <td style="padding: 15px 10px; color: {'#ff4b4b' if actueel_vrij_budget < 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">&copy; {formatteer_euro_nl(actueel_vrij_budget)}</td>
                 </tr>
             </tbody>
         </table>
     </div>
     """
-    st.markdown(balans_html, unsafe_allow_html=True)
-
-    st.markdown("---")
     
     # 2. Rendement & Performance Tabel
     st.markdown("### 📈 Rendement & Performance")
@@ -1261,3 +1275,77 @@ elif menu_optie == "📅 Agenda & Notities":
             puur_datum = ruwe_str.strip()
             
         nieuwe_afspraak_popup(puur_datum)
+elif menu_optie == "📦 Artikelen":
+    st.title("📦 Losse Artikelen & Benodigdheden")
+    st.write("Hier kun je artikelen bijhouden die losstaan van de auto's, zoals schoonmaakspullen of gereedschap.")
+
+    # 1. ARTIKELEN OPHALEN UIT SUPABASE
+    try:
+        response = supabase.table("artikelen").select("*").order("naam").execute()
+        artikelen_data = response.data
+    except Exception as e:
+        st.error(f"Fout bij ophalen artikelen: {e}")
+        artikelen_data = []
+
+    # 2. FORMULIER: NIEUW ARTIKEL TOEVOEGEN
+    with st.expander("➕ Nieuw artikel toevoegen"):
+        with st.form("nieuw_artikel_form", clear_on_submit=True):
+            art_naam = st.text_input("Naam artikel", placeholder="Bijv. Dashboard spray, Microvezeldoeken")
+            art_cat = st.selectbox("Categorie", ["Schoonmaak", "Gereedschap", "Kantoor", "Overig"])
+            
+            col_aantal, col_prijs = st.columns(2)
+            with col_aantal:
+                art_aantal = st.number_input("Aantal", min_value=1, value=1, step=1)
+            with col_prijs:
+                art_prijs = st.number_input("Prijs per stuk (€)", min_value=0.0, value=0.0, step=0.50)
+            
+            art_notitie = st.text_area("Notitie / Opmerking", placeholder="Optioneel: waar gekocht of voor wie?")
+            
+            submit_artikel = st.form_submit_button("Artikel opslaan")
+            
+            if submit_artikel:
+                if not art_naam.strip():
+                    st.warning("Vul tenminste een naam in.")
+                else:
+                    nieuw_item = {
+                        "naam": art_naam.strip(),
+                        "categorie": art_cat,
+                        "aantal": int(art_aantal),
+                        "prijs_per_stuk": float(art_prijs),
+                        "notitie": art_notitie.strip()
+                    }
+                    try:
+                        supabase.table("artikelen").insert(nieuw_item).execute()
+                        st.success(f"✔️ {art_naam} succesvol toegevoegd!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Databasefout bij opslaan: {e}")
+
+    # 3. OVERZICHT
+    if artikelen_data:
+        totale_waarde = sum(item["aantal"] * float(item["prijs_per_stuk"] or 0) for item in artikelen_data)
+        st.metric(label="Totale waarde artikelen op voorraad", value=f"€ {totale_waarde:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+        # Toon de artikelen netjes in een tabel
+        df_artikelen = pd.DataFrame(artikelen_data)
+        df_weergave = df_artikelen[["naam", "categorie", "aantal", "prijs_per_stuk", "notitie"]].copy()
+        df_weergave.columns = ["Naam", "Categorie", "Aantal", "Prijs p/s", "Notitie"]
+        
+        st.dataframe(df_weergave, use_container_width=True, hide_index=True)
+        
+        # OPTIE: Artikel verwijderen knop
+        with st.expander("🗑️ Artikel verwijderen"):
+            artikel_opties = {item["naam"]: item["id"] for item in artikelen_data}
+            te_verwijderen = st.selectbox("Selecteer artikel om te wissen", options=list(artikel_opties.keys()))
+            
+            if st.button("Definitief verwijderen", type="primary"):
+                try:
+                    artikel_id = artikel_opties[te_verwijderen]
+                    supabase.table("artikelen").delete().eq("id", artikel_id).execute()
+                    st.success(f"Artikel '{te_verwijderen}' is verwijderd.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Fout bij verwijderen: {e}")
+    else:
+        st.info("Er zijn nog geen losse artikelen toegevoegd.")
+
