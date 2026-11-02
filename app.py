@@ -590,14 +590,14 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         c_form3, c_form4 = st.columns(2)
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
         
-        # 1. Bepaal de standaard indexpositie op basis van de binnengekomen RDW state
+        # 1. Bepaal de standaard indexpositie op basis van de binnengekomen RDW-waarde
         rdw_waarde = st.session_state.get("rdw_brandstof", "Benzine")
         if rdw_waarde and rdw_waarde not in brandstof_opties:
             brandstof_opties.append(rdw_waarde)
             
         standaard_index = brandstof_opties.index(rdw_waarde) if rdw_waarde in brandstof_opties else 0
             
-        # 2. De selectbox maakt DIRECT de variabele 'brandstof_invoer' aan die je database gebruikt
+        # 2. De selectbox maakt HIER direct de variabele 'brandstof_invoer' aan die je database gebruikt
         brandstof_invoer = c_form3.selectbox(
             "Brandstof", 
             options=brandstof_opties, 
@@ -605,9 +605,10 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             key="selectbox_brandstof_definitief"
         )
         
-        # 3. Sluit direct aan met het bouwjaar (REGEL 268 IS HIER VOLLEDIG GEWIST)
+        # 3. Sluit direct aan met het bouwjaar (DE BLOKKERENDE REGEL IS HIER GEWIST)
         bouwjaar_invoer = c_form4.number_input("Bouwjaar", value=int(st.session_state.get("rdw_bouwjaar", 0)), step=1)
-        # --- EINDE VAN DE RECENTE GEGEVENS ---
+        # --- EINDE VAN DE GEGEVENS ---
+
 
         c_form5, c_form6 = st.columns(2)
         kleur_invoer = c_form5.text_input("Kleur", value=st.session_state.get("rdw_kleur", ""))
