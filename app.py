@@ -138,9 +138,8 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         "Accept": "application/json"
     }
     
-    # 1. API URL voor de basis voertuiggegevens
+    # REGEL 84 & 86: Dit moeten de EXACTE opendata URL's zijn (niet rdw.nl)!
     url_voertuig = f"https://rdw.nl{veilig_kenteken}"
-    # 2. API URL voor de brandstof- en techniekgegevens (Aparte RDW tabel)
     url_brandstof = f"https://rdw.nl{veilig_kenteken}"
     
     try:
@@ -199,7 +198,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                     brandstof = "Elektrisch"
                     transmissie_gevonden = "Automaat"
                 
-                # 2. DEFINITIEVE BMW TRANSMISSIE FIX: Check de schakelklasse omschrijving van de RDW!
+                # 2. DEFINITIEVE TRANSMISSIE FIX: Check de schakelklasse omschrijving van de RDW!
                 schakelklasse = str(data_b[0].get("schakelklasse_omschrijving", "")).lower()
                 if "auto" in schakelklasse or "continu" in schakelklasse:
                     transmissie_gevonden = "Automaat"
@@ -219,6 +218,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return {"fout": "De verbinding met de RDW duurde te lang."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
+
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
