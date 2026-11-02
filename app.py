@@ -157,7 +157,9 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 volledige_naam = f"{merk} {model}".strip()
                 kleur = voertuig.get("eerste_kleur", "Onbekend").title()
                 cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
-                brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title()
+                
+                # RECHTGEZET: De RDW API gebruikt 'brandstof_klasse' in deze tabel!
+                brandstof = voertuig.get("brandstof_klasse", "Benzine").title()
 
                 bouwjaar = 0
                 datum_toelating = voertuig.get("datum_eerste_toelating", "")
@@ -579,37 +581,40 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
         kenteken = st.text_input("Kenteken (Verplicht)", value=st.session_state.get("rdw_ktk", ""))
         
+        # --- DIT STUK STOND ER VOORHEEN EN IS NU TERUGGEZET ---
+        c_form1, c_form2 = st.columns(2)
+        km_stand_str = c_form1.number_input("Kilometerstand", value=0, step=1)
+        apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()), format="DD-MM-YYYY")
+        # -----------------------------------------------------
+        
+        # --- JOUW NIEUWE SCHONE BRANDSTOFBLOK ---
         c_form3, c_form4 = st.columns(2)
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
         
-        # 1. Haal de waarde veilig op uit session_state
         rdw_brandstof = st.session_state.get("rdw_brandstof", "Benzine")
-        
-        # 2. Zorg dat we kleine/hoofdletterverschillen gladstrijken
         if isinstance(rdw_brandstof, str):
             rdw_brandstof = rdw_brandstof.strip().title()
         
-        # 3. Voeg de optie toe aan de lijst als de RDW iets nieuws stuurt
         if rdw_brandstof and rdw_brandstof not in brandstof_opties:
             brandstof_opties.append(rdw_brandstof)
             
-        # 4. Bepaal de juiste indexpositie in de lijst
         standaard_index = brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0
             
-        # 5. Maak de selectbox aan met een UNIEKE KEY om de DuplicateElementId fout te voorkomen
+        # Dit is het einde van je schone brandstofblok (regel 256-263)
         brandstof_invoer = c_form3.selectbox(
             "Brandstof", 
             options=brandstof_opties, 
             index=standaard_index,
-            key="selectbox_brandstof_uniek"  # <-- Dit lost de dubbele ID fout op
+            key="selectbox_brandstof_uniek"
         )
-
-            
-        brandstof_invoer = c_form3.selectbox("Brandstof", options=brandstof_opties, index=brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0)
+        
+        # Dit moet er DIRECT onder staan (oude regel 268 is hier gewist):
         bouwjaar_invoer = c_form4.number_input("Bouwjaar", value=int(st.session_state.get("rdw_bouwjaar", 0)), step=1)
+        # --- EINDE VAN DE RECENTE GEGEVENS ---
 
         c_form5, c_form6 = st.columns(2)
         kleur_invoer = c_form5.text_input("Kleur", value=st.session_state.get("rdw_kleur", ""))
+
         cat_invoer = c_form6.number_input("Oorspronkelijke Cataloguswaarde (€)", value=float(st.session_state.get("rdw_cataloguswaarde", 0.0)), step=50.0)
 
         transmissie = st.selectbox("Transmissie", options=["Handgeschakeld", "Automaat"])
