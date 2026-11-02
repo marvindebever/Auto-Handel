@@ -18,6 +18,36 @@ from supabase import create_client
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
 
+# --- CAMERA-FOTO'S (alternatief voor de bestandskiezer, handig op Android) ---
+def _bewaar_camera_foto(prefix):
+    n = st.session_state.get(f"{prefix}_cam_n", 0)
+    foto = st.session_state.get(f"{prefix}_cam_{n}")
+    if foto is not None:
+        st.session_state.setdefault(f"{prefix}_cam_fotos", []).append(foto.getvalue())
+        st.session_state[f"{prefix}_cam_n"] = n + 1  # nieuwe, lege camera-widget
+
+def camera_fotos_widget(prefix):
+    """Toont een camera-optie en geeft de genomen foto's terug als lijst met bestandsobjecten."""
+    st.session_state.setdefault(f"{prefix}_cam_n", 0)
+    st.session_state.setdefault(f"{prefix}_cam_fotos", [])
+    with st.expander("📸 Foto maken met de camera (werkt het kiezen van foto's niet? Gebruik dit)"):
+        st.camera_input(
+            "Maak een foto",
+            key=f"{prefix}_cam_{st.session_state[f'{prefix}_cam_n']}",
+            on_change=_bewaar_camera_foto,
+            args=(prefix,),
+        )
+        aantal = len(st.session_state[f"{prefix}_cam_fotos"])
+        if aantal:
+            st.caption(f"✅ {aantal} camerafoto('s) klaar om op te slaan. Maak er nog een of sla op.")
+            if st.button("🗑️ Camerafoto's wissen", key=f"{prefix}_cam_wis"):
+                st.session_state[f"{prefix}_cam_fotos"] = []
+    return [io.BytesIO(b) for b in st.session_state[f"{prefix}_cam_fotos"]]
+
+def camera_fotos_wissen(prefix):
+    st.session_state[f"{prefix}_cam_fotos"] = []
+
+
 def foto_naar_jpeg(bestand):
     """Zet een geuploade foto (ook van mobiel) om naar een verkleinde JPEG.
     Geeft bytes terug. Past de camera-rotatie (EXIF) toe zodat foto's niet kantelen."""
@@ -375,6 +405,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
     )
     if edit_fotos:
         st.caption(f"✅ {len(edit_fotos)} foto('s) geselecteerd. Ze worden opgeslagen als je op 'Wijzigingen Live Opslaan' drukt.")
+    camera_edit_fotos = camera_fotos_widget(f"edit_{actie_id}")
 
     with st.form(f"edit_form_{actie_id}", clear_on_submit=False):
         edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
@@ -428,8 +459,9 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                         if element and "AANKOOPDATUM:" not in element and element.startswith("http"):
                             basis_fotos.append(element)
 
-                if edit_fotos:
-                    for idx, f in enumerate(edit_fotos):
+                alle_edit_fotos = list(edit_fotos or []) + camera_edit_fotos
+                if alle_edit_fotos:
+                    for idx, f in enumerate(alle_edit_fotos):
                         try:
                             jpeg_bytes = foto_naar_jpeg(f)
                             
@@ -459,6 +491,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 
                 # Hoog de teller op om de uploader-state netjes te resetten na succesvolle opslag
                 st.session_state[uploader_key] += 1
+                camera_fotos_wissen(f"edit_{actie_id}")
                 
                 st.cache_data.clear()
                 st.rerun()
@@ -679,6 +712,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
     )
     if gevoegde_fotos:
         st.caption(f"✅ {len(gevoegde_fotos)} foto('s) geselecteerd. Ze worden opgeslagen als je op 'Voeg toe aan huidige voorraad' drukt.")
+    camera_nieuwe_fotos = camera_fotos_widget("nieuw")
 
     with st.form("auto_form", clear_on_submit=False):
         naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
@@ -761,8 +795,9 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
     if submit and kenteken.strip():
         foto_urls = []
-        if gevoegde_fotos:
-            for idx, f in enumerate(gevoegde_fotos):
+        alle_nieuwe_fotos = list(gevoegde_fotos or []) + camera_nieuwe_fotos
+        if alle_nieuwe_fotos:
+            for idx, f in enumerate(alle_nieuwe_fotos):
                 try:
                     jpeg_bytes = foto_naar_jpeg(f)
                     
@@ -796,6 +831,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
         supabase.table("voorraad").insert(nieuw_voertuig).execute()
         st.session_state["nieuw_auto_uploader_key"] += 1
+        camera_fotos_wissen("nieuw")
         st.cache_data.clear()
         for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
             if sleutel in st.session_state: del st.session_state[sleutel]
