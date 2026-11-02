@@ -163,6 +163,14 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         kleur = voertuig.get("eerste_kleur", "Onbekend").title()
         cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
 
+        # --- NIEUW: TRANSMISSIE UITLEZEN UIT DE HOOFDTABEL ---
+        # De RDW gebruikt vaak verschillende veldnamen per voertuigtype voor de versnellingsbak
+        rdw_trans = voertuig.get("versnellingsbak", "").lower() or voertuig.get("type_versnellingsbak_omschrijving", "").lower()
+        if "auto" in rdw_trans or "cvt" in rdw_trans or "vloeistof" in rdw_trans:
+            transmissie_gevonden = "Automaat"
+        else:
+            transmissie_gevonden = "Handgeschakeld"
+
         bouwjaar = 0
         datum_toelating = voertuig.get("datum_eerste_toelating", "")
         if datum_toelating and len(str(datum_toelating)) >= 4:
@@ -177,30 +185,26 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
 
         # NU: Haal de brandstofgegevens op uit de tweede tabel
         brandstof = "Benzine"  # Standaard fallback
-        transmissie = "Handgeschakeld" # Standaard fallback
-        
         res_b = requests.get(url_brandstof, headers=headers, timeout=8)
         if res_b.status_code == 200:
             data_b = res_b.json()
             if isinstance(data_b, list) and len(data_b) > 0:
-                # 1. Pak de brandstofomschrijving
                 brandstof = data_b[0].get("brandstof_omschrijving", "Benzine").title()
                 if brandstof == "Elektriciteit":
                     brandstof = "Elektrisch"
-                
-                # 2. NIEUW: De brandstoftabel bevat vaak ook indirect de transmissieklasse of weergave via de RDW (indien beschikbaar)
-                # Mocht deze tabel het niet direct bevatten, dan checken we zo de hoofdvoertuigentabel als back-up
-
+                    transmissie_gevonden = "Automaat" # Elektrische auto's zijn altijd automaat
                         
         return {
             "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
             "apk": apk_formatted,
             "brandstof": brandstof,
+            "transmissie": transmissie_gevonden, # <-- DIT STUURT DE TRANSMISSIE MEE
             "bouwjaar": bouwjaar,
             "kleur": kleur,
             "cataloguswaarde": cataloguswaarde,
             "fout": None
         }
+
         
     except requests.exceptions.Timeout:
         return {"fout": "De verbinding met de RDW duurde te lang."}
@@ -313,8 +317,23 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         edit_kleur = col_e5.text_input("Pas Kleur aan", value=str(kleur_h if kleur_h else ""))
         edit_cat = col_e6.number_input("Pas Cataloguswaarde aan (€)", value=float(cat_h) if cat_h else 0.0, step=50.0)
 
+        # --- TRANSMISSIE DROPDOWN LIVE KOPPELEN AAN DE RDW KEY ---
         trans_opties = ["Handgeschakeld", "Automaat"]
-        edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
+        
+        if "rdw_transmissie" not in st.session_state:
+            st.session_state["rdw_transmissie"] = "Handgeschakeld"
+            
+        actuele_trans = st.session_state["rdw_transmissie"]
+        trans_index = trans_opties.index(actuele_trans) if actuele_trans in trans_opties else 0
+        
+        # De dropdown luistert nu live via de key
+        transmissie = st.selectbox(
+            "Transmissie", 
+            options=trans_opties, 
+            index=trans_index,
+            key="rdw_transmissie" # <-- DIT KOPPELT HEM VISUEEL
+        )
+
         
         edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
         
@@ -582,6 +601,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             st.session_state["rdw_naam"] = rdw_data["naam"]
             st.session_state["rdw_apk"] = rdw_data["apk"]
             st.session_state["rdw_brandstof"] = rdw_data["brandstof"]
+            st.session_state["rdw_transmissie"] = rdw_data["transmissie"]
             st.session_state["rdw_bouwjaar"] = rdw_data["bouwjaar"]
             st.session_state["rdw_kleur"] = rdw_data["kleur"]
             st.session_state["rdw_cataloguswaarde"] = rdw_data["cataloguswaarde"]
@@ -635,7 +655,25 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
         cat_invoer = c_form6.number_input("Oorspronkelijke Cataloguswaarde (€)", value=float(st.session_state.get("rdw_cataloguswaarde", 0.0)), step=50.0)
 
-        transmissie = st.selectbox("Transmissie", options=["Handgeschakeld", "Automaat"])
+        # --- TRANSMISSIE DROPDOWN LIVE KOPPELEN AAN DE RDW KEY ---
+        trans_opties = ["Handgeschakeld", "Automaat"]
+        
+        # 1. Zorg dat de sleutel altijd bestaat in de session state om fouten te voorkomen
+        if "rdw_transmissie" not in st.session_state:
+            st.session_state["rdw_transmissie"] = "Handgeschakeld"
+            
+        actuele_trans = st.session_state["rdw_transmissie"]
+        trans_index = trans_opties.index(actuele_trans) if actuele_trans in trans_opties else 0
+        
+        # 2. De dropdown luistert nu live via de key naar de RDW-knop!
+        transmissie = st.selectbox(
+            "Transmissie", 
+            options=trans_opties, 
+            index=trans_index,
+            key="rdw_transmissie" # <-- DIT KOPPELT HEM VISUEEL
+        )
+        # --- EINDE VAN DE TRANSMISSIE CORRECTIE ---
+
         status_invoer = st.selectbox("Status bij instroom", options=["In voorraad", "Gereserveerd"])
         
         # --- NIEUW: Handmatige datumkiezer voor aankoop (staat standaard op vandaag) ---
