@@ -302,7 +302,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         )
 
         
-        submit_edit = st.form_submit_button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True)
+        submit_edit = st.form_submit_button("💾 Wijzigingen Live Opslaan", type="primary", width="stretch")
         
         if submit_edit:
             if edit_ktk.strip():
@@ -370,7 +370,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     datum_levering = st.date_input("Datum van levering", value=datetime.today().date(), format="DD-MM-YYYY")
     bijzondere_afspraken = st.text_area("Aanvullende afspraken (Bijv. inruil, extra onderdelen)", value="Geen.")
 
-    if st.button("🔥 Contract Downloaden", type="primary", use_container_width=True):
+    if st.button("🔥 Contract Downloaden", type="primary", width="stretch"):
         if not koper_naam.strip():
             st.error("Vul tenminste de naam van de koper in.")
             return
@@ -491,7 +491,7 @@ with st.sidebar:
             data=json_string,
             file_name=f"autohandel_cloud_backup_{datetime.today().strftime('%Y-%m-%d')}.json",
             mime="application/json",
-            use_container_width=True
+            width="stretch"
         )
     except:
         st.error("Export mislukt")
@@ -499,13 +499,13 @@ with st.sidebar:
     geimporteerd_bestand = st.file_uploader("📥 Importeer Data naar Cloud", type=["json"])
     if geimporteerd_bestand is not None:
         json_data = geimporteerd_bestand.getvalue().decode("utf-8")
-        if st.button("🔄 Herstel cloud-database nu", type="primary", use_container_width=True):
+        if st.button("🔄 Herstel cloud-database nu", type="primary", width="stretch"):
             if importeer_json_naar_database(json_data):
                 st.toast("⚡ Cloud-database succesvol hersteld!", icon="✅")
                 st.rerun()
 
     st.markdown("---")
-    if st.button("🚪 Uitloggen", use_container_width=True):
+    if st.button("🚪 Uitloggen", width="stretch"):
         st.session_state["ingelogd"] = False
         st.rerun()
 
@@ -539,7 +539,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
     rdw_kenteken = rdw_col1.text_input("Snel RDW via kenteken", placeholder="Bijv. 47-LV-JV").upper().replace("-", "")
 
     with rdw_col2:
-        klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
+        klik_rdw = st.button("🔍 RDW Gegevens Ophalen", width="stretch")
 
     if klik_rdw and rdw_kenteken:
         rdw_data = overheid_rdw_lookup_krachtig(rdw_kenteken)
@@ -700,7 +700,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
             towrite = io.BytesIO()
             df.to_excel(towrite, index=False, engine='openpyxl')
             towrite.seek(0)
-            inv_col3.download_button(label="📊 Excel Export", data=towrite, file_name="inventaris.xlsx", use_container_width=True)
+            inv_col3.download_button(label="📊 Excel Export", data=towrite, file_name="inventaris.xlsx", width="stretch")
         except: pass
         if not verwerkte_autos:
             st.info("Geen auto's gevonden.")
@@ -801,16 +801,16 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         try: km_int = int(float(auto['km_stand']))
                         except: km_int = 0
                             
-                        if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", use_container_width=True):
+                        if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", width="stretch"):
                             bewerk_auto_dialog(auto["id"], auto["kenteken"], km_int, auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"], auto["status"], auto["brandstof"], auto["bouwjaar"], auto["kleur"], auto["cataloguswaarde"])
                         
-                        if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", use_container_width=True):
+                        if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", width="stretch"):
                             supabase.table("voorraad").delete().eq("id", auto["id"]).execute()
                             st.cache_data.clear()
                             st.rerun()
                         
                         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
-                        if st.button("📄 Koopcontract / Factuur", key=f"contract_{auto['id']}", type="secondary", use_container_width=True):
+                        if st.button("📄 Koopcontract / Factuur", key=f"contract_{auto['id']}", type="secondary", width="stretch"):
                             genereer_contract_dialog(auto["id"], auto["naam"], auto["kenteken"], auto["km_stand"], auto["verkoopprijs"], auto["apk_datum"])
 
 elif menu_optie == "💰 Financieel Overzicht":
@@ -1125,7 +1125,7 @@ elif menu_optie == "📅 Agenda & Notities":
            
             ag_titel = st.text_input("Titel (bijv. Auto verhuurd, Vakantie, Showroom dicht)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
-            ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", use_container_width=True)
+            ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", width="stretch")
             
         if ag_submit and ag_titel.strip():
             opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}" if hele_dag else f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}||{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
@@ -1165,15 +1165,15 @@ elif menu_optie == "📅 Agenda & Notities":
             st.markdown("---")
             
             col_b1, col_b2, col_b3 = st.columns(3)
-            if col_b1.button("✅ Voltooid" if status_veld == "Open" else "🔄 Heropenen", use_container_width=True):
+            if col_b1.button("✅ Voltooid" if status_veld == "Open" else "🔄 Heropenen", width="stretch"):
                 nieuwe_status = "Voltooid" if status_veld == "Open" else "Open"
                 supabase.table("agenda").update({"status": nieuwe_status}).eq("id", event_id).execute()
                 st.cache_data.clear()
                 st.rerun()
-            if col_b2.button("✏️ Bewerken", use_container_width=True):
+            if col_b2.button("✏️ Bewerken", width="stretch"):
                 st.session_state[bewerk_modus_key] = True
                 st.rerun()
-            if col_b3.button("🗑️ Wissen", type="secondary", use_container_width=True):
+            if col_b3.button("🗑️ Wissen", type="secondary", width="stretch"):
                 supabase.table("agenda").delete().eq("id", event_id).execute()
                 st.cache_data.clear()
                 st.rerun()
@@ -1202,7 +1202,7 @@ elif menu_optie == "📅 Agenda & Notities":
             
             st.markdown("---")
             col_save1, col_save2 = st.columns(2)
-            if col_save1.button("💾 Opslaan", type="primary", use_container_width=True):
+            if col_save1.button("💾 Opslaan", type="primary", width="stretch"):
                 # Sla de gewijzigde live tijden op in de database!
                 nieuw_datum_format = f"{edit_datum_van}||{edit_datum_tot}" if edit_hele_dag else f"{edit_datum_van}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum_van}T{edit_tijd_tot.strftime('%H:%M:%S')}"
                 supabase.table("agenda").update({"datum": nieuw_datum_format, "titel": edit_titel.strip(), "notitie": edit_notitie.strip()}).eq("id", event_id).execute()
@@ -1334,7 +1334,7 @@ elif menu_optie == "📦 Artikelen":
         df_weergave = df_artikelen[["naam", "categorie", "aantal", "prijs_per_stuk", "notitie"]].copy()
         df_weergave.columns = ["Naam", "Categorie", "Aantal", "Prijs p/s", "Notitie"]
         
-        st.dataframe(df_weergave, use_container_width=True, hide_index=True)
+        st.dataframe(df_weergave, width="stretch", hide_index=True)
         
         # OPTIE: Artikel verwijderen knop
         with st.expander("🗑️ Artikel verwijderen"):
