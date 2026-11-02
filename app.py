@@ -1254,9 +1254,16 @@ elif menu_optie == "📅 Agenda & Notities":
         
     calendar_options = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "height": "100%", "contentHeight": "auto",
+        "initialView": "dayGridMonth", 
+        "locale": "nl", 
+        "timeZone": "local", 
+        "height": "auto",          # Zet de totale hoogte op automatisch
+        "contentHeight": "auto",   # Verwijdert de harde limiet van 550px zodat scrollen werkt
+        "slotMinTime": "07:00:00", # Slaat de nacht over en begint de dag overzichtelijk om 07:00
+        "slotMaxTime": "22:00:00", # Laat de avond doorlopen tot 22:00 zodat 19:00 direct zichtbaar is
         "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
+
     
     state = calendar(events=calendar_events, options=calendar_options, key="agenda_strakke_kalender")
     
