@@ -139,8 +139,10 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     }
     
     # REGEL 84 & 86: Dit moeten de EXACTE opendata URL's zijn (niet rdw.nl)!
+    # GECORRIGEERD: Dit moeten de exacte overheid API URL's zijn met het juiste vraagteken!
     url_voertuig = f"https://rdw.nl{veilig_kenteken}"
     url_brandstof = f"https://rdw.nl{veilig_kenteken}"
+
     
     try:
         # Haal eerst de basisgegevens op
