@@ -1254,7 +1254,7 @@ elif menu_optie == "📅 Agenda & Notities":
         
     calendar_options = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "height": "auto", "contentHeight": 550,
+        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "height": "100%", "contentHeight": "auto",
         "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
     
