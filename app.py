@@ -586,21 +586,27 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         c_form3, c_form4 = st.columns(2)
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
         
-        # Haal de brandstof op en zorg dat eventuele kleine/hoofdletterverschillen worden gladgestreken
-        rdw_brandstof_raw = st.session_state.get("rdw_brandstof", "Benzine").strip().title()
+        # 1. Haal EERST de waarde veilig op uit session_state (of gebruik Benzine als standaard)
+        rdw_brandstof = st.session_state.get("rdw_brandstof", "Benzine")
         
-        # Als de RDW een onbekende brandstof stuurt (bijv. Waterstof), voegen we die netjes toe
-        if rdw_brandstof_raw and rdw_brandstof_raw not in brandstof_opties:
-            brandstof_opties.append(rdw_brandstof_raw)
+        # 2. Zorg dat we kleine/hoofdletterverschillen gladstrijken
+        if isinstance(rdw_brandstof, str):
+            rdw_brandstof = rdw_brandstof.strip().title()
+        
+        # 3. Voeg de optie toe aan de lijst als de RDW iets nieuws stuurt
+        if rdw_brandstof and rdw_brandstof not in brandstof_opties:
+            brandstof_opties.append(rdw_brandstof)
             
-        # Zorg dat de juiste index gepakt wordt
-        standaard_index = brandstof_opties.index(rdw_brandstof_raw) if rdw_brandstof_raw in brandstof_opties else 0
+        # 4. Bepaal de juiste indexpositie in de lijst
+        standaard_index = brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0
             
+        # 5. Maak NU pas de selectbox aan met de klaargezette variabelen
         brandstof_invoer = c_form3.selectbox(
             "Brandstof", 
             options=brandstof_opties, 
             index=standaard_index
         )
+
 
             
         brandstof_invoer = c_form3.selectbox("Brandstof", options=brandstof_opties, index=brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0)
