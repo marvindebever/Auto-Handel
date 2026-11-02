@@ -585,9 +585,23 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         
         c_form3, c_form4 = st.columns(2)
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
-        rdw_brandstof = st.session_state.get("rdw_brandstof", "Benzine")
-        if rdw_brandstof not in brandstof_opties and rdw_brandstof:
-            brandstof_opties.append(rdw_brandstof)
+        
+        # Haal de brandstof op en zorg dat eventuele kleine/hoofdletterverschillen worden gladgestreken
+        rdw_brandstof_raw = st.session_state.get("rdw_brandstof", "Benzine").strip().title()
+        
+        # Als de RDW een onbekende brandstof stuurt (bijv. Waterstof), voegen we die netjes toe
+        if rdw_brandstof_raw and rdw_brandstof_raw not in brandstof_opties:
+            brandstof_opties.append(rdw_brandstof_raw)
+            
+        # Zorg dat de juiste index gepakt wordt
+        standaard_index = brandstof_opties.index(rdw_brandstof_raw) if rdw_brandstof_raw in brandstof_opties else 0
+            
+        brandstof_invoer = c_form3.selectbox(
+            "Brandstof", 
+            options=brandstof_opties, 
+            index=standaard_index
+        )
+
             
         brandstof_invoer = c_form3.selectbox("Brandstof", options=brandstof_opties, index=brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0)
         bouwjaar_invoer = c_form4.number_input("Bouwjaar", value=int(st.session_state.get("rdw_bouwjaar", 0)), step=1)
