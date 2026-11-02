@@ -132,7 +132,11 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    # Maakt het kenteken veilig voor URL's (vervangt spaties door %20, etc.)
+    veilig_kenteken = requests.utils.quote(schoon)
+    
+    # Gebruik de originele API-URL, maar met het gecodeerde kenteken
+    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={veilig_kenteken}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "application/json"
@@ -188,6 +192,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         return {"fout": "De verbinding met de RDW duurde te lang."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
+
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde: return 0 if type_getal == int else 0.0
