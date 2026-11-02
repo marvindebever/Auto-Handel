@@ -594,28 +594,35 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         km_stand_str = c_form1.number_input("Kilometerstand", value=0, step=1)
         apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()), format="DD-MM-YYYY")
 
-        # --- JOUW SCHONE BRANDSTOFBLOK (COMPLEET EN RECHTGEZET) ---
+        # --- JOUW SCHONE BRANDSTOFBLOK (RECHTSTREEKS GEKOPPELD AAN DE RDW KEY) ---
         c_form3, c_form4 = st.columns(2)
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
         
-        # 1. Bepaal de standaard indexpositie op basis van de binnengekomen RDW-waarde
-        rdw_waarde = st.session_state.get("rdw_brandstof", "Benzine")
+        # 1. Zorg dat de sleutel altijd bestaat in de session state om fouten te voorkomen
+        if "rdw_brandstof" not in st.session_state:
+            st.session_state["rdw_brandstof"] = "Benzine"
+            
+        # 2. Als de RDW een waarde stuurt die niet in de basijst staat, voegen we deze toe
+        rdw_waarde = st.session_state["rdw_brandstof"]
         if rdw_waarde and rdw_waarde not in brandstof_opties:
             brandstof_opties.append(rdw_waarde)
             
         standaard_index = brandstof_opties.index(rdw_waarde) if rdw_waarde in brandstof_opties else 0
             
-        # 2. De selectbox maakt HIER direct de variabele 'brandstof_invoer' aan die je database gebruikt
-        brandstof_invoer = c_form3.selectbox(
+        # 3. Door key="rdw_brandstof" te gebruiken, luistert deze dropdown LIVE naar de RDW-knop!
+        c_form3.selectbox(
             "Brandstof", 
             options=brandstof_opties, 
             index=standaard_index,
-            key="selectbox_brandstof_definitief"
+            key="rdw_brandstof"  # <-- DIT IS DE CRUCIALE LINK MET DE RDW KNOP
         )
         
-        # 3. Sluit direct aan met het bouwjaar (DE BLOKKERENDE REGEL IS HIER GEWIST)
+        # 4. Koppel de variabele voor de database-insert (regel 299) aan de actuele widgetwaarde
+        brandstof_invoer = st.session_state["rdw_brandstof"]
+        
+        # 5. Sluit direct aan met het bouwjaar
         bouwjaar_invoer = c_form4.number_input("Bouwjaar", value=int(st.session_state.get("rdw_bouwjaar", 0)), step=1)
-        # --- EINDE VAN DE GEGEVENS ---
+        # --- EINDE VAN DE RECENTE GEGEVENS ---
 
 
         c_form5, c_form6 = st.columns(2)
