@@ -176,7 +176,7 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
 
         # Als een van die velden 'auto', 'cvt', 'vloeistof' of 'steptronic/dct' bevat, is het een automaat
         if "auto" in volledige_tech_tekst or "cvt" in volledige_tech_tekst or "vloeistof" in volledige_tech_tekst:
-            transmissie_gevonden = "Automaat"
+            transmissie_gevonden = "Onbekend"
         else:
             transmissie_gevonden = "Handgeschakeld"
         # ------------------------------------------------------------------------
