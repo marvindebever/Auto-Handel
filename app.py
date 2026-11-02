@@ -1336,6 +1336,53 @@ elif menu_optie == "📦 Artikelen":
         
         st.dataframe(df_weergave, width="stretch", hide_index=True)
         
+        # --- NIEUW: ARTIKEL AANPASSEN ---
+        with st.expander("✏️ Artikel aanpassen / bewerken"):
+            # Maak een woordenboek om makkelijk de ID en huidige gegevens op te halen op basis van de naam
+            artikel_dict = {item["naam"]: item for item in artikelen_data}
+            te_bewerken_naam = st.selectbox("Selecteer het artikel dat je wilt aanpassen", options=list(artikel_dict.keys()), key="select_bewerk_art")
+            
+            if te_bewerken_naam:
+                gekozen_art = artikel_dict[te_bewerken_naam]
+                
+                # Formulier met de huidige waarden al ingevuld
+                with st.form("bewerk_artikel_form", clear_on_submit=False):
+                    bewerk_naam = st.text_input("Pas Naam aan", value=gekozen_art["naam"])
+                    
+                    categorie_opties = ["Schoonmaak", "Gereedschap", "Kantoor", "Overig"]
+                    huidige_cat = gekozen_art["categorie"]
+                    if huidige_cat not in categorie_opties:
+                        categorie_opties.append(huidige_cat)
+                    bewerk_cat = st.selectbox("Pas Categorie aan", options=categorie_opties, index=categorie_opties.index(huidige_cat))
+                    
+                    col_b_aantal, col_b_prijs = st.columns(2)
+                    with col_b_aantal:
+                        bewerk_aantal = col_b_aantal.number_input("Pas Aantal aan", min_value=1, value=int(gekozen_art["aantal"]), step=1)
+                    with col_b_prijs:
+                        bewerk_prijs = col_b_prijs.number_input("Pas Prijs per stuk aan (€)", min_value=0.0, value=float(gekozen_art["prijs_per_stuk"] or 0.0), step=0.50)
+                    
+                    bewerk_notitie = st.text_area("Pas Notitie / Opmerking aan", value=gekozen_art["notitie"] if gekozen_art["notitie"] else "")
+                    
+                    submit_wijziging = st.form_submit_button("💾 Wijzigingen Live Opslaan", width="stretch")
+                    
+                    if submit_wijziging:
+                        if not bewerk_naam.strip():
+                            st.warning("De naam mag niet leeg zijn.")
+                        else:
+                            geüpdatet_item = {
+                                "naam": bewerk_naam.strip(),
+                                "categorie": bewerk_cat,
+                                "aantal": int(bewerk_aantal),
+                                "prijs_per_stuk": float(bewerk_prijs),
+                                "notitie": bewerk_notitie.strip()
+                            }
+                            try:
+                                supabase.table("artikelen").update(geüpdatet_item).eq("id", gekozen_art["id"]).execute()
+                                st.success(f"✔️ {bewerk_naam} succesvol aangepast!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Databasefout bij updaten: {e}")
+
         # OPTIE: Artikel verwijderen knop
         with st.expander("🗑️ Artikel verwijderen"):
             artikel_opties = {item["naam"]: item["id"] for item in artikelen_data}
@@ -1351,4 +1398,5 @@ elif menu_optie == "📦 Artikelen":
                     st.error(f"Fout bij verwijderen: {e}")
     else:
         st.info("Er zijn nog geen losse artikelen toegevoegd.")
+
 
