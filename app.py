@@ -177,15 +177,20 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
 
         # NU: Haal de brandstofgegevens op uit de tweede tabel
         brandstof = "Benzine"  # Standaard fallback
+        transmissie = "Handgeschakeld" # Standaard fallback
+        
         res_b = requests.get(url_brandstof, headers=headers, timeout=8)
         if res_b.status_code == 200:
             data_b = res_b.json()
             if isinstance(data_b, list) and len(data_b) > 0:
-                # Pak de brandstofomschrijving (bijv. "Diesel", "Elektriciteit", "Benzine")
+                # 1. Pak de brandstofomschrijving
                 brandstof = data_b[0].get("brandstof_omschrijving", "Benzine").title()
-                # Schrijf 'Elektriciteit' om naar 'Elektrisch' zodat het matcht met jouw dropdown-opties
                 if brandstof == "Elektriciteit":
                     brandstof = "Elektrisch"
+                
+                # 2. NIEUW: De brandstoftabel bevat vaak ook indirect de transmissieklasse of weergave via de RDW (indien beschikbaar)
+                # Mocht deze tabel het niet direct bevatten, dan checken we zo de hoofdvoertuigentabel als back-up
+
                         
         return {
             "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
