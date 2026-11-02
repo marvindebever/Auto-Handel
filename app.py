@@ -139,9 +139,9 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     }
     
     # 1. API URL voor de basis voertuiggegevens
-    url_voertuig = f"https://rdw.nl{veilig_kenteken}"
-    # 2. API URL voor de brandstof- en techniekgegevens (Aparte RDW tabel)
-    url_brandstof = f"https://rdw.nl{veilig_kenteken}"
+    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={veilig_kenteken}"
+    # 2. API URL voor de brandstofgegevens (Aparte RDW tabel)
+    url_brandstof = f"https://opendata.rdw.nl/resource/8ys7-d773.json?kenteken={veilig_kenteken}"
     
     try:
         # Haal eerst de basisgegevens op
@@ -163,17 +163,24 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         kleur = voertuig.get("eerste_kleur", "Onbekend").title()
         cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
 
-        # Eerste ruwe basis-check op de voertuigtabel
+        # --- NIEUW: TRANSMISSIE UITLEZEN UIT DE HOOFDTABEL ---
+        # De RDW gebruikt vaak verschillende veldnamen per voertuigtype voor de versnellingsbak
+        # --- SLIMMERE TRANSMISSIE-CHECK (INCLUSIEF INRICHTING EN TYPEVOERTUIG) ---
+        # We halen alle mogelijke plekken op waar de RDW de transmissie kan verstoppen
         rdw_trans = str(voertuig.get("versnellingsbak", "")).lower()
         rdw_trans_omschrijving = str(voertuig.get("type_versnellingsbak_omschrijving", "")).lower()
-        rdw_inrichting = str(voertuig.get("inrichting", "")).lower()
+        rdw_inrichting = str(voertuig.get("inrichting", "")).lower() # Cruciaal voor o.a. BMW!
         
+        # We voegen alle teksten samen tot één grote tekst om te doorzoeken
         volledige_tech_tekst = f"{rdw_trans} {rdw_trans_omschrijving} {rdw_inrichting}"
 
+        # Als een van die velden 'auto', 'cvt', 'vloeistof' of 'steptronic/dct' bevat, is het een automaat
         if "auto" in volledige_tech_tekst or "cvt" in volledige_tech_tekst or "vloeistof" in volledige_tech_tekst:
             transmissie_gevonden = "Automaat"
         else:
             transmissie_gevonden = "Handgeschakeld"
+        # ------------------------------------------------------------------------
+
 
         bouwjaar = 0
         datum_toelating = voertuig.get("datum_eerste_toelating", "")
@@ -187,38 +194,34 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
             try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
             except: pass
 
-        # NU: Haal de brandstof- én specifieke schakelgegevens op uit de tweede tabel
+        # NU: Haal de brandstofgegevens op uit de tweede tabel
         brandstof = "Benzine"  # Standaard fallback
         res_b = requests.get(url_brandstof, headers=headers, timeout=8)
         if res_b.status_code == 200:
             data_b = res_b.json()
             if isinstance(data_b, list) and len(data_b) > 0:
-                # 1. Pak de brandstofomschrijving van het eerste element uit de lijst
                 brandstof = data_b[0].get("brandstof_omschrijving", "Benzine").title()
                 if brandstof == "Elektriciteit":
                     brandstof = "Elektrisch"
-                    transmissie_gevonden = "Automaat"
-                
-                # 2. DEFINITIEVE TRANSMISSIE FIX: Check de schakelklasse omschrijving van het eerste element!
-                schakelklasse = str(data_b[0].get("schakelklasse_omschrijving", "")).lower()
-                if "auto" in schakelklasse or "continu" in schakelklasse:
-                    transmissie_gevonden = "Automaat"
+                    transmissie_gevonden = "Automaat" # Elektrische auto's zijn altijd automaat
                         
         return {
             "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
             "apk": apk_formatted,
             "brandstof": brandstof,
-            "transmissie": transmissie_gevonden,
+            "transmissie": transmissie_gevonden, # <-- DIT STUURT DE TRANSMISSIE MEE
             "bouwjaar": bouwjaar,
             "kleur": kleur,
             "cataloguswaarde": cataloguswaarde,
             "fout": None
         }
+
         
     except requests.exceptions.Timeout:
         return {"fout": "De verbinding met de RDW duurde te lang."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
+
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
