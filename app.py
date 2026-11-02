@@ -167,18 +167,8 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         # De RDW gebruikt vaak verschillende veldnamen per voertuigtype voor de versnellingsbak
         # --- SLIMMERE TRANSMISSIE-CHECK (INCLUSIEF INRICHTING EN TYPEVOERTUIG) ---
         # We halen alle mogelijke plekken op waar de RDW de transmissie kan verstoppen
-        rdw_trans = str(voertuig.get("versnellingsbak", "")).lower()
-        rdw_trans_omschrijving = str(voertuig.get("type_versnellingsbak_omschrijving", "")).lower()
-        rdw_inrichting = str(voertuig.get("inrichting", "")).lower() # Cruciaal voor o.a. BMW!
-        
-        # We voegen alle teksten samen tot één grote tekst om te doorzoeken
-        volledige_tech_tekst = f"{rdw_trans} {rdw_trans_omschrijving} {rdw_inrichting}"
-
-        # Als een van die velden 'auto', 'cvt', 'vloeistof' of 'steptronic/dct' bevat, is het een automaat
-        if "auto" in volledige_tech_tekst or "cvt" in volledige_tech_tekst or "vloeistof" in volledige_tech_tekst:
-            transmissie_gevonden = "Onbekend"
-        else:
-            transmissie_gevonden = "Handgeschakeld"
+        # De RDW publiceert de transmissie niet in de basistabel, dus we gokken niet.
+        transmissie_gevonden = "Onbekend"
         # ------------------------------------------------------------------------
 
 
@@ -328,24 +318,17 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         edit_kleur = col_e5.text_input("Pas Kleur aan", value=str(kleur_h if kleur_h else ""))
         edit_cat = col_e6.number_input("Pas Cataloguswaarde aan (€)", value=float(cat_h) if cat_h else 0.0, step=50.0)
 
-        # --- TRANSMISSIE DROPDOWN LIVE KOPPELEN AAN DE RDW KEY ---
-        trans_opties = ["Handgeschakeld", "Automaat"]
-        
-        if "rdw_transmissie" not in st.session_state:
-            st.session_state["rdw_transmissie"] = "Handgeschakeld"
-            
-        actuele_trans = st.session_state["rdw_transmissie"]
-        trans_index = trans_opties.index(actuele_trans) if actuele_trans in trans_opties else 0
-        
-        # De dropdown luistert nu live via de key
-        transmissie = st.selectbox(
-            "Transmissie", 
-            options=trans_opties, 
-            index=trans_index,
-            key="rdw_transmissie" # <-- DIT KOPPELT HEM VISUEEL
+        # --- TRANSMISSIE: begint bij de opgeslagen waarde van deze auto ---
+        trans_opties = ["Onbekend", "Handgeschakeld", "Automaat"]
+        if trans_huidig and trans_huidig not in trans_opties:
+            trans_opties.append(trans_huidig)
+        edit_trans = st.selectbox(
+            "Pas Transmissie aan",
+            options=trans_opties,
+            index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0,
+            key=f"edit_trans_{actie_id}"
         )
 
-        
         edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
         
         col_e7, col_e8, col_e9 = st.columns(3)
@@ -667,11 +650,11 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         cat_invoer = c_form6.number_input("Oorspronkelijke Cataloguswaarde (€)", value=float(st.session_state.get("rdw_cataloguswaarde", 0.0)), step=50.0)
 
         # --- TRANSMISSIE DROPDOWN LIVE KOPPELEN AAN DE RDW KEY ---
-        trans_opties = ["Handgeschakeld", "Automaat"]
+        trans_opties = ["Onbekend", "Handgeschakeld", "Automaat"]
         
         # 1. Zorg dat de sleutel altijd bestaat in de session state om fouten te voorkomen
         if "rdw_transmissie" not in st.session_state:
-            st.session_state["rdw_transmissie"] = "Handgeschakeld"
+            st.session_state["rdw_transmissie"] = "Onbekend"
             
         actuele_trans = st.session_state["rdw_transmissie"]
         trans_index = trans_opties.index(actuele_trans) if actuele_trans in trans_opties else 0
