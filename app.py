@@ -132,68 +132,76 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
     if not schoon:
         return None
     
-    # Maakt het kenteken veilig voor URL's (vervangt spaties door %20, etc.)
     veilig_kenteken = requests.utils.quote(schoon)
-    
-    # Gebruik de originele API-URL, maar met het gecodeerde kenteken
-    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={veilig_kenteken}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "application/json"
     }
     
+    # 1. API URL voor de basis voertuiggegevens
+    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={veilig_kenteken}"
+    # 2. API URL voor de brandstofgegevens (Aparte RDW tabel)
+    url_brandstof = f"https://opendata.rdw.nl/resource/8ys7-d773.json?kenteken={veilig_kenteken}"
+    
     try:
+        # Haal eerst de basisgegevens op
         res_v = requests.get(url_voertuig, headers=headers, timeout=8)
-        if res_v.status_code == 200:
-            if "application/json" not in res_v.headers.get("Content-Type", ""):
-                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het opnieuw."}
-                
-            data_v = res_v.json()
-            if isinstance(data_v, list) and len(data_v) > 0:
-                voertuig = data_v[0]  
-                
-                merk = voertuig.get("merk", "").title()
-                model = voertuig.get("handelsbenaming", "").title()
-                volledige_naam = f"{merk} {model}".strip()
-                kleur = voertuig.get("eerste_kleur", "Onbekend").title()
-                cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
-                
-                # RECHTGEZET: De RDW API gebruikt 'brandstof_klasse' in deze tabel!
-                brandstof = voertuig.get("brandstof_klasse", "Benzine").title()
+        if res_v.status_code != 200:
+            return {"fout": f"RDW Server foutmelding basisgegevens. Statuscode: {res_v.status_code}."}
+            
+        if "application/json" not in res_v.headers.get("Content-Type", ""):
+            return {"fout": "RDW stuurde een onverwacht antwoordformaat. Probeer het opnieuw."}
+            
+        data_v = res_v.json()
+        if not (isinstance(data_v, list) and len(data_v) > 0):
+            return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
+            
+        voertuig = data_v[0]
+        merk = voertuig.get("merk", "").title()
+        model = voertuig.get("handelsbenaming", "").title()
+        volledige_naam = f"{merk} {model}".strip()
+        kleur = voertuig.get("eerste_kleur", "Onbekend").title()
+        cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
 
-                bouwjaar = 0
-                datum_toelating = voertuig.get("datum_eerste_toelating", "")
-                if datum_toelating and len(str(datum_toelating)) >= 4:
-                    try: bouwjaar = int(str(datum_toelating)[:4])
-                    except: pass
+        bouwjaar = 0
+        datum_toelating = voertuig.get("datum_eerste_toelating", "")
+        if datum_toelating and len(str(datum_toelating)) >= 4:
+            try: bouwjaar = int(str(datum_toelating)[:4])
+            except: pass
 
-                apk_verval = voertuig.get("vervaldatum_apk", "")
-                apk_formatted = datetime.today().date()
-                if apk_verval:
-                    try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except: pass
+        apk_verval = voertuig.get("vervaldatum_apk", "")
+        apk_formatted = datetime.today().date()
+        if apk_verval:
+            try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
+            except: pass
+
+        # NU: Haal de brandstofgegevens op uit de tweede tabel
+        brandstof = "Benzine"  # Standaard fallback
+        res_b = requests.get(url_brandstof, headers=headers, timeout=8)
+        if res_b.status_code == 200:
+            data_b = res_b.json()
+            if isinstance(data_b, list) and len(data_b) > 0:
+                # Pak de brandstofomschrijving (bijv. "Diesel", "Elektriciteit", "Benzine")
+                brandstof = data_b[0].get("brandstof_omschrijving", "Benzine").title()
+                # Schrijf 'Elektriciteit' om naar 'Elektrisch' zodat het matcht met jouw dropdown-opties
+                if brandstof == "Elektriciteit":
+                    brandstof = "Elektrisch"
                         
-                return {
-                    "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
-                    "apk": apk_formatted,
-                    "brandstof": brandstof,
-                    "bouwjaar": bouwjaar,
-                    "kleur": kleur,
-                    "cataloguswaarde": cataloguswaarde,
-                    "fout": None
-                }
-            else:
-                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
-        elif res_v.status_code == 403:
-            return {"fout": "Toegang geweigerd (403) door RDW."}
-        elif res_v.status_code == 429:
-            return {"fout": "Te veel aanvragen achter elkaar (429). Wacht 10 seconden."}
-        else:
-            return {"fout": f"RDW Server foutmelding. Statuscode: {res_v.status_code}."}
+        return {
+            "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
+            "apk": apk_formatted,
+            "brandstof": brandstof,
+            "bouwjaar": bouwjaar,
+            "kleur": kleur,
+            "cataloguswaarde": cataloguswaarde,
+            "fout": None
+        }
+        
     except requests.exceptions.Timeout:
         return {"fout": "De verbinding met de RDW duurde te lang."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
+
 
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
