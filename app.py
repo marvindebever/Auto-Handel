@@ -88,11 +88,22 @@ def zet_achtergrond(logo_path="logo.png"):
             border-color: rgb(255, 75, 75) !important;
             color: rgb(255, 75, 75) !important;
         }}
+        
+        /* Zorgt dat de agenda-sectie een strak frame krijgt met een scrollbalk */
+        #agenda-container {{
+            max-height: 650px !important;
+            overflow-y: auto !important;
+            padding-right: 5px;
+        }}
+        iframe[title="streamlit_calendar.calendar"] {{
+            height: 600px !important;
+        }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
 
 zet_achtergrond("logo.png")
+
 # --- BEVEILIGING ---
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
@@ -1265,7 +1276,12 @@ elif menu_optie == "📅 Agenda & Notities":
     }
 
     
-    state = calendar(events=calendar_events, options=calendar_options, key="agenda_strakke_kalender")
+    # Dit is het "jasje" dat zorgt dat de scrollbalk om de kalender heen komt:
+    with st.container(border=False):
+        st.markdown('<div id="agenda-container">', unsafe_allow_html=True)
+        state = calendar(events=calendar_events, options=calendar_options, key="agenda_strakke_kalender")
+        st.markdown('</div>', unsafe_allow_html=True)
+
     
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
