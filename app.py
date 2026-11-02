@@ -142,12 +142,12 @@ def zet_achtergrond(logo_path="logo.png"):
         
         /* Zorgt dat de agenda-sectie een strak frame krijgt met een scrollbalk */
         #agenda-container {{
-            max-height: 650px !important;
+            max-height: 900px !important;
             overflow-y: auto !important;
             padding-right: 5px;
         }}
         iframe[title="streamlit_calendar.calendar"] {{
-            height: 600px !important;
+            height: 850px !important;
         }}
         </style>
         """
@@ -1446,10 +1446,9 @@ elif menu_optie == "📅 Agenda & Notities":
         "initialView": "dayGridMonth", 
         "locale": "nl", 
         "timeZone": "local", 
-        "height": 650,             # GEWIJZIGD: Vaste hoogte in pixels dwingt de interne scrollbalk af
-        "contentHeight": 600,      # GEWIJZIGD: Hoogte van het urenoverzicht strak ingesteld
+        "height": 850,             # Hoog genoeg om 07:00 t/m 22:00 in de week/dag-weergave zonder scrollen te tonen
         "slotMinTime": "07:00:00", # Slaat de nacht over en begint de dag overzichtelijk om 07:00
-        "slotMaxTime": "22:00:00", # Laat de avond doorlopen tot 22:00 zodat 19:00 direct zichtbaar is
+        "slotMaxTime": "22:00:00", # Laat de dag doorlopen tot 22:00
         "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
 
