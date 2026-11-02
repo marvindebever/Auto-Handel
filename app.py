@@ -165,11 +165,22 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
 
         # --- NIEUW: TRANSMISSIE UITLEZEN UIT DE HOOFDTABEL ---
         # De RDW gebruikt vaak verschillende veldnamen per voertuigtype voor de versnellingsbak
-        rdw_trans = voertuig.get("versnellingsbak", "").lower() or voertuig.get("type_versnellingsbak_omschrijving", "").lower()
-        if "auto" in rdw_trans or "cvt" in rdw_trans or "vloeistof" in rdw_trans:
+        # --- SLIMMERE TRANSMISSIE-CHECK (INCLUSIEF INRICHTING EN TYPEVOERTUIG) ---
+        # We halen alle mogelijke plekken op waar de RDW de transmissie kan verstoppen
+        rdw_trans = str(voertuig.get("versnellingsbak", "")).lower()
+        rdw_trans_omschrijving = str(voertuig.get("type_versnellingsbak_omschrijving", "")).lower()
+        rdw_inrichting = str(voertuig.get("inrichting", "")).lower() # Cruciaal voor o.a. BMW!
+        
+        # We voegen alle teksten samen tot één grote tekst om te doorzoeken
+        volledige_tech_tekst = f"{rdw_trans} {rdw_trans_omschrijving} {rdw_inrichting}"
+
+        # Als een van die velden 'auto', 'cvt', 'vloeistof' of 'steptronic/dct' bevat, is het een automaat
+        if "auto" in volledige_tech_tekst or "cvt" in volledige_tech_tekst or "vloeistof" in volledige_tech_tekst:
             transmissie_gevonden = "Automaat"
         else:
             transmissie_gevonden = "Handgeschakeld"
+        # ------------------------------------------------------------------------
+
 
         bouwjaar = 0
         datum_toelating = voertuig.get("datum_eerste_toelating", "")
