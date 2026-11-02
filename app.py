@@ -888,9 +888,7 @@ elif menu_optie == "💰 Financieel Overzicht":
     # 1. Balans Overzicht Tabel
     st.markdown("### 📊 Balans Overzicht")
 
-    st.markdown(balans_html, unsafe_allow_html=True)
-
-    st.markdown("---")
+    # EERST DEFINIËREN:
     balans_html = f"""
     <div style="background-color: rgba(25, 25, 25, 0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
         <table style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -903,24 +901,29 @@ elif menu_optie == "💰 Financieel Overzicht":
             <tbody>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Totale Startkapitaal</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&copy; {formatteer_euro_nl(st.session_state['startbudget'])}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(st.session_state['startbudget'])}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Autovoorraad</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&copy; {formatteer_euro_nl(totale_voorraadwaarde)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_voorraadwaarde)}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Losse Artikelen</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&copy; {formatteer_euro_nl(totale_waarde_artikelen)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_waarde_artikelen)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Besteedbaar Cashgeld (Vrij budget)</td>
-                    <td style="padding: 15px 10px; color: {'#ff4b4b' if actueel_vrij_budget < 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">&copy; {formatteer_euro_nl(actueel_vrij_budget)}</td>
+                    <td style="padding: 15px 10px; color: {'#ff4b4b' if actueel_vrij_budget < 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(actueel_vrij_budget)}</td>
                 </tr>
             </tbody>
         </table>
     </div>
     """
+
+    # DAARNA PAS MET MARKDOWN TONEN:
+    st.markdown(balans_html, unsafe_allow_html=True)
+    st.markdown("---")
+
     
     # 2. Rendement & Performance Tabel
     st.markdown("### 📈 Rendement & Performance")
