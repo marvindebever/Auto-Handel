@@ -1268,12 +1268,13 @@ elif menu_optie == "📅 Agenda & Notities":
         "initialView": "dayGridMonth", 
         "locale": "nl", 
         "timeZone": "local", 
-        "height": "auto",          # Zet de totale hoogte op automatisch
-        "contentHeight": "auto",   # Verwijdert de harde limiet van 550px zodat scrollen werkt
+        "height": 650,             # GEWIJZIGD: Vaste hoogte in pixels dwingt de interne scrollbalk af
+        "contentHeight": 600,      # GEWIJZIGD: Hoogte van het urenoverzicht strak ingesteld
         "slotMinTime": "07:00:00", # Slaat de nacht over en begint de dag overzichtelijk om 07:00
         "slotMaxTime": "22:00:00", # Laat de avond doorlopen tot 22:00 zodat 19:00 direct zichtbaar is
         "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
+
 
     
     # Dit is het "jasje" dat zorgt dat de scrollbalk om de kalender heen komt:
