@@ -113,14 +113,19 @@ if not st.session_state["ingelogd"]:
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     if st.button("Inloggen", type="primary"):
-        veilig_wachtwoord = st.secrets.get("PASSWORD", "DONGEN123")
-        if wachtwoord_invoer == veilig_wachtwoord:
+        # Haalt het wachtwoord veilig op uit de Secrets, met een back-up voor het geval dat
+        veilig_wachtwoord = st.secrets.get("PASSWORD")
+        
+        if not veilig_wachtwoord:
+            st.error("🚨 Systeemfout: Geen wachtwoord ingesteld in Streamlit Secrets.")
+        elif wachtwoord_invoer == veilig_wachtwoord:
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
         else:
             st.error("Onjuist wachtwoord, probeer het opnieuw.")
     st.stop()
+
     
 # --- RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
