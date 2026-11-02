@@ -579,14 +579,10 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
         kenteken = st.text_input("Kenteken (Verplicht)", value=st.session_state.get("rdw_ktk", ""))
         
-        c_form1, c_form2 = st.columns(2)
-        km_stand_str = c_form1.number_input("Kilometerstand", value=0, step=1)
-        apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()), format="DD-MM-YYYY")
-        
         c_form3, c_form4 = st.columns(2)
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
         
-        # 1. Haal EERST de waarde veilig op uit session_state (of gebruik Benzine als standaard)
+        # 1. Haal de waarde veilig op uit session_state
         rdw_brandstof = st.session_state.get("rdw_brandstof", "Benzine")
         
         # 2. Zorg dat we kleine/hoofdletterverschillen gladstrijken
@@ -600,13 +596,13 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         # 4. Bepaal de juiste indexpositie in de lijst
         standaard_index = brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0
             
-        # 5. Maak NU pas de selectbox aan met de klaargezette variabelen
+        # 5. Maak de selectbox aan met een UNIEKE KEY om de DuplicateElementId fout te voorkomen
         brandstof_invoer = c_form3.selectbox(
             "Brandstof", 
             options=brandstof_opties, 
-            index=standaard_index
+            index=standaard_index,
+            key="selectbox_brandstof_uniek"  # <-- Dit lost de dubbele ID fout op
         )
-
 
             
         brandstof_invoer = c_form3.selectbox("Brandstof", options=brandstof_opties, index=brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0)
