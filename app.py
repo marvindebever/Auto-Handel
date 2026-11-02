@@ -126,6 +126,51 @@ if not st.session_state["ingelogd"]:
     st.stop()
 
     
+# --- RDW TRANSMISSIE VIA TYPEGOEDKEURING ---
+def rdw_transmissie_via_typegoedkeuring(voertuig, headers):
+    """Zoekt de transmissie op in de RDW-dataset 'TGK Versnelling Uitvoering' (7rjk-eycs).
+    Koppeling: typegoedkeuringsnummer + variant + uitvoering uit de basistabel.
+    Codes volgens RDW: H = handgeschakeld, A = automaat, C = continu variabel (CVT).
+    Geeft (transmissie, toelichting) terug. Bij twijfel: 'Onbekend'."""
+    tgk = str(voertuig.get("typegoedkeuringsnummer", "")).strip()
+    variant = str(voertuig.get("variant", "")).strip()
+    uitvoering = str(voertuig.get("uitvoering", "")).strip()
+    if not (tgk and variant and uitvoering):
+        return "Onbekend", "Geen typegoedkeuringsgegevens bij dit kenteken"
+
+    try:
+        res = requests.get(
+            "https://opendata.rdw.nl/resource/7rjk-eycs.json",
+            params={
+                "typegoedkeuringsnummer": tgk,
+                "codevarianttgk": variant,
+                "codeuitvoeringtgk": uitvoering,
+            },
+            headers=headers,
+            timeout=8,
+        )
+        if res.status_code != 200:
+            return "Onbekend", f"RDW typegoedkeuring-tabel gaf status {res.status_code}"
+        rijen = res.json()
+    except Exception as e:
+        return "Onbekend", f"Typegoedkeuring-tabel niet bereikbaar ({e})"
+
+    if not isinstance(rijen, list) or not rijen:
+        return "Onbekend", "Geen versnellingsbak-gegevens gevonden bij de typegoedkeuring"
+
+    codes = {str(r.get("codetypeversnellingsbak", "")).strip().upper() for r in rijen}
+    codes.discard("")
+
+    vertaling = {"H": "Handgeschakeld", "A": "Automaat", "C": "Automaat"}
+    soorten = {vertaling[c] for c in codes if c in vertaling}
+
+    if len(soorten) == 1 and codes <= set(vertaling):
+        return soorten.pop(), f"RDW typegoedkeuring (code {', '.join(sorted(codes))})"
+    if len(soorten) > 1:
+        return "Onbekend", "Typegoedkeuring omvat zowel handgeschakeld als automaat"
+    return "Onbekend", f"Onbekende RDW-code(s): {', '.join(sorted(codes)) or 'leeg'}"
+
+
 # --- RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
@@ -167,8 +212,8 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
         # De RDW gebruikt vaak verschillende veldnamen per voertuigtype voor de versnellingsbak
         # --- SLIMMERE TRANSMISSIE-CHECK (INCLUSIEF INRICHTING EN TYPEVOERTUIG) ---
         # We halen alle mogelijke plekken op waar de RDW de transmissie kan verstoppen
-        # De RDW publiceert de transmissie niet in de basistabel, dus we gokken niet.
-        transmissie_gevonden = "Onbekend"
+        # De transmissie staat niet in de basistabel, maar wel in de typegoedkeuring-gegevens.
+        transmissie_gevonden, transmissie_bron = rdw_transmissie_via_typegoedkeuring(voertuig, headers)
         # ------------------------------------------------------------------------
 
 
@@ -194,12 +239,14 @@ def overheid_rdw_lookup_krachtig(kenteken_str):
                 if brandstof == "Elektriciteit":
                     brandstof = "Elektrisch"
                     transmissie_gevonden = "Automaat" # Elektrische auto's zijn altijd automaat
+                    transmissie_bron = "Elektrische auto"
                         
         return {
             "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
             "apk": apk_formatted,
             "brandstof": brandstof,
             "transmissie": transmissie_gevonden, # <-- DIT STUURT DE TRANSMISSIE MEE
+            "transmissie_bron": transmissie_bron,
             "bouwjaar": bouwjaar,
             "kleur": kleur,
             "cataloguswaarde": cataloguswaarde,
@@ -596,6 +643,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             st.session_state["rdw_apk"] = rdw_data["apk"]
             st.session_state["rdw_brandstof"] = rdw_data["brandstof"]
             st.session_state["rdw_transmissie"] = rdw_data["transmissie"]
+            st.session_state["rdw_transmissie_bron"] = rdw_data.get("transmissie_bron", "")
             st.session_state["rdw_bouwjaar"] = rdw_data["bouwjaar"]
             st.session_state["rdw_kleur"] = rdw_data["kleur"]
             st.session_state["rdw_cataloguswaarde"] = rdw_data["cataloguswaarde"]
@@ -666,6 +714,8 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             index=trans_index,
             key="rdw_transmissie" # <-- DIT KOPPELT HEM VISUEEL
         )
+        if st.session_state.get("rdw_transmissie_bron"):
+            st.caption(f"ℹ️ Transmissie: {st.session_state['rdw_transmissie_bron']}. Controleer dit altijd even bij de auto zelf.")
         # --- EINDE VAN DE TRANSMISSIE CORRECTIE ---
 
         status_invoer = st.selectbox("Status bij instroom", options=["In voorraad", "Gereserveerd"])
