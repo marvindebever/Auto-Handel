@@ -3,13 +3,34 @@ from datetime import datetime, timedelta
 import io
 import os
 import json
-from PIL import Image
+from PIL import Image, ImageOps
+try:
+    # Optioneel: zorgt dat iPhone-foto's (HEIC) ook werken
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except Exception:
+    pass
 import streamlit as st
 import pandas as pd
 import requests
 from supabase import create_client
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
+
+
+def foto_naar_jpeg(bestand):
+    """Zet een geuploade foto (ook van mobiel) om naar een verkleinde JPEG.
+    Geeft bytes terug. Past de camera-rotatie (EXIF) toe zodat foto's niet kantelen."""
+    bestand.seek(0)
+    img = Image.open(bestand)
+    img = ImageOps.exif_transpose(img)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    img.thumbnail((1000, 1000))
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=75)
+    return buffer.getvalue()
+
 
 # --- SUPABASE VERBINDING INSTELLEN ---
 @st.cache_resource
@@ -343,6 +364,18 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         except:
             pass
 
+    # --- FOTO'S: bewust BUITEN het formulier, zodat de selectie op mobiel bewaard blijft ---
+    if uploader_key not in st.session_state:
+        st.session_state[uploader_key] = 0
+
+    edit_fotos = st.file_uploader(
+        "📷 Nieuwe foto's toevoegen (kies ze eerst hier)",
+        accept_multiple_files=True,
+        key=f"{uploader_key}_{st.session_state[uploader_key]}"
+    )
+    if edit_fotos:
+        st.caption(f"✅ {len(edit_fotos)} foto('s) geselecteerd. Ze worden opgeslagen als je op 'Wijzigingen Live Opslaan' drukt.")
+
     with st.form(f"edit_form_{actie_id}", clear_on_submit=False):
         edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
         edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -385,18 +418,6 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         
         verwijder_fotos = st.checkbox("🗑️ Alle huidige foto's permanent wissen", value=False)
         
-        # --- NIEUW: Dynamische key op basis van st.session_state voorkomt dat mobiel de selectie wist ---
-        if uploader_key not in st.session_state:
-            st.session_state[uploader_key] = 0
-            
-        edit_fotos = st.file_uploader(
-            "Nieuwe foto's toevoegen", 
-            type=["jpg", "jpeg", "png"], 
-            accept_multiple_files=True, 
-            key=f"{uploader_key}_{st.session_state[uploader_key]}"
-        )
-
-        
         submit_edit = st.form_submit_button("💾 Wijzigingen Live Opslaan", type="primary", width="stretch")
         
         if submit_edit:
@@ -410,15 +431,10 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 if edit_fotos:
                     for idx, f in enumerate(edit_fotos):
                         try:
-                            img = Image.open(f)
-                            if img.mode in ("RGBA", "P"): img = img.convert("RGB")
-                            img.thumbnail((1000, 1000))
-                            buffer = io.BytesIO()
-                            img.save(buffer, format="JPEG", quality=75)
-                            buffer.seek(0)
+                            jpeg_bytes = foto_naar_jpeg(f)
                             
                             bestandsnaam = f"{edit_ktk.upper()}_edit_{idx}_{int(datetime.today().timestamp())}.jpg"
-                            supabase.storage.from_("autofotos").upload(path=bestandsnaam, file=buffer.getvalue(), file_options={"content-type": "image/jpeg"})
+                            supabase.storage.from_("autofotos").upload(path=bestandsnaam, file=jpeg_bytes, file_options={"content-type": "image/jpeg"})
                             openbare_url = supabase.storage.from_("autofotos").get_public_url(bestandsnaam)
                             basis_fotos.append(openbare_url)
                         except Exception as e:
@@ -652,6 +668,18 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         elif rdw_data and rdw_data.get("fout"): 
             st.error(rdw_data["fout"])
 
+    # --- FOTO'S: bewust BUITEN het formulier, zodat de selectie op mobiel bewaard blijft ---
+    if "nieuw_auto_uploader_key" not in st.session_state:
+        st.session_state["nieuw_auto_uploader_key"] = 0
+
+    gevoegde_fotos = st.file_uploader(
+        "📷 Foto's (optioneel, kies ze eerst hier)",
+        accept_multiple_files=True,
+        key=f"nieuwe_auto_fotos_{st.session_state['nieuw_auto_uploader_key']}"
+    )
+    if gevoegde_fotos:
+        st.caption(f"✅ {len(gevoegde_fotos)} foto('s) geselecteerd. Ze worden opgeslagen als je op 'Voeg toe aan huidige voorraad' drukt.")
+
     with st.form("auto_form", clear_on_submit=False):
         naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
         kenteken = st.text_input("Kenteken (Verplicht)", value=st.session_state.get("rdw_ktk", ""))
@@ -729,16 +757,6 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         verkoopprijs_val = c_form8.number_input("Verkoopprijs (€)", value=0.0, step=50.0)
         extra_kosten_val = c_form9.number_input("Extra kosten (€)", value=0.0, step=10.0)
         
-        # --- NIEUW: Voorkom reset op mobiel bij het toevoegen van een nieuwe auto ---
-        if "nieuw_auto_uploader_key" not in st.session_state:
-            st.session_state["nieuw_auto_uploader_key"] = 0
-            
-        gevoegde_fotos = st.file_uploader(
-            "Kies foto's (Optioneel)", 
-            type=["jpg", "jpeg", "png"], 
-            accept_multiple_files=True, 
-            key=f"nieuwe_auto_fotos_{st.session_state['nieuw_auto_uploader_key']}"
-        )
         submit = st.form_submit_button("Voeg toe aan huidige voorraad")
 
     if submit and kenteken.strip():
@@ -746,13 +764,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         if gevoegde_fotos:
             for idx, f in enumerate(gevoegde_fotos):
                 try:
-                    img = Image.open(f)
-                    if img.mode in ("RGBA", "P"):
-                        img = img.convert("RGB")
-                    img.thumbnail((1000, 1000))
-                    buffer = io.BytesIO()
-                    img.save(buffer, format="JPEG", quality=75)
-                    buffer.seek(0)
+                    jpeg_bytes = foto_naar_jpeg(f)
                     
                     # Maak een unieke bestandsnaam voor de cloud-map
                     bestandsnaam = f"{kenteken.upper()}_{idx}_{int(datetime.today().timestamp())}.jpg"
@@ -760,7 +772,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
                     # Upload het bestand rechtstreeks naar de Supabase Storage Bucket
                     supabase.storage.from_("autofotos").upload(
                         path=bestandsnaam,
-                        file=buffer.getvalue(),
+                        file=jpeg_bytes,
                         file_options={"content-type": "image/jpeg"}
                     )
                     
