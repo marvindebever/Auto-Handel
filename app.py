@@ -31,6 +31,11 @@ def camera_fotos_widget(prefix):
     st.session_state.setdefault(f"{prefix}_cam_n", 0)
     st.session_state.setdefault(f"{prefix}_cam_fotos", [])
     with st.expander("📸 Foto maken met de camera (werkt het kiezen van foto's niet? Gebruik dit)"):
+        crop_16_9 = st.checkbox(
+            "Liggende camerafoto's bijsnijden naar 16:9 (houd je telefoon horizontaal)",
+            value=True,
+            key=f"{prefix}_cam_crop",
+        )
         st.camera_input(
             "Maak een foto",
             key=f"{prefix}_cam_{st.session_state[f'{prefix}_cam_n']}",
@@ -42,7 +47,12 @@ def camera_fotos_widget(prefix):
             st.caption(f"✅ {aantal} camerafoto('s) klaar om op te slaan. Maak er nog een of sla op.")
             if st.button("🗑️ Camerafoto's wissen", key=f"{prefix}_cam_wis"):
                 st.session_state[f"{prefix}_cam_fotos"] = []
-    return [io.BytesIO(b) for b in st.session_state[f"{prefix}_cam_fotos"]]
+    bestanden = []
+    for b in st.session_state[f"{prefix}_cam_fotos"]:
+        bio = io.BytesIO(b)
+        bio.crop_16_9 = crop_16_9
+        bestanden.append(bio)
+    return bestanden
 
 def camera_fotos_wissen(prefix):
     st.session_state[f"{prefix}_cam_fotos"] = []
@@ -56,6 +66,17 @@ def foto_naar_jpeg(bestand):
     img = ImageOps.exif_transpose(img)
     if img.mode != "RGB":
         img = img.convert("RGB")
+    # Camerafoto's: liggende foto's in het midden bijsnijden naar 16:9 (staande foto's blijven heel)
+    if getattr(bestand, "crop_16_9", False) and img.width > img.height:
+        breedte, hoogte = img.size
+        if breedte / hoogte < 16 / 9:
+            nieuwe_hoogte = round(breedte * 9 / 16)
+            boven = (hoogte - nieuwe_hoogte) // 2
+            img = img.crop((0, boven, breedte, boven + nieuwe_hoogte))
+        else:
+            nieuwe_breedte = round(hoogte * 16 / 9)
+            links = (breedte - nieuwe_breedte) // 2
+            img = img.crop((links, 0, links + nieuwe_breedte, hoogte))
     img.thumbnail((1000, 1000))
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=75)
