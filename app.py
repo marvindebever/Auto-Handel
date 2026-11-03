@@ -1,4 +1,6 @@
 import base64
+import hmac
+import time
 from datetime import datetime, timedelta
 import io
 import os
@@ -182,24 +184,48 @@ def zet_achtergrond(logo_path="logo.png"):
 zet_achtergrond("logo.png")
 
 # --- BEVEILIGING ---
+MAX_FOUTE_POGINGEN = 5
+BLOKKADE_SECONDEN = 300  # 5 minuten
+
+@st.cache_resource
+def _login_status():
+    """Wordt gedeeld door alle bezoekers, zodat een nieuw tabblad de blokkade niet omzeilt."""
+    return {"fouten": 0, "geblokkeerd_tot": 0.0}
+
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
 
 if not st.session_state["ingelogd"]:
     st.title("🔒 Beveiligde Toegang")
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
+
+    login_status = _login_status()
+    nu = time.time()
+    if nu < login_status["geblokkeerd_tot"]:
+        minuten = int((login_status["geblokkeerd_tot"] - nu) // 60) + 1
+        st.error(f"🚫 Te veel foute pogingen. Inloggen is tijdelijk geblokkeerd. Probeer het over ongeveer {minuten} minuut opnieuw.")
+        st.stop()
+
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     if st.button("Inloggen", type="primary"):
         veilig_wachtwoord = st.secrets.get("PASSWORD")
-        
+
         if not veilig_wachtwoord:
             st.error("🚨 Systeemfout: Geen wachtwoord ingesteld in Streamlit Secrets.")
-        elif wachtwoord_invoer == veilig_wachtwoord:
+        elif hmac.compare_digest(wachtwoord_invoer.encode("utf-8"), str(veilig_wachtwoord).encode("utf-8")):
+            login_status["fouten"] = 0
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
         else:
-            st.error("Onjuist wachtwoord, probeer het opnieuw.")
+            login_status["fouten"] += 1
+            if login_status["fouten"] >= MAX_FOUTE_POGINGEN:
+                login_status["fouten"] = 0
+                login_status["geblokkeerd_tot"] = time.time() + BLOKKADE_SECONDEN
+                st.error("🚫 Te veel foute pogingen. Inloggen is 5 minuten geblokkeerd.")
+            else:
+                over = MAX_FOUTE_POGINGEN - login_status["fouten"]
+                st.error(f"Onjuist wachtwoord. Nog {over} poging(en) over voordat inloggen tijdelijk wordt geblokkeerd.")
     st.stop()
 
     
