@@ -105,11 +105,16 @@ def haal_stat_rijen_op():
     return supabase.table("voorraad").select("inkoopprijs, verkoopprijs, extra_kosten, status").execute().data
 
 # --- STYLING & ACHTERGROND ---
+@st.cache_data(show_spinner=False)
+def _logo_als_base64(logo_path, wijzigingstijd):
+    """Leest het logo één keer in en bewaart de base64-tekst in het geheugen.
+    De wijzigingstijd zorgt dat een vervangen logo.png meteen opnieuw wordt ingelezen."""
+    with open(logo_path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
+
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
-        with open(logo_path, "rb") as f:
-            data = f.read()
-        encoded = base64.b64encode(data).decode("utf-8")
+        encoded = _logo_als_base64(logo_path, os.path.getmtime(logo_path))
         
         css = f"""
         <style>
