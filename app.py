@@ -1,15 +1,99 @@
 import base64
-from datetime import datetime
+import hmac
+import re
+import unicodedata
+import time
+from datetime import datetime, timedelta
 import io
 import os
 import json
-from PIL import Image
+from PIL import Image, ImageOps
+try:
+    # Optioneel: zorgt dat iPhone-foto's (HEIC) ook werken
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except Exception:
+    pass
 import streamlit as st
 import pandas as pd
 import requests
 from supabase import create_client
 
 st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
+
+
+# --- CAMERA-FOTO'S (alternatief voor de bestandskiezer, handig op Android) ---
+def _bewaar_camera_foto(prefix):
+    n = st.session_state.get(f"{prefix}_cam_n", 0)
+    foto = st.session_state.get(f"{prefix}_cam_{n}")
+    if foto is not None:
+        st.session_state.setdefault(f"{prefix}_cam_fotos", []).append(foto.getvalue())
+        st.session_state[f"{prefix}_cam_n"] = n + 1  # nieuwe, lege camera-widget
+
+def camera_fotos_widget(prefix):
+    """Toont een camera-optie en geeft de genomen foto's terug als lijst met bestandsobjecten."""
+    st.session_state.setdefault(f"{prefix}_cam_n", 0)
+    st.session_state.setdefault(f"{prefix}_cam_fotos", [])
+    with st.expander("📸 Foto maken met de camera (werkt het kiezen van foto's niet? Gebruik dit)"):
+        crop_16_9 = st.checkbox(
+            "Liggende camerafoto's bijsnijden naar 16:9 (houd je telefoon horizontaal)",
+            value=True,
+            key=f"{prefix}_cam_crop",
+        )
+        st.camera_input(
+            "Maak een foto",
+            key=f"{prefix}_cam_{st.session_state[f'{prefix}_cam_n']}",
+            on_change=_bewaar_camera_foto,
+            args=(prefix,),
+        )
+        aantal = len(st.session_state[f"{prefix}_cam_fotos"])
+        if aantal:
+            st.caption(f"✅ {aantal} camerafoto('s) klaar om op te slaan. Maak er nog een of sla op.")
+            if st.button("🗑️ Camerafoto's wissen", key=f"{prefix}_cam_wis"):
+                st.session_state[f"{prefix}_cam_fotos"] = []
+    bestanden = []
+    for b in st.session_state[f"{prefix}_cam_fotos"]:
+        bio = io.BytesIO(b)
+        bio.crop_16_9 = crop_16_9
+        bestanden.append(bio)
+    return bestanden
+
+def camera_fotos_wissen(prefix):
+    st.session_state[f"{prefix}_cam_fotos"] = []
+
+
+def veilige_bestandsnaam(tekst, reserve="AUTO"):
+    """Maakt van een kenteken/tekst een naam die Supabase Storage accepteert.
+    Storage staat alleen simpele tekens toe: letters, cijfers, - en _ (geen accenten zoals Ë)."""
+    tekst = unicodedata.normalize("NFKD", str(tekst or ""))
+    tekst = tekst.encode("ascii", "ignore").decode("ascii")  # Ë -> E, é -> e, andere tekens vervallen
+    tekst = re.sub(r"[^A-Za-z0-9_-]+", "_", tekst).strip("_").upper()
+    return tekst or reserve
+
+def foto_naar_jpeg(bestand):
+    """Zet een geuploade foto (ook van mobiel) om naar een verkleinde JPEG.
+    Geeft bytes terug. Past de camera-rotatie (EXIF) toe zodat foto's niet kantelen."""
+    bestand.seek(0)
+    img = Image.open(bestand)
+    img = ImageOps.exif_transpose(img)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    # Camerafoto's: liggende foto's in het midden bijsnijden naar 16:9 (staande foto's blijven heel)
+    if getattr(bestand, "crop_16_9", False) and img.width > img.height:
+        breedte, hoogte = img.size
+        if breedte / hoogte < 16 / 9:
+            nieuwe_hoogte = round(breedte * 9 / 16)
+            boven = (hoogte - nieuwe_hoogte) // 2
+            img = img.crop((0, boven, breedte, boven + nieuwe_hoogte))
+        else:
+            nieuwe_breedte = round(hoogte * 16 / 9)
+            links = (breedte - nieuwe_breedte) // 2
+            img = img.crop((links, 0, links + nieuwe_breedte, hoogte))
+    img.thumbnail((1000, 1000))
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=75)
+    return buffer.getvalue()
+
 
 # --- SUPABASE VERBINDING INSTELLEN ---
 @st.cache_resource
@@ -33,11 +117,16 @@ def haal_stat_rijen_op():
     return supabase.table("voorraad").select("inkoopprijs, verkoopprijs, extra_kosten, status").execute().data
 
 # --- STYLING & ACHTERGROND ---
+@st.cache_data(show_spinner=False)
+def _logo_als_base64(logo_path, wijzigingstijd):
+    """Leest het logo één keer in en bewaart de base64-tekst in het geheugen.
+    De wijzigingstijd zorgt dat een vervangen logo.png meteen opnieuw wordt ingelezen."""
+    with open(logo_path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
+
 def zet_achtergrond(logo_path="logo.png"):
     if os.path.exists(logo_path):
-        with open(logo_path, "rb") as f:
-            data = f.read()
-        encoded = base64.b64encode(data).decode("utf-8")
+        encoded = _logo_als_base64(logo_path, os.path.getmtime(logo_path))
         
         css = f"""
         <style>
@@ -88,91 +177,202 @@ def zet_achtergrond(logo_path="logo.png"):
             border-color: rgb(255, 75, 75) !important;
             color: rgb(255, 75, 75) !important;
         }}
+        
+        /* Zorgt dat de agenda-sectie een strak frame krijgt met een scrollbalk */
+        #agenda-container {{
+            max-height: 900px !important;
+            overflow-y: auto !important;
+            padding-right: 5px;
+        }}
+        iframe[title="streamlit_calendar.calendar"] {{
+            height: 850px !important;
+        }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
 
 zet_achtergrond("logo.png")
+
 # --- BEVEILIGING ---
+MAX_FOUTE_POGINGEN = 5
+BLOKKADE_SECONDEN = 300  # 5 minuten
+
+@st.cache_resource
+def _login_status():
+    """Wordt gedeeld door alle bezoekers, zodat een nieuw tabblad de blokkade niet omzeilt."""
+    return {"fouten": 0, "geblokkeerd_tot": 0.0}
+
 if "ingelogd" not in st.session_state:
     st.session_state["ingelogd"] = False
 
 if not st.session_state["ingelogd"]:
     st.title("🔒 Beveiligde Toegang")
     st.write("Voer het wachtwoord in om toegang te krijgen tot de autohandel inventaris.")
+
+    login_status = _login_status()
+    nu = time.time()
+    if nu < login_status["geblokkeerd_tot"]:
+        minuten = int((login_status["geblokkeerd_tot"] - nu) // 60) + 1
+        st.error(f"🚫 Te veel foute pogingen. Inloggen is tijdelijk geblokkeerd. Probeer het over ongeveer {minuten} minuut opnieuw.")
+        st.stop()
+
     wachtwoord_invoer = st.text_input("Wachtwoord", type="password")
     if st.button("Inloggen", type="primary"):
-        veilig_wachtwoord = st.secrets.get("PASSWORD", "DONGEN123")
-        if wachtwoord_invoer == veilig_wachtwoord:
+        veilig_wachtwoord = st.secrets.get("PASSWORD")
+
+        if not veilig_wachtwoord:
+            st.error("🚨 Systeemfout: Geen wachtwoord ingesteld in Streamlit Secrets.")
+        elif hmac.compare_digest(wachtwoord_invoer.encode("utf-8"), str(veilig_wachtwoord).encode("utf-8")):
+            login_status["fouten"] = 0
             st.session_state["ingelogd"] = True
             st.success("Succesvol ingelogd!")
             st.rerun()
         else:
-            st.error("Onjuist wachtwoord, probeer het opnieuw.")
+            login_status["fouten"] += 1
+            if login_status["fouten"] >= MAX_FOUTE_POGINGEN:
+                login_status["fouten"] = 0
+                login_status["geblokkeerd_tot"] = time.time() + BLOKKADE_SECONDEN
+                st.error("🚫 Te veel foute pogingen. Inloggen is 5 minuten geblokkeerd.")
+            else:
+                over = MAX_FOUTE_POGINGEN - login_status["fouten"]
+                st.error(f"Onjuist wachtwoord. Nog {over} poging(en) over voordat inloggen tijdelijk wordt geblokkeerd.")
     st.stop()
+
     
+# --- RDW TRANSMISSIE VIA TYPEGOEDKEURING ---
+def rdw_transmissie_via_typegoedkeuring(voertuig, headers):
+    """Zoekt de transmissie op in de RDW-dataset 'TGK Versnelling Uitvoering' (7rjk-eycs).
+    Koppeling: typegoedkeuringsnummer + variant + uitvoering uit de basistabel.
+    Codes volgens RDW: H = handgeschakeld, A = automaat, C = continu variabel (CVT).
+    Geeft (transmissie, toelichting) terug. Bij twijfel: 'Onbekend'."""
+    tgk = str(voertuig.get("typegoedkeuringsnummer", "")).strip()
+    variant = str(voertuig.get("variant", "")).strip()
+    uitvoering = str(voertuig.get("uitvoering", "")).strip()
+    if not (tgk and variant and uitvoering):
+        return "Onbekend", "Geen typegoedkeuringsgegevens bij dit kenteken"
+
+    try:
+        res = requests.get(
+            "https://opendata.rdw.nl/resource/7rjk-eycs.json",
+            params={
+                "typegoedkeuringsnummer": tgk,
+                "codevarianttgk": variant,
+                "codeuitvoeringtgk": uitvoering,
+            },
+            headers=headers,
+            timeout=8,
+        )
+        if res.status_code != 200:
+            return "Onbekend", f"RDW typegoedkeuring-tabel gaf status {res.status_code}"
+        rijen = res.json()
+    except Exception as e:
+        return "Onbekend", f"Typegoedkeuring-tabel niet bereikbaar ({e})"
+
+    if not isinstance(rijen, list) or not rijen:
+        return "Onbekend", "Geen versnellingsbak-gegevens gevonden bij de typegoedkeuring"
+
+    codes = {str(r.get("codetypeversnellingsbak", "")).strip().upper() for r in rijen}
+    codes.discard("")
+
+    vertaling = {"H": "Handgeschakeld", "A": "Automaat", "C": "Automaat"}
+    soorten = {vertaling[c] for c in codes if c in vertaling}
+
+    if len(soorten) == 1 and codes <= set(vertaling):
+        return soorten.pop(), f"RDW typegoedkeuring (code {', '.join(sorted(codes))})"
+    if len(soorten) > 1:
+        return "Onbekend", "Typegoedkeuring omvat zowel handgeschakeld als automaat"
+    return "Onbekend", f"Onbekende RDW-code(s): {', '.join(sorted(codes)) or 'leeg'}"
+
+
 # --- RDW KOPPELING ---
 def overheid_rdw_lookup_krachtig(kenteken_str):
     schoon = kenteken_str.replace("-", "").upper().strip()
     if not schoon:
         return None
     
-    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={schoon}"
+    veilig_kenteken = requests.utils.quote(schoon)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "application/json"
     }
     
+    # 1. API URL voor de basis voertuiggegevens
+    url_voertuig = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={veilig_kenteken}"
+    # 2. API URL voor de brandstofgegevens (Aparte RDW tabel)
+    url_brandstof = f"https://opendata.rdw.nl/resource/8ys7-d773.json?kenteken={veilig_kenteken}"
+    
     try:
+        # Haal eerst de basisgegevens op
         res_v = requests.get(url_voertuig, headers=headers, timeout=8)
-        if res_v.status_code == 200:
-            if "application/json" not in res_v.headers.get("Content-Type", ""):
-                return {"fout": "RDW stuurde een onverwacht antwoordformaat (HTML). Probeer het opnieuw."}
-                
-            data_v = res_v.json()
-            if isinstance(data_v, list) and len(data_v) > 0:
-                voertuig = data_v[0]  
-                
-                merk = voertuig.get("merk", "").title()
-                model = voertuig.get("handelsbenaming", "").title()
-                volledige_naam = f"{merk} {model}".strip()
-                kleur = voertuig.get("eerste_kleur", "Onbekend").title()
-                cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
-                brandstof = voertuig.get("brandstof_omschrijving", "Benzine").title()
+        if res_v.status_code != 200:
+            return {"fout": f"RDW Server foutmelding basisgegevens. Statuscode: {res_v.status_code}."}
+            
+        if "application/json" not in res_v.headers.get("Content-Type", ""):
+            return {"fout": "RDW stuurde een onverwacht antwoordformaat. Probeer het opnieuw."}
+            
+        data_v = res_v.json()
+        if not (isinstance(data_v, list) and len(data_v) > 0):
+            return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
+            
+        voertuig = data_v[0]
+        merk = voertuig.get("merk", "").title()
+        model = voertuig.get("handelsbenaming", "").title()
+        volledige_naam = f"{merk} {model}".strip()
+        kleur = voertuig.get("eerste_kleur", "Onbekend").title()
+        cataloguswaarde = naar_getal(voertuig.get("catalogusprijs", 0.0))
 
-                bouwjaar = 0
-                datum_toelating = voertuig.get("datum_eerste_toelating", "")
-                if datum_toelating and len(str(datum_toelating)) >= 4:
-                    try: bouwjaar = int(str(datum_toelating)[:4])
-                    except: pass
+        # --- NIEUW: TRANSMISSIE UITLEZEN UIT DE HOOFDTABEL ---
+        # De RDW gebruikt vaak verschillende veldnamen per voertuigtype voor de versnellingsbak
+        # --- SLIMMERE TRANSMISSIE-CHECK (INCLUSIEF INRICHTING EN TYPEVOERTUIG) ---
+        # We halen alle mogelijke plekken op waar de RDW de transmissie kan verstoppen
+        # De transmissie staat niet in de basistabel, maar wel in de typegoedkeuring-gegevens.
+        transmissie_gevonden, transmissie_bron = rdw_transmissie_via_typegoedkeuring(voertuig, headers)
+        # ------------------------------------------------------------------------
 
-                apk_verval = voertuig.get("vervaldatum_apk", "")
-                apk_formatted = datetime.today().date()
-                if apk_verval:
-                    try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
-                    except: pass
+
+        bouwjaar = 0
+        datum_toelating = voertuig.get("datum_eerste_toelating", "")
+        if datum_toelating and len(str(datum_toelating)) >= 4:
+            try: bouwjaar = int(str(datum_toelating)[:4])
+            except: pass
+
+        apk_verval = voertuig.get("vervaldatum_apk", "")
+        apk_formatted = datetime.today().date()
+        if apk_verval:
+            try: apk_formatted = datetime.strptime(str(apk_verval), "%Y%m%d").date()
+            except: pass
+
+        # NU: Haal de brandstofgegevens op uit de tweede tabel
+        brandstof = "Benzine"  # Standaard fallback
+        res_b = requests.get(url_brandstof, headers=headers, timeout=8)
+        if res_b.status_code == 200:
+            data_b = res_b.json()
+            if isinstance(data_b, list) and len(data_b) > 0:
+                brandstof = data_b[0].get("brandstof_omschrijving", "Benzine").title()
+                if brandstof == "Elektriciteit":
+                    brandstof = "Elektrisch"
+                    transmissie_gevonden = "Automaat" # Elektrische auto's zijn altijd automaat
+                    transmissie_bron = "Elektrische auto"
                         
-                return {
-                    "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
-                    "apk": apk_formatted,
-                    "brandstof": brandstof,
-                    "bouwjaar": bouwjaar,
-                    "kleur": kleur,
-                    "cataloguswaarde": cataloguswaarde,
-                    "fout": None
-                }
-            else:
-                return {"fout": "Kenteken niet gevonden in het openbare RDW-register."}
-        elif res_v.status_code == 403:
-            return {"fout": "Toegang geweigerd (403) door RDW."}
-        elif res_v.status_code == 429:
-            return {"fout": "Te veel aanvragen achter elkaar (429). Wacht 10 seconden."}
-        else:
-            return {"fout": f"RDW Server foutmelding. Statuscode: {res_v.status_code}."}
+        return {
+            "naam": volledige_naam if volledige_naam else "Onbekend voertuig",
+            "apk": apk_formatted,
+            "brandstof": brandstof,
+            "transmissie": transmissie_gevonden, # <-- DIT STUURT DE TRANSMISSIE MEE
+            "transmissie_bron": transmissie_bron,
+            "bouwjaar": bouwjaar,
+            "kleur": kleur,
+            "cataloguswaarde": cataloguswaarde,
+            "fout": None
+        }
+
+        
     except requests.exceptions.Timeout:
         return {"fout": "De verbinding met de RDW duurde te lang."}
     except Exception as e:
         return {"fout": f"Fout bij ophalen RDW-gegevens: {str(e)}"}
+
+
 # --- HELPER FUNCTIES VOOR FORMATTERING ---
 def naar_getal(tekst_waarde, type_getal=float):
     if not tekst_waarde: return 0 if type_getal == int else 0.0
@@ -256,6 +456,19 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         except:
             pass
 
+    # --- FOTO'S: bewust BUITEN het formulier, zodat de selectie op mobiel bewaard blijft ---
+    if uploader_key not in st.session_state:
+        st.session_state[uploader_key] = 0
+
+    edit_fotos = st.file_uploader(
+        "📷 Nieuwe foto's toevoegen (kies ze eerst hier)",
+        accept_multiple_files=True,
+        key=f"{uploader_key}_{st.session_state[uploader_key]}"
+    )
+    if edit_fotos:
+        st.caption(f"✅ {len(edit_fotos)} foto('s) geselecteerd. Ze worden opgeslagen als je op 'Wijzigingen Live Opslaan' drukt.")
+    camera_edit_fotos = camera_fotos_widget(f"edit_{actie_id}")
+
     with st.form(f"edit_form_{actie_id}", clear_on_submit=False):
         edit_naam = st.text_input("Pas Naam / Omschrijving aan", value=auto_naam if auto_naam else "")
         edit_ktk = st.text_input("Pas Kenteken aan", value=ktk)
@@ -278,9 +491,17 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         edit_kleur = col_e5.text_input("Pas Kleur aan", value=str(kleur_h if kleur_h else ""))
         edit_cat = col_e6.number_input("Pas Cataloguswaarde aan (€)", value=float(cat_h) if cat_h else 0.0, step=50.0)
 
-        trans_opties = ["Handgeschakeld", "Automaat"]
-        edit_trans = st.selectbox("Pas Transmissie aan", options=trans_opties, index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0)
-        
+        # --- TRANSMISSIE: begint bij de opgeslagen waarde van deze auto ---
+        trans_opties = ["Onbekend", "Handgeschakeld", "Automaat"]
+        if trans_huidig and trans_huidig not in trans_opties:
+            trans_opties.append(trans_huidig)
+        edit_trans = st.selectbox(
+            "Pas Transmissie aan",
+            options=trans_opties,
+            index=trans_opties.index(trans_huidig) if trans_huidig in trans_opties else 0,
+            key=f"edit_trans_{actie_id}"
+        )
+
         edit_aankoopdatum = st.date_input("Pas Datum aankoop aan", value=standaard_aankoopdatum, format="DD-MM-YYYY")
         
         col_e7, col_e8, col_e9 = st.columns(3)
@@ -290,19 +511,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
         
         verwijder_fotos = st.checkbox("🗑️ Alle huidige foto's permanent wissen", value=False)
         
-        # --- NIEUW: Dynamische key op basis van st.session_state voorkomt dat mobiel de selectie wist ---
-        if uploader_key not in st.session_state:
-            st.session_state[uploader_key] = 0
-            
-        edit_fotos = st.file_uploader(
-            "Nieuwe foto's toevoegen", 
-            type=["jpg", "jpeg", "png"], 
-            accept_multiple_files=True, 
-            key=f"{uploader_key}_{st.session_state[uploader_key]}"
-        )
-
-        
-        submit_edit = st.form_submit_button("💾 Wijzigingen Live Opslaan", type="primary", use_container_width=True)
+        submit_edit = st.form_submit_button("💾 Wijzigingen Live Opslaan", type="primary", width="stretch")
         
         if submit_edit:
             if edit_ktk.strip():
@@ -312,18 +521,14 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                         if element and "AANKOOPDATUM:" not in element and element.startswith("http"):
                             basis_fotos.append(element)
 
-                if edit_fotos:
-                    for idx, f in enumerate(edit_fotos):
+                alle_edit_fotos = list(edit_fotos or []) + camera_edit_fotos
+                if alle_edit_fotos:
+                    for idx, f in enumerate(alle_edit_fotos):
                         try:
-                            img = Image.open(f)
-                            if img.mode in ("RGBA", "P"): img = img.convert("RGB")
-                            img.thumbnail((1000, 1000))
-                            buffer = io.BytesIO()
-                            img.save(buffer, format="JPEG", quality=75)
-                            buffer.seek(0)
+                            jpeg_bytes = foto_naar_jpeg(f)
                             
-                            bestandsnaam = f"{edit_ktk.upper()}_edit_{idx}_{int(datetime.today().timestamp())}.jpg"
-                            supabase.storage.from_("autofotos").upload(path=bestandsnaam, file=buffer.getvalue(), file_options={"content-type": "image/jpeg"})
+                            bestandsnaam = f"{veilige_bestandsnaam(edit_ktk)}_edit_{idx}_{int(datetime.today().timestamp())}.jpg"
+                            supabase.storage.from_("autofotos").upload(path=bestandsnaam, file=jpeg_bytes, file_options={"content-type": "image/jpeg"})
                             openbare_url = supabase.storage.from_("autofotos").get_public_url(bestandsnaam)
                             basis_fotos.append(openbare_url)
                         except Exception as e:
@@ -348,6 +553,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                 
                 # Hoog de teller op om de uploader-state netjes te resetten na succesvolle opslag
                 st.session_state[uploader_key] += 1
+                camera_fotos_wissen(f"edit_{actie_id}")
                 
                 st.cache_data.clear()
                 st.rerun()
@@ -370,7 +576,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
     datum_levering = st.date_input("Datum van levering", value=datetime.today().date(), format="DD-MM-YYYY")
     bijzondere_afspraken = st.text_area("Aanvullende afspraken (Bijv. inruil, extra onderdelen)", value="Geen.")
 
-    if st.button("🔥 Contract Downloaden", type="primary", use_container_width=True):
+    if st.button("🔥 Contract Downloaden", type="primary", width="stretch"):
         if not koper_naam.strip():
             st.error("Vul tenminste de naam van de koper in.")
             return
@@ -468,7 +674,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         </html>
         """
         b64 = base64.b64encode(html_content.encode('utf-8')).decode()
-        filename = f"Koopovereenkomst_{kenteken}_{huidige_datum_formatted}.html"
+        filename = f"Koopovereenkomst_{veilige_bestandsnaam(kenteken)}_{huidige_datum_formatted}.html"
         href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst</a>'
         st.markdown(href, unsafe_allow_html=True)
 
@@ -478,7 +684,7 @@ with st.sidebar:
     st.title("⚙️ Navigatie")
     menu_optie = st.sidebar.radio(
         "Kies een functie:",
-        ["🆕 Nieuwe auto toevoegen", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📅 Agenda & Notities", "💰 Financieel Overzicht"]
+        ["🆕 Nieuwe auto toevoegen", "🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen", "📦 Artikelen", "📅 Agenda & Notities", "💰 Financieel Overzicht"]
     )
     
     st.markdown("---")
@@ -491,7 +697,7 @@ with st.sidebar:
             data=json_string,
             file_name=f"autohandel_cloud_backup_{datetime.today().strftime('%Y-%m-%d')}.json",
             mime="application/json",
-            use_container_width=True
+            width="stretch"
         )
     except:
         st.error("Export mislukt")
@@ -499,13 +705,13 @@ with st.sidebar:
     geimporteerd_bestand = st.file_uploader("📥 Importeer Data naar Cloud", type=["json"])
     if geimporteerd_bestand is not None:
         json_data = geimporteerd_bestand.getvalue().decode("utf-8")
-        if st.button("🔄 Herstel cloud-database nu", type="primary", use_container_width=True):
+        if st.button("🔄 Herstel cloud-database nu", type="primary", width="stretch"):
             if importeer_json_naar_database(json_data):
                 st.toast("⚡ Cloud-database succesvol hersteld!", icon="✅")
                 st.rerun()
 
     st.markdown("---")
-    if st.button("🚪 Uitloggen", use_container_width=True):
+    if st.button("🚪 Uitloggen", width="stretch"):
         st.session_state["ingelogd"] = False
         st.rerun()
 
@@ -521,7 +727,16 @@ gerealiseerde_winst = sum(float(r['verkoopprijs'] or 0) - (float(r['inkoopprijs'
 if "startbudget" not in st.session_state:
     st.session_state["startbudget"] = 10000.0
 
-actueel_vrij_budget = st.session_state["startbudget"] - totale_voorraadwaarde + gerealiseerde_winst
+# Haal de artikelen op om de totale investering hierin te berekenen
+try:
+    artikelen_res = supabase.table("artikelen").select("aantal, prijs_per_stuk").execute().data
+    totale_waarde_artikelen = sum(int(item["aantal"] or 0) * float(item["prijs_per_stuk"] or 0) for item in artikelen_res)
+except:
+    totale_waarde_artikelen = 0.0
+
+# Trek nu OOK de waarde van de losse artikelen af van het vrije budget
+actueel_vrij_budget = st.session_state["startbudget"] - totale_voorraadwaarde + gerealiseerde_winst - totale_waarde_artikelen
+
 # --- NIEUWE AUTO TOEVOEGEN ---
 if menu_optie == "🆕 Nieuwe auto toevoegen":
     st.title("🆕 Nieuwe auto toevoegen")
@@ -530,7 +745,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
     rdw_kenteken = rdw_col1.text_input("Snel RDW via kenteken", placeholder="Bijv. 47-LV-JV").upper().replace("-", "")
 
     with rdw_col2:
-        klik_rdw = st.button("🔍 RDW Gegevens Ophalen", use_container_width=True)
+        klik_rdw = st.button("🔍 RDW Gegevens Ophalen", width="stretch")
 
     if klik_rdw and rdw_kenteken:
         rdw_data = overheid_rdw_lookup_krachtig(rdw_kenteken)
@@ -538,6 +753,8 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
             st.session_state["rdw_naam"] = rdw_data["naam"]
             st.session_state["rdw_apk"] = rdw_data["apk"]
             st.session_state["rdw_brandstof"] = rdw_data["brandstof"]
+            st.session_state["rdw_transmissie"] = rdw_data["transmissie"]
+            st.session_state["rdw_transmissie_bron"] = rdw_data.get("transmissie_bron", "")
             st.session_state["rdw_bouwjaar"] = rdw_data["bouwjaar"]
             st.session_state["rdw_kleur"] = rdw_data["kleur"]
             st.session_state["rdw_cataloguswaarde"] = rdw_data["cataloguswaarde"]
@@ -546,28 +763,85 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         elif rdw_data and rdw_data.get("fout"): 
             st.error(rdw_data["fout"])
 
+    # --- FOTO'S: bewust BUITEN het formulier, zodat de selectie op mobiel bewaard blijft ---
+    if "nieuw_auto_uploader_key" not in st.session_state:
+        st.session_state["nieuw_auto_uploader_key"] = 0
+
+    gevoegde_fotos = st.file_uploader(
+        "📷 Foto's (optioneel, kies ze eerst hier)",
+        accept_multiple_files=True,
+        key=f"nieuwe_auto_fotos_{st.session_state['nieuw_auto_uploader_key']}"
+    )
+    if gevoegde_fotos:
+        st.caption(f"✅ {len(gevoegde_fotos)} foto('s) geselecteerd. Ze worden opgeslagen als je op 'Voeg toe aan huidige voorraad' drukt.")
+    camera_nieuwe_fotos = camera_fotos_widget("nieuw")
+
     with st.form("auto_form", clear_on_submit=False):
         naam = st.text_input("Naam / Omschrijving", value=st.session_state.get("rdw_naam", ""))
         kenteken = st.text_input("Kenteken (Verplicht)", value=st.session_state.get("rdw_ktk", ""))
         
+        # --- DIT STUK STOND ER VOORHEEN EN IS NU TERUGGEZET ---
         c_form1, c_form2 = st.columns(2)
         km_stand_str = c_form1.number_input("Kilometerstand", value=0, step=1)
         apk_datum = c_form2.date_input("APK Datum", value=st.session_state.get("rdw_apk", datetime.today().date()), format="DD-MM-YYYY")
-        
+
+        # --- JOUW SCHONE BRANDSTOFBLOK (RECHTSTREEKS GEKOPPELD AAN DE RDW KEY) ---
         c_form3, c_form4 = st.columns(2)
         brandstof_opties = ["Benzine", "Diesel", "Hybride", "Elektrisch", "Lpg"]
-        rdw_brandstof = st.session_state.get("rdw_brandstof", "Benzine")
-        if rdw_brandstof not in brandstof_opties and rdw_brandstof:
-            brandstof_opties.append(rdw_brandstof)
+        
+        # 1. Zorg dat de sleutel altijd bestaat in de session state om fouten te voorkomen
+        if "rdw_brandstof" not in st.session_state:
+            st.session_state["rdw_brandstof"] = "Benzine"
             
-        brandstof_invoer = c_form3.selectbox("Brandstof", options=brandstof_opties, index=brandstof_opties.index(rdw_brandstof) if rdw_brandstof in brandstof_opties else 0)
+        # 2. Als de RDW een waarde stuurt die niet in de basijst staat, voegen we deze toe
+        rdw_waarde = st.session_state["rdw_brandstof"]
+        if rdw_waarde and rdw_waarde not in brandstof_opties:
+            brandstof_opties.append(rdw_waarde)
+            
+        standaard_index = brandstof_opties.index(rdw_waarde) if rdw_waarde in brandstof_opties else 0
+            
+        # 3. Door key="rdw_brandstof" te gebruiken, luistert deze dropdown LIVE naar de RDW-knop!
+        c_form3.selectbox(
+            "Brandstof", 
+            options=brandstof_opties, 
+            index=standaard_index,
+            key="rdw_brandstof"  # <-- DIT IS DE CRUCIALE LINK MET DE RDW KNOP
+        )
+        
+        # 4. Koppel de variabele voor de database-insert (regel 299) aan de actuele widgetwaarde
+        brandstof_invoer = st.session_state["rdw_brandstof"]
+        
+        # 5. Sluit direct aan met het bouwjaar
         bouwjaar_invoer = c_form4.number_input("Bouwjaar", value=int(st.session_state.get("rdw_bouwjaar", 0)), step=1)
+        # --- EINDE VAN DE RECENTE GEGEVENS ---
+
 
         c_form5, c_form6 = st.columns(2)
         kleur_invoer = c_form5.text_input("Kleur", value=st.session_state.get("rdw_kleur", ""))
+
         cat_invoer = c_form6.number_input("Oorspronkelijke Cataloguswaarde (€)", value=float(st.session_state.get("rdw_cataloguswaarde", 0.0)), step=50.0)
 
-        transmissie = st.selectbox("Transmissie", options=["Handgeschakeld", "Automaat"])
+        # --- TRANSMISSIE DROPDOWN LIVE KOPPELEN AAN DE RDW KEY ---
+        trans_opties = ["Onbekend", "Handgeschakeld", "Automaat"]
+        
+        # 1. Zorg dat de sleutel altijd bestaat in de session state om fouten te voorkomen
+        if "rdw_transmissie" not in st.session_state:
+            st.session_state["rdw_transmissie"] = "Onbekend"
+            
+        actuele_trans = st.session_state["rdw_transmissie"]
+        trans_index = trans_opties.index(actuele_trans) if actuele_trans in trans_opties else 0
+        
+        # 2. De dropdown luistert nu live via de key naar de RDW-knop!
+        transmissie = st.selectbox(
+            "Transmissie", 
+            options=trans_opties, 
+            index=trans_index,
+            key="rdw_transmissie" # <-- DIT KOPPELT HEM VISUEEL
+        )
+        if st.session_state.get("rdw_transmissie_bron"):
+            st.caption(f"ℹ️ Transmissie: {st.session_state['rdw_transmissie_bron']}. Controleer dit altijd even bij de auto zelf.")
+        # --- EINDE VAN DE TRANSMISSIE CORRECTIE ---
+
         status_invoer = st.selectbox("Status bij instroom", options=["In voorraad", "Gereserveerd"])
         
         # --- NIEUW: Handmatige datumkiezer voor aankoop (staat standaard op vandaag) ---
@@ -579,38 +853,24 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
         verkoopprijs_val = c_form8.number_input("Verkoopprijs (€)", value=0.0, step=50.0)
         extra_kosten_val = c_form9.number_input("Extra kosten (€)", value=0.0, step=10.0)
         
-        # --- NIEUW: Voorkom reset op mobiel bij het toevoegen van een nieuwe auto ---
-        if "nieuw_auto_uploader_key" not in st.session_state:
-            st.session_state["nieuw_auto_uploader_key"] = 0
-            
-        gevoegde_fotos = st.file_uploader(
-            "Kies foto's (Optioneel)", 
-            type=["jpg", "jpeg", "png"], 
-            accept_multiple_files=True, 
-            key=f"nieuwe_auto_fotos_{st.session_state['nieuw_auto_uploader_key']}"
-        )
-        submit = st.form_submit_button("Voeg toe aan cloud voorraad")
+        submit = st.form_submit_button("Voeg toe aan huidige voorraad")
 
     if submit and kenteken.strip():
         foto_urls = []
-        if gevoegde_fotos:
-            for idx, f in enumerate(gevoegde_fotos):
+        upload_fouten = []
+        alle_nieuwe_fotos = list(gevoegde_fotos or []) + camera_nieuwe_fotos
+        if alle_nieuwe_fotos:
+            for idx, f in enumerate(alle_nieuwe_fotos):
                 try:
-                    img = Image.open(f)
-                    if img.mode in ("RGBA", "P"):
-                        img = img.convert("RGB")
-                    img.thumbnail((1000, 1000))
-                    buffer = io.BytesIO()
-                    img.save(buffer, format="JPEG", quality=75)
-                    buffer.seek(0)
+                    jpeg_bytes = foto_naar_jpeg(f)
                     
                     # Maak een unieke bestandsnaam voor de cloud-map
-                    bestandsnaam = f"{kenteken.upper()}_{idx}_{int(datetime.today().timestamp())}.jpg"
+                    bestandsnaam = f"{veilige_bestandsnaam(kenteken)}_{idx}_{int(datetime.today().timestamp())}.jpg"
                     
                     # Upload het bestand rechtstreeks naar de Supabase Storage Bucket
                     supabase.storage.from_("autofotos").upload(
                         path=bestandsnaam,
-                        file=buffer.getvalue(),
+                        file=jpeg_bytes,
                         file_options={"content-type": "image/jpeg"}
                     )
                     
@@ -618,7 +878,12 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
                     openbare_url = supabase.storage.from_("autofotos").get_public_url(bestandsnaam)
                     foto_urls.append(openbare_url)
                 except Exception as e:
-                    st.error(f"Fout bij uploaden foto {idx}: {str(e)}")
+                    upload_fouten.append(f"Foto {idx + 1}: {str(e)}")
+
+        if upload_fouten:
+            # Stop hier: anders wordt de auto zonder foto's opgeslagen en verdwijnt de foutmelding door de rerun
+            st.error("🚨 Cloud upload mislukt, de auto is NIET opgeslagen. " + " | ".join(upload_fouten))
+            st.stop()
 
         foto_string_data = "||".join(foto_urls)
         datum_prefix = f"AANKOOPDATUM:{aankoop_datum_invoer.strftime('%Y-%m-%d')}"
@@ -634,6 +899,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
         supabase.table("voorraad").insert(nieuw_voertuig).execute()
         st.session_state["nieuw_auto_uploader_key"] += 1
+        camera_fotos_wissen("nieuw")
         st.cache_data.clear()
         for sleutel in ["rdw_naam", "rdw_ktk", "rdw_apk", "rdw_brandstof", "rdw_bouwjaar", "rdw_kleur", "rdw_cataloguswaarde"]:
             if sleutel in st.session_state: del st.session_state[sleutel]
@@ -691,7 +957,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
             towrite = io.BytesIO()
             df.to_excel(towrite, index=False, engine='openpyxl')
             towrite.seek(0)
-            inv_col3.download_button(label="📊 Excel Export", data=towrite, file_name="inventaris.xlsx", use_container_width=True)
+            inv_col3.download_button(label="📊 Excel Export", data=towrite, file_name="inventaris.xlsx", width="stretch")
         except: pass
         if not verwerkte_autos:
             st.info("Geen auto's gevonden.")
@@ -719,7 +985,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                                 for idx, url in enumerate(alle_foto_links):
                                     with foto_cols[idx % min(len(alle_foto_links), 3)]:
                                         # Laad de foto bliksemsnel in rechtstreeks vanaf de Supabase CDN link
-                                        st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="{url}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
+                                        st.markdown(f'<img src="{url}" style="width:100%; aspect-ratio:16/9; object-fit:contain; background-color:rgba(15,15,20,0.85); border-radius:8px; display:block;">', unsafe_allow_html=True)
                             else:
                                 st.info("Geen afbeelding beschikbaar.")
                         else:
@@ -792,16 +1058,16 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         try: km_int = int(float(auto['km_stand']))
                         except: km_int = 0
                             
-                        if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", use_container_width=True):
+                        if b_edit.button("✏️ Aanpassen", key=f"ed_{auto['id']}", width="stretch"):
                             bewerk_auto_dialog(auto["id"], auto["kenteken"], km_int, auto["inkoopprijs"], auto["verkoopprijs"], auto["apk_datum"], auto["extra_kosten"], auto["afbeelding"], auto["naam"], auto["transmissie"], auto["status"], auto["brandstof"], auto["bouwjaar"], auto["kleur"], auto["cataloguswaarde"])
                         
-                        if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", use_container_width=True):
+                        if b_del.button("🗑️ Verwijderen", key=f"dl_{auto['id']}", width="stretch"):
                             supabase.table("voorraad").delete().eq("id", auto["id"]).execute()
                             st.cache_data.clear()
                             st.rerun()
                         
                         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
-                        if st.button("📄 Koopcontract / Factuur", key=f"contract_{auto['id']}", type="secondary", use_container_width=True):
+                        if st.button("📄 Koopcontract / Factuur", key=f"contract_{auto['id']}", type="secondary", width="stretch"):
                             genereer_contract_dialog(auto["id"], auto["naam"], auto["kenteken"], auto["km_stand"], auto["verkoopprijs"], auto["apk_datum"])
 
 elif menu_optie == "💰 Financieel Overzicht":
@@ -878,6 +1144,8 @@ elif menu_optie == "💰 Financieel Overzicht":
     
     # 1. Balans Overzicht Tabel
     st.markdown("### 📊 Balans Overzicht")
+
+    # EERST DEFINIËREN:
     balans_html = f"""
     <div style="background-color: rgba(25, 25, 25, 0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
         <table style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -893,8 +1161,12 @@ elif menu_optie == "💰 Financieel Overzicht":
                     <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(st.session_state['startbudget'])}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Voorraad</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Autovoorraad</td>
                     <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_voorraadwaarde)}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Losse Artikelen</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_waarde_artikelen)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Besteedbaar Cashgeld (Vrij budget)</td>
@@ -904,9 +1176,11 @@ elif menu_optie == "💰 Financieel Overzicht":
         </table>
     </div>
     """
-    st.markdown(balans_html, unsafe_allow_html=True)
 
+    # DAARNA PAS MET MARKDOWN TONEN:
+    st.markdown(balans_html, unsafe_allow_html=True)
     st.markdown("---")
+
     
     # 2. Rendement & Performance Tabel
     st.markdown("### 📈 Rendement & Performance")
@@ -1032,7 +1306,7 @@ elif menu_optie == "💰 Financieel Overzicht":
                         foto_cols = st.columns(min(len(alle_foto_links), 3))
                         for idx, url in enumerate(alle_foto_links):
                             with foto_cols[idx % min(len(alle_foto_links), 3)]:
-                                st.markdown(f'<div style="width:100%; aspect-ratio: 4/3; overflow:hidden; border-radius:8px; display:flex; align-items:center; justify-content:center;"><img src="{url}" style="max-width:100%; max-height:100%; object-fit:contain;"></div>', unsafe_allow_html=True)
+                                st.markdown(f'<img src="{url}" style="width:100%; aspect-ratio:16/9; object-fit:contain; background-color:rgba(15,15,20,0.85); border-radius:8px; display:block;">', unsafe_allow_html=True)
                     else:
                         st.info("Geen afbeelding beschikbaar in cloud storage.")
                 else:
@@ -1108,7 +1382,7 @@ elif menu_optie == "📅 Agenda & Notities":
            
             ag_titel = st.text_input("Titel (bijv. Auto verhuurd, Vakantie, Showroom dicht)")
             ag_notitie = st.text_area("Aanvullende informatie / opmerkingen")
-            ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", use_container_width=True)
+            ag_submit = st.form_submit_button("💾 Opslaan in Agenda", type="primary", width="stretch")
             
         if ag_submit and ag_titel.strip():
             opslag_datum = f"{gekozen_datum_str}||{str(tot_datum)}" if hele_dag else f"{gekozen_datum_str}T{ag_tijd_van.strftime('%H:%M:%S')}||{gekozen_datum_str}T{ag_tijd_tot.strftime('%H:%M:%S')}"
@@ -1148,15 +1422,15 @@ elif menu_optie == "📅 Agenda & Notities":
             st.markdown("---")
             
             col_b1, col_b2, col_b3 = st.columns(3)
-            if col_b1.button("✅ Voltooid" if status_veld == "Open" else "🔄 Heropenen", use_container_width=True):
+            if col_b1.button("✅ Voltooid" if status_veld == "Open" else "🔄 Heropenen", width="stretch"):
                 nieuwe_status = "Voltooid" if status_veld == "Open" else "Open"
                 supabase.table("agenda").update({"status": nieuwe_status}).eq("id", event_id).execute()
                 st.cache_data.clear()
                 st.rerun()
-            if col_b2.button("✏️ Bewerken", use_container_width=True):
+            if col_b2.button("✏️ Bewerken", width="stretch"):
                 st.session_state[bewerk_modus_key] = True
                 st.rerun()
-            if col_b3.button("🗑️ Wissen", type="secondary", use_container_width=True):
+            if col_b3.button("🗑️ Wissen", type="secondary", width="stretch"):
                 supabase.table("agenda").delete().eq("id", event_id).execute()
                 st.cache_data.clear()
                 st.rerun()
@@ -1185,7 +1459,7 @@ elif menu_optie == "📅 Agenda & Notities":
             
             st.markdown("---")
             col_save1, col_save2 = st.columns(2)
-            if col_save1.button("💾 Opslaan", type="primary", use_container_width=True):
+            if col_save1.button("💾 Opslaan", type="primary", width="stretch"):
                 # Sla de gewijzigde live tijden op in de database!
                 nieuw_datum_format = f"{edit_datum_van}||{edit_datum_tot}" if edit_hele_dag else f"{edit_datum_van}T{edit_tijd_van.strftime('%H:%M:%S')}||{edit_datum_van}T{edit_tijd_tot.strftime('%H:%M:%S')}"
                 supabase.table("agenda").update({"datum": nieuw_datum_format, "titel": edit_titel.strip(), "notitie": edit_notitie.strip()}).eq("id", event_id).execute()
@@ -1237,11 +1511,23 @@ elif menu_optie == "📅 Agenda & Notities":
         
     calendar_options = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-        "initialView": "dayGridMonth", "locale": "nl", "timeZone": "local", "height": "auto", "contentHeight": 550,
+        "initialView": "dayGridMonth", 
+        "locale": "nl", 
+        "timeZone": "local", 
+        "height": 850,             # Hoog genoeg om 07:00 t/m 22:00 in de week/dag-weergave zonder scrollen te tonen
+        "slotMinTime": "07:00:00", # Slaat de nacht over en begint de dag overzichtelijk om 07:00
+        "slotMaxTime": "22:00:00", # Laat de dag doorlopen tot 22:00
         "buttonText": {"today": "vandaag", "month": "maand", "week": "week", "day": "dag"}
     }
+
+
     
-    state = calendar(events=calendar_events, options=calendar_options, key="agenda_strakke_kalender")
+    # Dit is het "jasje" dat zorgt dat de scrollbalk om de kalender heen komt:
+    with st.container(border=False):
+        st.markdown('<div id="agenda-container">', unsafe_allow_html=True)
+        state = calendar(events=calendar_events, options=calendar_options, key="agenda_strakke_kalender")
+        st.markdown('</div>', unsafe_allow_html=True)
+
     
     if state.get("eventClick"):
         ev = state["eventClick"]["event"]
@@ -1261,3 +1547,125 @@ elif menu_optie == "📅 Agenda & Notities":
             puur_datum = ruwe_str.strip()
             
         nieuwe_afspraak_popup(puur_datum)
+elif menu_optie == "📦 Artikelen":
+    st.title("📦 Losse Artikelen & Benodigdheden")
+    st.write("Hier kun je artikelen bijhouden die losstaan van de auto's, zoals schoonmaakspullen of gereedschap.")
+
+    # 1. ARTIKELEN OPHALEN UIT SUPABASE
+    try:
+        response = supabase.table("artikelen").select("*").order("naam").execute()
+        artikelen_data = response.data
+    except Exception as e:
+        st.error(f"Fout bij ophalen artikelen: {e}")
+        artikelen_data = []
+
+    # 2. FORMULIER: NIEUW ARTIKEL TOEVOEGEN
+    with st.expander("➕ Nieuw artikel toevoegen"):
+        with st.form("nieuw_artikel_form", clear_on_submit=True):
+            art_naam = st.text_input("Naam artikel", placeholder="Bijv. Dashboard spray, Microvezeldoeken")
+            art_cat = st.selectbox("Categorie", ["Schoonmaak", "Gereedschap", "Kantoor", "Overig"])
+            
+            col_aantal, col_prijs = st.columns(2)
+            with col_aantal:
+                art_aantal = st.number_input("Aantal", min_value=1, value=1, step=1)
+            with col_prijs:
+                art_prijs = st.number_input("Prijs per stuk (€)", min_value=0.0, value=0.0, step=0.50)
+            
+            art_notitie = st.text_area("Notitie / Opmerking", placeholder="Optioneel: waar gekocht of voor wie?")
+            
+            submit_artikel = st.form_submit_button("Artikel opslaan")
+            
+            if submit_artikel:
+                if not art_naam.strip():
+                    st.warning("Vul tenminste een naam in.")
+                else:
+                    nieuw_item = {
+                        "naam": art_naam.strip(),
+                        "categorie": art_cat,
+                        "aantal": int(art_aantal),
+                        "prijs_per_stuk": float(art_prijs),
+                        "notitie": art_notitie.strip()
+                    }
+                    try:
+                        supabase.table("artikelen").insert(nieuw_item).execute()
+                        st.success(f"✔️ {art_naam} succesvol toegevoegd!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Databasefout bij opslaan: {e}")
+
+    # 3. OVERZICHT
+    if artikelen_data:
+        totale_waarde = sum(item["aantal"] * float(item["prijs_per_stuk"] or 0) for item in artikelen_data)
+        st.metric(label="Totale waarde artikelen op voorraad", value=f"€ {totale_waarde:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+        # Toon de artikelen netjes in een tabel
+        df_artikelen = pd.DataFrame(artikelen_data)
+        df_weergave = df_artikelen[["naam", "categorie", "aantal", "prijs_per_stuk", "notitie"]].copy()
+        df_weergave.columns = ["Naam", "Categorie", "Aantal", "Prijs p/s", "Notitie"]
+        
+        st.dataframe(df_weergave, width="stretch", hide_index=True)
+        
+        # --- NIEUW: ARTIKEL AANPASSEN ---
+        with st.expander("✏️ Artikel aanpassen / bewerken"):
+            # Maak een woordenboek om makkelijk de ID en huidige gegevens op te halen op basis van de naam
+            artikel_dict = {item["naam"]: item for item in artikelen_data}
+            te_bewerken_naam = st.selectbox("Selecteer het artikel dat je wilt aanpassen", options=list(artikel_dict.keys()), key="select_bewerk_art")
+            
+            if te_bewerken_naam:
+                gekozen_art = artikel_dict[te_bewerken_naam]
+                
+                # Formulier met de huidige waarden al ingevuld
+                with st.form("bewerk_artikel_form", clear_on_submit=False):
+                    bewerk_naam = st.text_input("Pas Naam aan", value=gekozen_art["naam"])
+                    
+                    categorie_opties = ["Schoonmaak", "Gereedschap", "Kantoor", "Overig"]
+                    huidige_cat = gekozen_art["categorie"]
+                    if huidige_cat not in categorie_opties:
+                        categorie_opties.append(huidige_cat)
+                    bewerk_cat = st.selectbox("Pas Categorie aan", options=categorie_opties, index=categorie_opties.index(huidige_cat))
+                    
+                    col_b_aantal, col_b_prijs = st.columns(2)
+                    with col_b_aantal:
+                        bewerk_aantal = col_b_aantal.number_input("Pas Aantal aan", min_value=1, value=int(gekozen_art["aantal"]), step=1)
+                    with col_b_prijs:
+                        bewerk_prijs = col_b_prijs.number_input("Pas Prijs per stuk aan (€)", min_value=0.0, value=float(gekozen_art["prijs_per_stuk"] or 0.0), step=0.50)
+                    
+                    bewerk_notitie = st.text_area("Pas Notitie / Opmerking aan", value=gekozen_art["notitie"] if gekozen_art["notitie"] else "")
+                    
+                    submit_wijziging = st.form_submit_button("💾 Wijzigingen Live Opslaan", width="stretch")
+                    
+                    if submit_wijziging:
+                        if not bewerk_naam.strip():
+                            st.warning("De naam mag niet leeg zijn.")
+                        else:
+                            geüpdatet_item = {
+                                "naam": bewerk_naam.strip(),
+                                "categorie": bewerk_cat,
+                                "aantal": int(bewerk_aantal),
+                                "prijs_per_stuk": float(bewerk_prijs),
+                                "notitie": bewerk_notitie.strip()
+                            }
+                            try:
+                                supabase.table("artikelen").update(geüpdatet_item).eq("id", gekozen_art["id"]).execute()
+                                st.success(f"✔️ {bewerk_naam} succesvol aangepast!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Databasefout bij updaten: {e}")
+
+        # OPTIE: Artikel verwijderen knop
+        with st.expander("🗑️ Artikel verwijderen"):
+            artikel_opties = {item["naam"]: item["id"] for item in artikelen_data}
+            te_verwijderen = st.selectbox("Selecteer artikel om te wissen", options=list(artikel_opties.keys()))
+            
+            if st.button("Definitief verwijderen", type="primary"):
+                try:
+                    artikel_id = artikel_opties[te_verwijderen]
+                    supabase.table("artikelen").delete().eq("id", artikel_id).execute()
+                    st.success(f"Artikel '{te_verwijderen}' is verwijderd.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Fout bij verwijderen: {e}")
+    else:
+        st.info("Er zijn nog geen losse artikelen toegevoegd.")
+
+
