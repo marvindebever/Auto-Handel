@@ -1,5 +1,7 @@
 import base64
 import hmac
+import re
+import unicodedata
 import time
 from datetime import datetime, timedelta
 import io
@@ -59,6 +61,14 @@ def camera_fotos_widget(prefix):
 def camera_fotos_wissen(prefix):
     st.session_state[f"{prefix}_cam_fotos"] = []
 
+
+def veilige_bestandsnaam(tekst, reserve="AUTO"):
+    """Maakt van een kenteken/tekst een naam die Supabase Storage accepteert.
+    Storage staat alleen simpele tekens toe: letters, cijfers, - en _ (geen accenten zoals Ë)."""
+    tekst = unicodedata.normalize("NFKD", str(tekst or ""))
+    tekst = tekst.encode("ascii", "ignore").decode("ascii")  # Ë -> E, é -> e, andere tekens vervallen
+    tekst = re.sub(r"[^A-Za-z0-9_-]+", "_", tekst).strip("_").upper()
+    return tekst or reserve
 
 def foto_naar_jpeg(bestand):
     """Zet een geuploade foto (ook van mobiel) om naar een verkleinde JPEG.
@@ -517,7 +527,7 @@ def bewerk_auto_dialog(actie_id, ktk, km, inkoop, verkoop, apk, kosten, foto_hui
                         try:
                             jpeg_bytes = foto_naar_jpeg(f)
                             
-                            bestandsnaam = f"{edit_ktk.upper()}_edit_{idx}_{int(datetime.today().timestamp())}.jpg"
+                            bestandsnaam = f"{veilige_bestandsnaam(edit_ktk)}_edit_{idx}_{int(datetime.today().timestamp())}.jpg"
                             supabase.storage.from_("autofotos").upload(path=bestandsnaam, file=jpeg_bytes, file_options={"content-type": "image/jpeg"})
                             openbare_url = supabase.storage.from_("autofotos").get_public_url(bestandsnaam)
                             basis_fotos.append(openbare_url)
@@ -664,7 +674,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
         </html>
         """
         b64 = base64.b64encode(html_content.encode('utf-8')).decode()
-        filename = f"Koopovereenkomst_{kenteken}_{huidige_datum_formatted}.html"
+        filename = f"Koopovereenkomst_{veilige_bestandsnaam(kenteken)}_{huidige_datum_formatted}.html"
         href = f'<a href="data:text/html;base64,{b64}" download="{filename}" style="display:block; text-align:center; background-color:#28a745; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold;">📥 Download Overeenkomst</a>'
         st.markdown(href, unsafe_allow_html=True)
 
@@ -847,6 +857,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
 
     if submit and kenteken.strip():
         foto_urls = []
+        upload_fouten = []
         alle_nieuwe_fotos = list(gevoegde_fotos or []) + camera_nieuwe_fotos
         if alle_nieuwe_fotos:
             for idx, f in enumerate(alle_nieuwe_fotos):
@@ -854,7 +865,7 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
                     jpeg_bytes = foto_naar_jpeg(f)
                     
                     # Maak een unieke bestandsnaam voor de cloud-map
-                    bestandsnaam = f"{kenteken.upper()}_{idx}_{int(datetime.today().timestamp())}.jpg"
+                    bestandsnaam = f"{veilige_bestandsnaam(kenteken)}_{idx}_{int(datetime.today().timestamp())}.jpg"
                     
                     # Upload het bestand rechtstreeks naar de Supabase Storage Bucket
                     supabase.storage.from_("autofotos").upload(
@@ -867,7 +878,12 @@ if menu_optie == "🆕 Nieuwe auto toevoegen":
                     openbare_url = supabase.storage.from_("autofotos").get_public_url(bestandsnaam)
                     foto_urls.append(openbare_url)
                 except Exception as e:
-                    st.error(f"Fout bij uploaden foto {idx}: {str(e)}")
+                    upload_fouten.append(f"Foto {idx + 1}: {str(e)}")
+
+        if upload_fouten:
+            # Stop hier: anders wordt de auto zonder foto's opgeslagen en verdwijnt de foutmelding door de rerun
+            st.error("🚨 Cloud upload mislukt, de auto is NIET opgeslagen. " + " | ".join(upload_fouten))
+            st.stop()
 
         foto_string_data = "||".join(foto_urls)
         datum_prefix = f"AANKOOPDATUM:{aankoop_datum_invoer.strftime('%Y-%m-%d')}"
