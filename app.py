@@ -644,7 +644,7 @@ def genereer_contract_dialog(auto_id, merk_model, kenteken, km, verkoop, apk):
             
             <h3>4. Financiële Afspraken & Levering</h3>
             <table>
-                <tr><td class="label">Overengekomen prijs:</td><td>&euro; {formatteer_euro_nl(verkoop)}</td></tr>
+                <tr><td class="label">Overengekomen prijs:</td><td>&euro;&nbsp;{formatteer_euro_nl(verkoop)}</td></tr>
                 <tr><td class="label">Wijze van betaling:</td><td>{contant_vink} Contant &nbsp;&nbsp; {bank_vink} Per bankoverschrijving</td></tr>
                 <tr><td class="label">Datum van levering:</td><td>{levering_formatted}</td></tr>
             </table>
@@ -972,7 +972,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                         elif dagen < 0: apk_waarschuwing = " 🚨 (APK VERLOPEN!)"
                 except: pass
 
-                with st.expander(f"{status_icoon} [{auto['status']}] {auto['naam'] or 'Onbekend'} ({auto['kenteken']}) - € {formatteer_euro_nl(auto['verkoopprijs'])}{apk_waarschuwing}"):
+                with st.expander(f"{status_icoon} [{auto['status']}] {auto['naam'] or 'Onbekend'} ({auto['kenteken']}) - €\u00a0{formatteer_euro_nl(auto['verkoopprijs'])}{apk_waarschuwing}"):
                     c1, c2 = st.columns(2)
                     with c1:
                         if auto["afbeelding"]:
@@ -1028,7 +1028,7 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                                     </tr>
                                     <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                                         <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Kleur / Cataloguswaarde</td>
-                                        <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{auto['kleur']} | € {formatteer_euro_nl(cat_veilig)}</td>
+                                        <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{auto['kleur']} | €\u00a0{formatteer_euro_nl(cat_veilig)}</td>
                                     </tr>
                                     <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                                         <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Transmissie / APK Datum</td>
@@ -1040,11 +1040,11 @@ elif menu_optie in ["🟢 Actuele Voorraad", "🔴 Verkochte Voertuigen"]:
                                     </tr>
                                     <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                                         <td style="padding: 8px 5px; color: rgba(255, 255, 255, 0.6);">Inkoopprijs + Extra kosten</td>
-                                        <td style="padding: 8px 5px; color: white; font-weight: bold; text-align: right;">€ {formatteer_euro_nl(inkoop_veilig)} + € {formatteer_euro_nl(kosten_veilig)}</td>
+                                        <td style="padding: 8px 5px; color: white; font-weight: bold; text-align: right;">€\u00a0{formatteer_euro_nl(inkoop_veilig)} + €\u00a0{formatteer_euro_nl(kosten_veilig)}</td>
                                     </tr>
                                     <tr>
                                         <td style="padding: 8px 5px; color: rgba(255, 255, 255, 0.6); font-size: 15px;">Verwachte Marge / Winst</td>
-                                        <td style="padding: 8px 5px; color: #28a745; font-size: 16px; font-weight: bold; text-align: right;">€ {formatteer_euro_nl(winst_veilig)}</td>
+                                        <td style="padding: 8px 5px; color: #28a745; font-size: 16px; font-weight: bold; text-align: right;">€\u00a0{formatteer_euro_nl(winst_veilig)}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1158,19 +1158,19 @@ elif menu_optie == "💰 Financieel Overzicht":
             <tbody>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Totale Startkapitaal</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(st.session_state['startbudget'])}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">&euro;&nbsp;{formatteer_euro_nl(st.session_state['startbudget'])}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Autovoorraad</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_voorraadwaarde)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">&euro;&nbsp;{formatteer_euro_nl(totale_voorraadwaarde)}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Vastgelegd in Losse Artikelen</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_waarde_artikelen)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">&euro;&nbsp;{formatteer_euro_nl(totale_waarde_artikelen)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Besteedbaar Cashgeld (Vrij budget)</td>
-                    <td style="padding: 15px 10px; color: {'#ff4b4b' if actueel_vrij_budget < 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(actueel_vrij_budget)}</td>
+                    <td style="padding: 15px 10px; color: {'#ff4b4b' if actueel_vrij_budget < 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">&euro;&nbsp;{formatteer_euro_nl(actueel_vrij_budget)}</td>
                 </tr>
             </tbody>
         </table>
@@ -1196,15 +1196,15 @@ elif menu_optie == "💰 Financieel Overzicht":
             <tbody>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Gerealiseerde Netto Winst</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(gerealiseerde_winst)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">&euro;&nbsp;{formatteer_euro_nl(gerealiseerde_winst)}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Gemiddelde Marge per Deal</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">{gemiddelde_marge:.1f}%</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">{gemiddelde_marge:.1f}%</td>
                 </tr>
                 <tr>
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Return on Investment (ROI)</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">{gemiddelde_roi:.1f}%</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">{gemiddelde_roi:.1f}%</td>
                 </tr>
             </tbody>
         </table>
@@ -1228,15 +1228,15 @@ elif menu_optie == "💰 Financieel Overzicht":
             <tbody>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Totale Omzet (Verkocht)</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_omzet_verkocht)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">&euro;&nbsp;{formatteer_euro_nl(totale_omzet_verkocht)}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Investeringswaarde Verkocht</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(totale_investering_verkocht)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">&euro;&nbsp;{formatteer_euro_nl(totale_investering_verkocht)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Besteedbaar Werkkapitaal</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">&euro; {formatteer_euro_nl(actueel_vrij_budget)}</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">&euro;&nbsp;{formatteer_euro_nl(actueel_vrij_budget)}</td>
                 </tr>
             </tbody>
         </table>
@@ -1260,16 +1260,16 @@ elif menu_optie == "💰 Financieel Overzicht":
             <tbody>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Gemiddelde statiedagen van huidige voorraad</td>
-                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right;">{int(gemiddelde_statiedagen)} dagen</td>
+                    <td style="padding: 15px 10px; color: white !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">{int(gemiddelde_statiedagen)} dagen</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Aantal auto's > 30 dagen in voorraad</td>
-                    <td style="padding: 15px 10px; color: {'#ff4b4b' if oude_autos_teller > 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">{oude_autos_teller} stuks</td>
+                    <td style="padding: 15px 10px; color: {'#ff4b4b' if oude_autos_teller > 0 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">{oude_autos_teller} stuks</td>
                 </tr>
                 <tr>
                     <!-- NIEUWE RIJ -->
                     <td style="padding: 15px 10px; color: white !important; font-size: 18px;">Aantal dagen van het langststaande voertuig</td>
-                    <td style="padding: 15px 10px; color: {'#ff4b4b' if max_statiedagen_voertuig > 45 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right;">{int(max_statiedagen_voertuig)} dagen</td>
+                    <td style="padding: 15px 10px; color: {'#ff4b4b' if max_statiedagen_voertuig > 45 else 'white'} !important; font-size: 24px; font-weight: bold; text-align: right; white-space: nowrap;">{int(max_statiedagen_voertuig)} dagen</td>
                 </tr>
             </tbody>
         </table>
@@ -1328,7 +1328,7 @@ elif menu_optie == "💰 Financieel Overzicht":
                             </tr>
                             <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                                 <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Kleur / Cataloguswaarde</td>
-                                <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{oudste_auto_data.get('kleur', 'Onbekend')} | € {formatteer_euro_nl(v_cat)}</td>
+                                <td style="padding: 6px 5px; color: white; font-weight: bold; text-align: right;">{oudste_auto_data.get('kleur', 'Onbekend')} | €\u00a0{formatteer_euro_nl(v_cat)}</td>
                             </tr>
                             <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                                 <td style="padding: 6px 5px; color: rgba(255, 255, 255, 0.6);">Transmissie / APK Datum</td>
@@ -1336,11 +1336,11 @@ elif menu_optie == "💰 Financieel Overzicht":
                             </tr>
                             <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                                 <td style="padding: 8px 5px; color: rgba(255, 255, 255, 0.6);">Inkoopprijs + Extra kosten</td>
-                                <td style="padding: 8px 5px; color: white; font-weight: bold; text-align: right;">€ {formatteer_euro_nl(v_ik)} + € {formatteer_euro_nl(v_ex)}</td>
+                                <td style="padding: 8px 5px; color: white; font-weight: bold; text-align: right;">€\u00a0{formatteer_euro_nl(v_ik)} + €\u00a0{formatteer_euro_nl(v_ex)}</td>
                             </tr>
                             <tr>
                                 <td style="padding: 8px 5px; color: rgba(255, 255, 255, 0.6); font-size: 15px;">Verwachte Marge / Winst</td>
-                                <td style="padding: 8px 5px; color: #ff4b4b; font-size: 16px; font-weight: bold; text-align: right;">€ {formatteer_euro_nl(v_winst)}</td>
+                                <td style="padding: 8px 5px; color: #ff4b4b; font-size: 16px; font-weight: bold; text-align: right;">€\u00a0{formatteer_euro_nl(v_winst)}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1596,7 +1596,7 @@ elif menu_optie == "📦 Artikelen":
     # 3. OVERZICHT
     if artikelen_data:
         totale_waarde = sum(item["aantal"] * float(item["prijs_per_stuk"] or 0) for item in artikelen_data)
-        st.metric(label="Totale waarde artikelen op voorraad", value=f"€ {totale_waarde:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        st.metric(label="Totale waarde artikelen op voorraad", value=f"€\u00a0{totale_waarde:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
         # Toon de artikelen netjes in een tabel
         df_artikelen = pd.DataFrame(artikelen_data)
