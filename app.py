@@ -101,7 +101,7 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
     return h;
   }
 
-  // Maak het beeldvak precies zo gevormd als het camerabeeld, en bewust klein zodat alles in beeld past
+  // Maak het beeldvak precies zo gevormd als het camerabeeld, en zo groot dat alles nog in beeld past
   var laatsteMaat = "";
   function pasFormaatAan() {
     var vw = video.videoWidth, vh = video.videoHeight;
@@ -112,8 +112,8 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
     var sleutel = vw + "x" + vh + "|" + wrapB + "|" + scherm;
     if (sleutel === laatsteMaat) { return; }   // niets veranderd
     laatsteMaat = sleutel;
-    var maxH = Math.max(150, Math.round(scherm * 0.5));   // hoogstens de helft van het scherm
-    var maxB = Math.round(wrapB * 0.75);                   // en hoogstens 75% van de breedte
+    var maxH = Math.max(150, Math.round(scherm * 0.65));  // hoogstens 65% van de schermhoogte
+    var maxB = Math.round(wrapB * 0.85);                   // en hoogstens 85% van de breedte
     var b = Math.min(maxB, Math.round(maxH * ar));
     kader.style.width = b + "px";
     kader.style.height = Math.round(b / ar) + "px";
