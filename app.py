@@ -36,7 +36,7 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
                font-family: "Source Sans Pro", -apple-system, "Segoe UI", sans-serif; }
   #wrap { width: 100%; padding: 2px 0 6px 0; }
   #kader { display: none; position: relative; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; }
-  video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  video { display: block; width: 100%; height: 100%; object-fit: cover; background: #000; }
   canvas { display: none; }
   button { font-size: 16px; border-radius: 8px; cursor: pointer; color: #fff;
            background: rgba(20, 20, 28, 0.92); border: 1px solid rgba(255,255,255,0.3); }
@@ -50,6 +50,7 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
   #toast { position: absolute; top: 10px; left: 10px; padding: 6px 10px; border-radius: 8px; font-size: 14px;
            background: rgba(0,0,0,0.6); display: none; }
   #melding { margin-top: 8px; font-size: 14px; min-height: 0; }
+  #info { margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.55); text-align: center; }
 </style>
 </head>
 <body>
@@ -65,6 +66,7 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
     <div id="onder"><button id="b_foto">📸 Maak foto</button></div>
   </div>
   <canvas id="canvas"></canvas>
+  <div id="info"></div>
   <div id="melding"></div>
 </div>
 <script>
@@ -98,22 +100,31 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
     return h;
   }
 
-  // Maak het beeldvak precies zo groot en zo gevormd als het camerabeeld, binnen het scherm
+  // Maak het beeldvak precies zo gevormd als het camerabeeld, en bewust klein zodat alles in beeld past
+  var laatsteMaat = "";
   function pasFormaatAan() {
     var vw = video.videoWidth, vh = video.videoHeight;
     if (!vw || !vh) { return; }
     var ar = vw / vh;
-    var maxB = document.getElementById("wrap").clientWidth || 300;
-    var maxH = Math.max(180, Math.round(schermHoogte() * 0.8));
+    var wrapB = document.getElementById("wrap").clientWidth || 300;
+    var scherm = schermHoogte();
+    var sleutel = vw + "x" + vh + "|" + wrapB + "|" + scherm;
+    if (sleutel === laatsteMaat) { return; }   // niets veranderd
+    laatsteMaat = sleutel;
+    var maxH = Math.max(150, Math.round(scherm * 0.5));   // hoogstens de helft van het scherm
+    var maxB = Math.round(wrapB * 0.75);                   // en hoogstens 75% van de breedte
     var b = Math.min(maxB, Math.round(maxH * ar));
     kader.style.width = b + "px";
     kader.style.height = Math.round(b / ar) + "px";
+    document.getElementById("info").textContent = "Beeld " + vw + "×" + vh;
     hoogte();
   }
   video.addEventListener("loadedmetadata", pasFormaatAan);
-  video.addEventListener("resize", pasFormaatAan);   // gebeurt als je de telefoon draait
+  video.addEventListener("resize", pasFormaatAan);
   window.addEventListener("resize", pasFormaatAan);
-  window.addEventListener("orientationchange", function () { setTimeout(pasFormaatAan, 300); });
+  window.addEventListener("orientationchange", pasFormaatAan);
+  // Vangnet: controleer elk kwartsecond of de maat nog klopt (telefoons melden draaien niet altijd netjes)
+  setInterval(function () { if (stream) { pasFormaatAan(); } }, 250);
 
   function toon(actief) {
     bStart.style.display = actief ? "none" : "block";
@@ -135,6 +146,7 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
         audio: false
       });
       video.srcObject = stream;
+      laatsteMaat = "";
       toon(true);
       await video.play();
       pasFormaatAan();
