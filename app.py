@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import io
 import os
 import json
+import tempfile
 from PIL import Image, ImageOps
 try:
     # Optioneel: zorgt dat iPhone-foto's (HEIC) ook werken
@@ -15,6 +16,7 @@ try:
 except Exception:
     pass
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import requests
 from supabase import create_client
@@ -23,12 +25,143 @@ st.set_page_config(page_title="Autohandel Inventaris", layout="wide")
 
 
 # --- CAMERA-FOTO'S (alternatief voor de bestandskiezer, handig op Android) ---
+# Eigen camera-onderdeel dat standaard de ACHTERcamera pakt en die ook na elke foto aan laat staan.
+_ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; color: #fff;
+               font-family: "Source Sans Pro", -apple-system, "Segoe UI", sans-serif; }
+  #wrap { padding: 2px 2px 6px 2px; }
+  video { display: none; width: 100%; border-radius: 8px; background: #000; aspect-ratio: 16 / 9; object-fit: contain; }
+  .rij { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  button { flex: 1 1 120px; padding: 14px 10px; font-size: 16px; border-radius: 8px; cursor: pointer;
+           color: #fff; background: rgba(20, 20, 28, 0.92); border: 1px solid rgba(255,255,255,0.3); }
+  button.hoofd { background: #ff4b4b; border-color: #ff4b4b; font-weight: 600; }
+  #melding { margin-top: 8px; font-size: 14px; min-height: 18px; }
+  canvas { display: none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <video id="video" playsinline muted autoplay></video>
+  <canvas id="canvas"></canvas>
+  <div class="rij" id="rij_start"><button class="hoofd" id="b_start">📷 Camera starten (achterkant)</button></div>
+  <div class="rij" id="rij_actie" style="display:none">
+    <button class="hoofd" id="b_foto">📸 Maak foto</button>
+    <button id="b_wissel">🔄 Wissel camera</button>
+    <button id="b_stop">⏹ Stop</button>
+  </div>
+  <div id="melding"></div>
+</div>
+<script>
+  function send(type, data) {
+    window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, data || {}), "*");
+  }
+  var video = document.getElementById("video");
+  var canvas = document.getElementById("canvas");
+  var melding = document.getElementById("melding");
+  var stream = null;
+  var facing = "environment";   // standaard de camera op de achterkant
+  var teller = 0;
+
+  function hoogte() { send("streamlit:setFrameHeight", { height: document.documentElement.scrollHeight }); }
+  if (window.ResizeObserver) { new ResizeObserver(hoogte).observe(document.body); }
+
+  function toon(actief) {
+    document.getElementById("rij_start").style.display = actief ? "none" : "flex";
+    document.getElementById("rij_actie").style.display = actief ? "flex" : "none";
+    video.style.display = actief ? "block" : "none";
+    setTimeout(hoogte, 50);
+  }
+
+  function stopStream() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    video.srcObject = null;
+  }
+
+  async function start() {
+    stopStream();
+    melding.textContent = "";
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      toon(true);
+      video.onloadedmetadata = function () {
+        if (video.videoWidth && video.videoHeight) {
+          video.style.aspectRatio = video.videoWidth + " / " + video.videoHeight;
+        }
+        hoogte();
+      };
+      if (video.videoWidth && video.videoHeight) {
+        video.style.aspectRatio = video.videoWidth + " / " + video.videoHeight;
+      }
+    } catch (e) {
+      toon(false);
+      melding.textContent = "Camera niet beschikbaar: " + ((e && (e.message || e.name)) || e) +
+                            ". Geef toestemming voor de camera, of gebruik de reservecamera.";
+      hoogte();
+    }
+  }
+
+  function maakFoto() {
+    var w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) { melding.textContent = "De camera is nog niet klaar, probeer het zo opnieuw."; return; }
+    var schaal = Math.min(1, 1920 / Math.max(w, h));
+    canvas.width = Math.round(w * schaal);
+    canvas.height = Math.round(h * schaal);
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    var data = canvas.toDataURL("image/jpeg", 0.85);
+    teller += 1;
+    send("streamlit:setComponentValue", { value: { ts: Date.now() + "-" + teller, data: data }, dataType: "json" });
+    melding.textContent = "✅ Foto " + teller + " gemaakt";
+    hoogte();
+  }
+
+  document.getElementById("b_start").onclick = start;
+  document.getElementById("b_foto").onclick = maakFoto;
+  document.getElementById("b_wissel").onclick = function () {
+    facing = (facing === "environment") ? "user" : "environment";
+    start();
+  };
+  document.getElementById("b_stop").onclick = function () { stopStream(); toon(false); melding.textContent = ""; hoogte(); };
+  document.addEventListener("visibilitychange", function () { if (document.hidden && stream) { stopStream(); toon(false); } });
+
+  send("streamlit:componentReady", { apiVersion: 1 });
+  hoogte();
+</script>
+</body>
+</html>
+"""
+
+
+@st.cache_resource
+def _laad_achtercamera_component():
+    """Zet het camera-onderdeel klaar. Geeft None terug als dat niet lukt (dan gebruiken we de standaardcamera)."""
+    try:
+        map_pad = os.path.join(tempfile.gettempdir(), "autohandel_achtercamera_v1")
+        os.makedirs(map_pad, exist_ok=True)
+        with open(os.path.join(map_pad, "index.html"), "w", encoding="utf-8") as f:
+            f.write(_ACHTER_CAMERA_HTML)
+        return components.declare_component("achtercamera_v1", path=map_pad)
+    except Exception:
+        return None
+
+
 def _bewaar_camera_foto(prefix):
+    """Reservecamera (standaard van Streamlit): bewaar de foto in de lijst."""
     n = st.session_state.get(f"{prefix}_cam_n", 0)
     foto = st.session_state.get(f"{prefix}_cam_{n}")
     if foto is not None:
         st.session_state.setdefault(f"{prefix}_cam_fotos", []).append(foto.getvalue())
         st.session_state[f"{prefix}_cam_n"] = n + 1  # nieuwe, lege camera-widget
+
 
 def camera_fotos_widget(prefix):
     """Toont een camera-optie en geeft de genomen foto's terug als lijst met bestandsobjecten."""
@@ -40,23 +173,40 @@ def camera_fotos_widget(prefix):
             value=True,
             key=f"{prefix}_cam_crop",
         )
-        st.camera_input(
-            "Maak een foto",
-            key=f"{prefix}_cam_{st.session_state[f'{prefix}_cam_n']}",
-            on_change=_bewaar_camera_foto,
-            args=(prefix,),
+        achter_camera = _laad_achtercamera_component()
+        reserve = st.checkbox(
+            "Reservecamera gebruiken (als de achtercamera niet laadt)",
+            value=achter_camera is None,
+            key=f"{prefix}_cam_reserve",
         )
+
+        if reserve or achter_camera is None:
+            st.camera_input(
+                "Maak een foto",
+                key=f"{prefix}_cam_{st.session_state[f'{prefix}_cam_n']}",
+                on_change=_bewaar_camera_foto,
+                args=(prefix,),
+            )
+        else:
+            waarde = achter_camera(key=f"{prefix}_achtercam", default=None)
+            if isinstance(waarde, dict) and waarde.get("data") and waarde.get("ts") != st.session_state.get(f"{prefix}_cam_laatste"):
+                try:
+                    st.session_state[f"{prefix}_cam_fotos"].append(base64.b64decode(waarde["data"].split(",", 1)[1]))
+                    st.session_state[f"{prefix}_cam_laatste"] = waarde["ts"]
+                except Exception as e:
+                    st.error(f"Foto kon niet worden verwerkt: {e}")
+
         aantal = len(st.session_state[f"{prefix}_cam_fotos"])
         if aantal:
             st.caption(f"✅ {aantal} camerafoto('s) klaar om op te slaan. Maak er nog een of sla op.")
-            if st.button("🗑️ Camerafoto's wissen", key=f"{prefix}_cam_wis"):
-                st.session_state[f"{prefix}_cam_fotos"] = []
+            st.button("🗑️ Camerafoto's wissen", key=f"{prefix}_cam_wis", on_click=camera_fotos_wissen, args=(prefix,))
     bestanden = []
     for b in st.session_state[f"{prefix}_cam_fotos"]:
         bio = io.BytesIO(b)
         bio.crop_16_9 = crop_16_9
         bestanden.append(bio)
     return bestanden
+
 
 def camera_fotos_wissen(prefix):
     st.session_state[f"{prefix}_cam_fotos"] = []
