@@ -34,26 +34,37 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
 <style>
   html, body { margin: 0; padding: 0; background: transparent; color: #fff;
                font-family: "Source Sans Pro", -apple-system, "Segoe UI", sans-serif; }
-  #wrap { padding: 2px 2px 6px 2px; }
-  video { display: none; width: 100%; border-radius: 8px; background: #000; aspect-ratio: 16 / 9; object-fit: contain; }
-  .rij { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-  button { flex: 1 1 120px; padding: 14px 10px; font-size: 16px; border-radius: 8px; cursor: pointer;
-           color: #fff; background: rgba(20, 20, 28, 0.92); border: 1px solid rgba(255,255,255,0.3); }
-  button.hoofd { background: #ff4b4b; border-color: #ff4b4b; font-weight: 600; }
-  #melding { margin-top: 8px; font-size: 14px; min-height: 18px; }
+  #wrap { width: 100%; padding: 2px 0 6px 0; }
+  #kader { display: none; position: relative; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; }
+  video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
   canvas { display: none; }
+  button { font-size: 16px; border-radius: 8px; cursor: pointer; color: #fff;
+           background: rgba(20, 20, 28, 0.92); border: 1px solid rgba(255,255,255,0.3); }
+  #b_start { width: 100%; padding: 16px 10px; background: #ff4b4b; border-color: #ff4b4b; font-weight: 600; }
+  /* Knoppen liggen OVER het beeld, zodat je altijd het beeld en de knop tegelijk ziet */
+  #boven { position: absolute; top: 8px; right: 8px; display: flex; gap: 8px; }
+  #boven button { width: 46px; height: 46px; padding: 0; font-size: 20px; background: rgba(0,0,0,0.55); }
+  #onder { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
+           padding: 10px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.55)); }
+  #b_foto { min-width: 190px; padding: 14px 22px; font-weight: 600; background: #ff4b4b; border-color: #ff4b4b; }
+  #toast { position: absolute; top: 10px; left: 10px; padding: 6px 10px; border-radius: 8px; font-size: 14px;
+           background: rgba(0,0,0,0.6); display: none; }
+  #melding { margin-top: 8px; font-size: 14px; min-height: 0; }
 </style>
 </head>
 <body>
 <div id="wrap">
-  <video id="video" playsinline muted autoplay></video>
-  <canvas id="canvas"></canvas>
-  <div class="rij" id="rij_start"><button class="hoofd" id="b_start">📷 Camera starten (achterkant)</button></div>
-  <div class="rij" id="rij_actie" style="display:none">
-    <button class="hoofd" id="b_foto">📸 Maak foto</button>
-    <button id="b_wissel">🔄 Wissel camera</button>
-    <button id="b_stop">⏹ Stop</button>
+  <button id="b_start">📷 Camera starten (achterkant)</button>
+  <div id="kader">
+    <video id="video" playsinline muted autoplay></video>
+    <div id="toast"></div>
+    <div id="boven">
+      <button id="b_wissel" title="Wissel camera">🔄</button>
+      <button id="b_stop" title="Stop camera">✖</button>
+    </div>
+    <div id="onder"><button id="b_foto">📸 Maak foto</button></div>
   </div>
+  <canvas id="canvas"></canvas>
   <div id="melding"></div>
 </div>
 <script>
@@ -61,19 +72,52 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
     window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, data || {}), "*");
   }
   var video = document.getElementById("video");
+  var kader = document.getElementById("kader");
   var canvas = document.getElementById("canvas");
   var melding = document.getElementById("melding");
+  var toast = document.getElementById("toast");
+  var bStart = document.getElementById("b_start");
   var stream = null;
   var facing = "environment";   // standaard de camera op de achterkant
   var teller = 0;
+  var toastTimer = null;
 
   function hoogte() { send("streamlit:setFrameHeight", { height: document.documentElement.scrollHeight }); }
   if (window.ResizeObserver) { new ResizeObserver(hoogte).observe(document.body); }
 
+  // Hoogte van het zichtbare scherm van de app (niet van dit kleine kader, om een lus te voorkomen)
+  function schermHoogte() {
+    var h = 0;
+    try { h = window.parent.innerHeight; } catch (e) { h = 0; }
+    if (!h) {
+      var s = window.screen || {};
+      var landschap = window.matchMedia && window.matchMedia("(orientation: landscape)").matches;
+      var lang = Math.max(s.width || 0, s.height || 0), kort = Math.min(s.width || 0, s.height || 0);
+      h = Math.round((landschap ? kort : lang) * 0.85) || 600;
+    }
+    return h;
+  }
+
+  // Maak het beeldvak precies zo groot en zo gevormd als het camerabeeld, binnen het scherm
+  function pasFormaatAan() {
+    var vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) { return; }
+    var ar = vw / vh;
+    var maxB = document.getElementById("wrap").clientWidth || 300;
+    var maxH = Math.max(180, Math.round(schermHoogte() * 0.8));
+    var b = Math.min(maxB, Math.round(maxH * ar));
+    kader.style.width = b + "px";
+    kader.style.height = Math.round(b / ar) + "px";
+    hoogte();
+  }
+  video.addEventListener("loadedmetadata", pasFormaatAan);
+  video.addEventListener("resize", pasFormaatAan);   // gebeurt als je de telefoon draait
+  window.addEventListener("resize", pasFormaatAan);
+  window.addEventListener("orientationchange", function () { setTimeout(pasFormaatAan, 300); });
+
   function toon(actief) {
-    document.getElementById("rij_start").style.display = actief ? "none" : "flex";
-    document.getElementById("rij_actie").style.display = actief ? "flex" : "none";
-    video.style.display = actief ? "block" : "none";
+    bStart.style.display = actief ? "none" : "block";
+    kader.style.display = actief ? "block" : "none";
     setTimeout(hoogte, 50);
   }
 
@@ -91,17 +135,9 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
         audio: false
       });
       video.srcObject = stream;
-      await video.play();
       toon(true);
-      video.onloadedmetadata = function () {
-        if (video.videoWidth && video.videoHeight) {
-          video.style.aspectRatio = video.videoWidth + " / " + video.videoHeight;
-        }
-        hoogte();
-      };
-      if (video.videoWidth && video.videoHeight) {
-        video.style.aspectRatio = video.videoWidth + " / " + video.videoHeight;
-      }
+      await video.play();
+      pasFormaatAan();
     } catch (e) {
       toon(false);
       melding.textContent = "Camera niet beschikbaar: " + ((e && (e.message || e.name)) || e) +
@@ -110,9 +146,16 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
     }
   }
 
+  function toonToast(tekst) {
+    toast.textContent = tekst;
+    toast.style.display = "block";
+    if (toastTimer) { clearTimeout(toastTimer); }
+    toastTimer = setTimeout(function () { toast.style.display = "none"; }, 1500);
+  }
+
   function maakFoto() {
     var w = video.videoWidth, h = video.videoHeight;
-    if (!w || !h) { melding.textContent = "De camera is nog niet klaar, probeer het zo opnieuw."; return; }
+    if (!w || !h) { toonToast("Camera is nog niet klaar"); return; }
     var schaal = Math.min(1, 1920 / Math.max(w, h));
     canvas.width = Math.round(w * schaal);
     canvas.height = Math.round(h * schaal);
@@ -120,17 +163,16 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
     var data = canvas.toDataURL("image/jpeg", 0.85);
     teller += 1;
     send("streamlit:setComponentValue", { value: { ts: Date.now() + "-" + teller, data: data }, dataType: "json" });
-    melding.textContent = "✅ Foto " + teller + " gemaakt";
-    hoogte();
+    toonToast("✅ Foto " + teller + " gemaakt");
   }
 
-  document.getElementById("b_start").onclick = start;
+  bStart.onclick = start;
   document.getElementById("b_foto").onclick = maakFoto;
   document.getElementById("b_wissel").onclick = function () {
     facing = (facing === "environment") ? "user" : "environment";
     start();
   };
-  document.getElementById("b_stop").onclick = function () { stopStream(); toon(false); melding.textContent = ""; hoogte(); };
+  document.getElementById("b_stop").onclick = function () { stopStream(); toon(false); melding.textContent = ""; };
   document.addEventListener("visibilitychange", function () { if (document.hidden && stream) { stopStream(); toon(false); } });
 
   send("streamlit:componentReady", { apiVersion: 1 });
