@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import hmac
 import re
 import unicodedata
@@ -196,14 +197,16 @@ _ACHTER_CAMERA_HTML = r"""<!DOCTYPE html>
 
 
 @st.cache_resource
-def _laad_achtercamera_component():
-    """Zet het camera-onderdeel klaar. Geeft None terug als dat niet lukt (dan gebruiken we de standaardcamera)."""
+def _laad_achtercamera_component(versie):
+    """Zet het camera-onderdeel klaar. Geeft None terug als dat niet lukt (dan gebruiken we de standaardcamera).
+    'versie' hoort bij de inhoud van de HTML: verandert de HTML, dan krijgt het onderdeel automatisch een nieuwe
+    naam en map, zodat een oude versie nooit meer uit het geheugen van de server of de browser wordt gebruikt."""
     try:
-        map_pad = os.path.join(tempfile.gettempdir(), "autohandel_achtercamera_v1")
+        map_pad = os.path.join(tempfile.gettempdir(), f"autohandel_achtercamera_{versie}")
         os.makedirs(map_pad, exist_ok=True)
         with open(os.path.join(map_pad, "index.html"), "w", encoding="utf-8") as f:
             f.write(_ACHTER_CAMERA_HTML)
-        return components.declare_component("achtercamera_v1", path=map_pad)
+        return components.declare_component(f"achtercamera_{versie}", path=map_pad)
     except Exception:
         return None
 
@@ -227,7 +230,7 @@ def camera_fotos_widget(prefix):
             value=True,
             key=f"{prefix}_cam_crop",
         )
-        achter_camera = _laad_achtercamera_component()
+        achter_camera = _laad_achtercamera_component(hashlib.md5(_ACHTER_CAMERA_HTML.encode("utf-8")).hexdigest()[:10])
         reserve = st.checkbox(
             "Reservecamera gebruiken (als de achtercamera niet laadt)",
             value=achter_camera is None,
